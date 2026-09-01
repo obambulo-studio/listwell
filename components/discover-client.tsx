@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { categoryIdSchema, getCategoryIdFromGooglePlaceTypes, type CategoryId } from "@/lib/category";
-import { discoveredProfileSchema, type DiscoveredProfile } from "@/lib/channel";
+import { getCategoryIdFromGooglePlaceTypes, type CategoryId } from "@/lib/category";
+import { type DiscoveredProfile } from "@/lib/channel";
 import { z } from "zod";
 
 const googlePlacesSchema = z.object({
@@ -124,20 +124,4 @@ export function DiscoverClient({
       </ul>
     </div>
   );
-}
-
-export function parseCategoryParam(value: string | undefined): CategoryId {
-  const parsed = categoryIdSchema.safeParse(value);
-  return parsed.success ? parsed.data : "other";
-}
-
-export function parseProfilesParam(value: string | undefined): DiscoveredProfile[] {
-  if (!value) {
-    return [];
-  }
-  try {
-    return z.array(discoveredProfileSchema).parse(JSON.parse(value));
-  } catch {
-    return [];
-  }
 }

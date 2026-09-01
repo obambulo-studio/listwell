@@ -1,4 +1,5 @@
-import { DiscoverClient, parseCategoryParam } from "@/components/discover-client";
+import { DiscoverClient } from "@/components/discover-client";
+import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
 
 export const metadata = {
   title: "Discovering your listings",
@@ -10,9 +11,9 @@ export default async function DiscoverPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const businessName = typeof params.businessName === "string" ? params.businessName : "";
-  const websiteUrl = typeof params.websiteUrl === "string" ? params.websiteUrl : undefined;
-  const categoryId = parseCategoryParam(typeof params.categoryId === "string" ? params.categoryId : undefined);
+  const businessName = firstSearchParam(params.businessName) ?? "";
+  const websiteUrl = firstSearchParam(params.websiteUrl);
+  const categoryId = parseCategoryParam(firstSearchParam(params.categoryId));
 
   return (
     <section className="vbg-opening">
