@@ -30,6 +30,14 @@ export function DiscoverClient({
 
   useEffect(() => {
     let cancelled = false;
+    const started = Date.now();
+
+    async function holdSentence() {
+      const wait = 700 - (Date.now() - started);
+      if (wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
+    }
 
     async function discover() {
       setStatus("Looking for map listings, a website, and social profiles");
@@ -64,11 +72,19 @@ export function DiscoverClient({
           return;
         }
 
+        await holdSentence();
+        if (cancelled) {
+          return;
+        }
         continueToConfirm(parsed, selectedCandidate);
       } catch {
         if (!cancelled) {
           setError("Search skipped. You can add listings on the next screen.");
           setStatus("Opening the confirm screen");
+          await holdSentence();
+          if (cancelled) {
+            return;
+          }
           continueToConfirm(
             {
               categoryId,
@@ -116,7 +132,9 @@ export function DiscoverClient({
 
   return (
     <div className="vbg-custom-progress">
-      <p className="vbg-lede">{status}.</p>
+      <p className="vbg-lede" aria-live="polite">
+        {status}.
+      </p>
       {error ? <p className="vbg-error">{error}</p> : null}
       {needsChoice && result ? (
         <div className="vbg-table-wrap">
