@@ -46,7 +46,7 @@ Set secrets with `wrangler secret put` (see `.env.example`):
 - `GOOGLE_API_KEY`
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`
 - `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Browser Rendering REST fallback)
-- Apple MapKit keys if you later wire LIST-4/5 lookups
+- `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, and `APPLE_MAPKIT_PRIVATE_KEY` for Apple Maps search on create-audit
 
 ## What the engine does
 

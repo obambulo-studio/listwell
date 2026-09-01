@@ -469,6 +469,34 @@ textarea:focus-visible {
   gap: var(--vbg-space-3);
 }
 
+.vbg-custom-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.vbg-custom-choice {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  gap: var(--vbg-space-1);
+  margin: 0;
+  padding: var(--vbg-space-3) 0;
+  border: 0;
+  border-bottom: 1px solid var(--vbg-border-subtle);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vbg-custom-choice[aria-pressed="true"] {
+  box-shadow: inset 3px 0 0 var(--vbg-border-strong);
+  padding-left: var(--vbg-space-3);
+}
+
 .vbg-section + .vbg-section {
   margin-top: var(--vbg-space-12);
 }

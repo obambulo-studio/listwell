@@ -1,15 +1,67 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { CATEGORY_CONFIG, categoryIdSchema, type CategoryId } from "@/lib/category";
+import { useEffect, useState } from "react";
+import { CATEGORY_CONFIG, categoryIdSchema, getCategoryIdFromGooglePlaceTypes, type CategoryId } from "@/lib/category";
+import { lookupResponseSchema, type PlaceCandidate } from "@/lib/discover";
 
 export function HomeForm() {
   const router = useRouter();
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [category, setCategory] = useState<CategoryId>("other");
+  const [candidates, setCandidates] = useState<PlaceCandidate[]>([]);
+  const [selected, setSelected] = useState<PlaceCandidate | null>(null);
+  const [searchStatus, setSearchStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const trimmed = businessName.trim();
+    if (trimmed.length < 2) {
+      setCandidates([]);
+      setSearchStatus(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setSearchStatus("Searching listings");
+      void fetch(`/api/lookups?source=places&q=${encodeURIComponent(trimmed)}`, {
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error("Search failed");
+          }
+          const parsed = lookupResponseSchema.parse(await response.json());
+          setCandidates(parsed.candidates);
+          setSearchStatus(parsed.candidates.length === 0 ? "No listings found yet" : null);
+        })
+        .catch((searchError: unknown) => {
+          if (searchError instanceof DOMException && searchError.name === "AbortError") {
+            return;
+          }
+          setCandidates([]);
+          setSearchStatus(null);
+        });
+    }, 300);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [businessName]);
+
+  function selectCandidate(candidate: PlaceCandidate) {
+    setSelected(candidate);
+    setBusinessName(candidate.name);
+    if (candidate.websiteUrl && !websiteUrl.trim()) {
+      setWebsiteUrl(candidate.websiteUrl);
+    }
+    if (candidate.types) {
+      setCategory(getCategoryIdFromGooglePlaceTypes(candidate.types));
+    }
+  }
 
   return (
     <form
@@ -28,6 +80,12 @@ export function HomeForm() {
         if (websiteUrl.trim()) {
           params.set("websiteUrl", websiteUrl.trim());
         }
+        if (selected?.source === "google") {
+          params.set("googlePlaceId", selected.id);
+        }
+        if (selected?.source === "apple") {
+          params.set("appleMapsId", selected.id);
+        }
         router.push(`/discover?${params.toString()}`);
       }}
     >
@@ -39,11 +97,34 @@ export function HomeForm() {
           id="businessName"
           name="businessName"
           value={businessName}
-          onChange={(event) => setBusinessName(event.target.value)}
+          onChange={(event) => {
+            setBusinessName(event.target.value);
+            setSelected(null);
+          }}
           autoComplete="organization"
           required
         />
+        <p className="vbg-helper">Search Google Maps and Apple Maps, then choose the listing that is yours.</p>
       </div>
+      {searchStatus ? <p className="vbg-helper">{searchStatus}</p> : null}
+      {candidates.length > 0 ? (
+        <ul className="vbg-custom-choices">
+          {candidates.map((candidate) => (
+            <li key={`${candidate.source}-${candidate.id}`}>
+              <button
+                className="vbg-custom-choice"
+                type="button"
+                aria-pressed={selected?.id === candidate.id && selected.source === candidate.source}
+                onClick={() => selectCandidate(candidate)}
+              >
+                <span>{candidate.name}</span>
+                {candidate.address ? <span className="vbg-meta">{candidate.address}</span> : null}
+                <span className="vbg-meta">{candidate.source === "google" ? "Google Maps" : "Apple Maps"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="vbg-field">
         <label className="vbg-label" htmlFor="websiteUrl">
           Website URL
