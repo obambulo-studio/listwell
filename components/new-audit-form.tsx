@@ -96,10 +96,10 @@ export function NewAuditForm({
       </section>
 
       <section className="vbg-section">
-        <h2 className="vbg-heading-20">Discovered profiles</h2>
+        <h2 className="vbg-heading-20">Listings we found</h2>
         <div className="vbg-table-wrap">
           <table>
-            <caption className="vbg-visually-hidden">Profiles attached to this audit</caption>
+            <caption className="vbg-visually-hidden">Listings attached to this audit</caption>
             <thead>
               <tr>
                 <th scope="col">Channel</th>
@@ -244,7 +244,7 @@ export function NewAuditForm({
                   (channelId === "google-maps" || channelId === "apple-maps" ? !place : !value.trim())
                 }
               >
-                Add profile
+                Add listing
               </button>
               <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setShowAdd(false)}>
                 Cancel

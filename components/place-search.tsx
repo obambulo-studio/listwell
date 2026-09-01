@@ -37,7 +37,7 @@ export function PlaceSearch({
           }
           const parsed = lookupResponseSchema.parse(await response.json());
           setCandidates(parsed.candidates);
-          setStatus(parsed.candidates.length === 0 ? "No listings found" : null);
+          setStatus(parsed.candidates.length === 0 ? "No listings found yet" : null);
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") {
