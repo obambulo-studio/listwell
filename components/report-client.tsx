@@ -322,8 +322,8 @@ export function ReportClient({
       : `Showing all checks. ${visible.length} of ${liveChecks.length}.`;
   const listingsCaption =
     profiles.length === 0
-      ? "No listings stored yet."
-      : `${profiles.length} stored ${profiles.length === 1 ? "listing" : "listings"}.`;
+      ? "No listings yet."
+      : `${profiles.length} ${profiles.length === 1 ? "listing" : "listings"} on this audit.`;
 
   return (
     <>
