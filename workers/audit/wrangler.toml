@@ -1,0 +1,26 @@
+name = "listwell-audit"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Optional REST Browser Rendering (faster than a full puppeteer session).
+# CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are secrets.
+
+# Browser Rendering binding — used when REST credentials are not set.
+[browser]
+binding = "BROWSER"
+
+[[queues.producers]]
+binding = "AUDIT_QUEUE"
+queue = "listwell-audit"
+
+[[queues.consumers]]
+queue = "listwell-audit"
+max_batch_size = 1
+max_retries = 3
+
+[[kv_namespaces]]
+binding = "AUDIT_KV"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000000"
