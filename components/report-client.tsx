@@ -45,12 +45,25 @@ function statusLabel(status: CheckStatus): string {
     case "error":
       return "Error";
     case "queued":
-      return "Queued";
     case "pending":
-      return "Pending";
+      return "Waiting";
     default:
       return "Idle";
   }
+}
+
+function detailLabel(item: LiveCheck): string | undefined {
+  if (item.status === "queued" || item.status === "pending") {
+    return undefined;
+  }
+  const label = item.result?.label;
+  if (!label) {
+    return undefined;
+  }
+  if (label.toLowerCase() === statusLabel(item.status).toLowerCase()) {
+    return undefined;
+  }
+  return label;
 }
 
 export function ReportClient({
@@ -103,7 +116,7 @@ export function ReportClient({
         }
         if (job.status === "error") {
           for (const checkId of pendingIds) {
-            applyResult(checkId, { type: "check", value: null, label: "Check failed to run" }, Date.now() - started);
+            applyResult(checkId, { type: "check", value: null, label: "This check could not run" }, Date.now() - started);
           }
           break;
         }
@@ -127,7 +140,7 @@ export function ReportClient({
           if (result) {
             applyResult(item.id, result, Date.now() - start);
           } else if (batch.pending.includes(item.id)) {
-            applyResult(item.id, { type: "check", value: null, label: "Queued", queued: true, jobId: batch.jobId });
+            applyResult(item.id, { type: "check", value: null, queued: true, jobId: batch.jobId });
           }
         }
         if (batch.jobId && batch.pending.length > 0) {
@@ -150,7 +163,7 @@ export function ReportClient({
               if (!cancelled) {
                 applyResult(
                   definition.id,
-                  { type: "check", value: null, label: "Check failed to run" },
+                  { type: "check", value: null, label: "This check could not run" },
                   Date.now() - checkStart,
                 );
               }
@@ -167,6 +180,7 @@ export function ReportClient({
   }, [business.id, checks]);
 
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
+  const selectedDetail = selected ? detailLabel(selected) : undefined;
 
   const channelScores = useMemo(() => {
     const groups = new Map<string, LiveCheck[]>();
@@ -234,7 +248,10 @@ export function ReportClient({
       <section className="vbg-section">
         <h2 className="vbg-heading-24">Checks</h2>
         <p className="vbg-caption">
-          Showing {filter === "failures" ? "failures, errors, and pending checks" : "all checks"}. {visible.length} of {liveChecks.length}.
+          {filter === "failures"
+            ? "Showing checks that still need attention."
+            : "Showing all checks."}{" "}
+          {visible.length} of {liveChecks.length}.
         </p>
         <div className="vbg-custom-actions" style={{ marginTop: "16px" }}>
           <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setFilter("failures")}>
@@ -286,7 +303,7 @@ export function ReportClient({
             {pointsFor(selected.definition, business.category)} points
             {" · "}
             {statusLabel(selected.status)}
-            {selected.result?.label ? ` · ${selected.result.label}` : ""}
+            {selectedDetail ? ` · ${selectedDetail}` : ""}
           </p>
           <CheckBody markdown={selected.definition.body} />
         </section>
