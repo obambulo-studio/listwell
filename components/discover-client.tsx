@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ListingChoices } from "@/components/place-search";
 import { type CategoryId } from "@/lib/category";
 import {
   discoverResponseSchema,
@@ -26,7 +27,6 @@ export function DiscoverClient({
   const router = useRouter();
   const [status, setStatus] = useState("Looking for map listings, a website, and social profiles");
   const [result, setResult] = useState<DiscoverResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +77,7 @@ export function DiscoverClient({
         continueToConfirm(parsed, selectedCandidate);
       } catch {
         if (!cancelled) {
-          setError("Search skipped. You can add listings on the next screen.");
+          setStatus("Search skipped");
           await sentenceHold;
           if (cancelled) {
             return;
@@ -132,37 +132,7 @@ export function DiscoverClient({
       <p className="vbg-lede" aria-live="polite">
         {status}.
       </p>
-      {error ? <p className="vbg-error">{error}</p> : null}
-      {needsChoice && result ? (
-        <div className="vbg-table-wrap">
-          <table>
-            <caption className="vbg-visually-hidden">Map listings to choose from</caption>
-            <thead>
-              <tr>
-                <th scope="col">Listing</th>
-                <th scope="col">Source</th>
-                <th scope="col">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.candidates.map((candidate) => (
-                <tr key={`${candidate.source}-${candidate.id}`}>
-                  <th scope="row">
-                    {candidate.name}
-                    {candidate.address ? <div className="vbg-meta">{candidate.address}</div> : null}
-                  </th>
-                  <td>{candidate.source === "google" ? "Google Maps" : "Apple Maps"}</td>
-                  <td>
-                    <button className="vbg-button vbg-button-quiet" type="button" onClick={() => chooseCandidate(candidate)}>
-                      This one
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      {needsChoice && result ? <ListingChoices candidates={result.candidates} onSelect={chooseCandidate} /> : null}
     </div>
   );
 }
