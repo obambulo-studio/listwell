@@ -159,7 +159,7 @@ export function HomeForm() {
       {error ? <p className="vbg-error">{error}</p> : null}
       <div className="vbg-custom-actions">
         <button className="vbg-button" type="submit">
-          Get my fixes
+          Continue
         </button>
       </div>
     </form>

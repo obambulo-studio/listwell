@@ -1,10 +1,6 @@
 import { DiscoverClient } from "@/components/discover-client";
 import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
 
-export const metadata = {
-  title: "Finding your listings",
-};
-
 export default async function DiscoverPage({
   searchParams,
 }: {
@@ -19,7 +15,6 @@ export default async function DiscoverPage({
 
   return (
     <section className="vbg-opening">
-      <h1 className="vbg-title">Finding your listings</h1>
       {businessName ? (
         <DiscoverClient
           businessName={businessName}
