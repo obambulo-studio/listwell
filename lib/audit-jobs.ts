@@ -29,8 +29,23 @@ function latestKey(businessId: string, checkId: CheckId): string {
   return `latest:${businessId}:${checkId}`;
 }
 
-const memoryJobs = new Map<string, AuditJob>();
-const memoryLatest = new Map<string, string>();
+type JobMemory = {
+  jobs: Map<string, AuditJob>;
+  latest: Map<string, string>;
+};
+
+declare global {
+  var listwellAuditJobs: JobMemory | undefined;
+}
+
+const jobMemory: JobMemory = globalThis.listwellAuditJobs ?? {
+  jobs: new Map<string, AuditJob>(),
+  latest: new Map<string, string>(),
+};
+globalThis.listwellAuditJobs = jobMemory;
+
+const memoryJobs = jobMemory.jobs;
+const memoryLatest = jobMemory.latest;
 
 export function newJobId(): string {
   return crypto.randomUUID();

@@ -14,11 +14,22 @@ import * as schema from "./schema";
 
 const { businesses, businessLocations } = schema;
 
-const memory = {
+type MemoryStore = {
+  businesses: Map<string, Omit<Business, "locations">>;
+  locations: Map<number, Business["locations"][number]>;
+  nextLocationId: number;
+};
+
+declare global {
+  var listwellMemory: MemoryStore | undefined;
+}
+
+const memory: MemoryStore = globalThis.listwellMemory ?? {
   businesses: new Map<string, Omit<Business, "locations">>(),
   locations: new Map<number, Business["locations"][number]>(),
   nextLocationId: 1,
 };
+globalThis.listwellMemory = memory;
 
 function nowIso(): string {
   return new Date().toISOString();
