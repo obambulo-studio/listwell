@@ -1,4 +1,4 @@
-import { parseHTML } from "linkedom/worker";
+import { DOMParser } from "linkedom/worker";
 import { z } from "zod";
 
 export type HtmlElement = {
@@ -95,9 +95,7 @@ export async function fetchWebsite(url: string): Promise<WebsiteSnapshot> {
     },
   });
   const html = await response.text();
-  const parsed: unknown = parseHTML(html);
-  const documentValue =
-    typeof parsed === "object" && parsed !== null && "document" in parsed ? parsed.document : parsed;
+  const documentValue: unknown = new DOMParser().parseFromString(html, "text/html");
 
   const snapshot: WebsiteSnapshot = {
     url,

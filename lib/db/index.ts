@@ -32,16 +32,54 @@ function parseBusinessRow(row: typeof schema.businesses.$inferSelect, locations:
   });
 }
 
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS businesses (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  website_url TEXT,
+  facebook_url TEXT,
+  instagram_username TEXT,
+  tiktok_username TEXT,
+  x_username TEXT,
+  linkedin_url TEXT,
+  youtube_url TEXT,
+  uber_eats_url TEXT,
+  door_dash_url TEXT,
+  deliveroo_url TEXT,
+  menulog_url TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS business_locations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  google_place_id TEXT,
+  apple_maps_id TEXT,
+  name TEXT,
+  address TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+let schemaReady = false;
+
 async function getD1(): Promise<D1Database | null> {
   try {
     const context = await getCloudflareContext({ async: true });
-    if (context.env.DB) {
-      return context.env.DB;
+    if (!context.env.DB) {
+      return null;
     }
+    if (!schemaReady) {
+      await context.env.DB.exec(SCHEMA_SQL);
+      schemaReady = true;
+    }
+    return context.env.DB;
   } catch {
     return null;
   }
-  return null;
 }
 
 export async function listBusinesses(ids: string[]): Promise<Business[]> {

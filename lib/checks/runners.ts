@@ -42,9 +42,18 @@ export const runners: Record<string, CheckRunner> = {
   },
 
   async "website-200-299"(business) {
-    return withWebsite(business, (snapshot) =>
-      result(snapshot.ok, `${snapshot.status} ${snapshot.statusText}`),
-    );
+    if (!business.websiteUrl) {
+      return result(false, "No website URL provided");
+    }
+    try {
+      const response = await fetch(business.websiteUrl, {
+        redirect: "follow",
+        headers: { "User-Agent": "ListwellSEO/1.0" },
+      });
+      return result(response.ok, `${response.status} ${response.statusText}`);
+    } catch (error) {
+      return result(false, `Error fetching website: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
   },
 
   async "website-title"(business) {
