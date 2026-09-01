@@ -115,6 +115,17 @@ function detailLabel(item: LiveCheck): string | undefined {
   return label;
 }
 
+function recommendedCheckId(summary: AuditSummaryResult | null, liveChecks: LiveCheck[]): string | undefined {
+  const cited = summary?.nextActions[0]?.checkIds[0];
+  if (cited && liveChecks.some((item) => item.definition.id === cited)) {
+    return cited;
+  }
+  return (
+    liveChecks.find((item) => item.status === "fail" || item.status === "error")?.definition.id ??
+    liveChecks[0]?.definition.id
+  );
+}
+
 export function ReportClient({
   initialBusiness,
   checks,
@@ -126,7 +137,7 @@ export function ReportClient({
   const [liveChecks, setLiveChecks] = useState<LiveCheck[]>(() =>
     checks.map((definition) => ({ definition, status: "pending", result: null })),
   );
-  const [selectedId, setSelectedId] = useState<string | undefined>(checks[0]?.id);
+  const [pickedId, setPickedId] = useState<string | undefined>(undefined);
   const [filter, setFilter] = useState<"failures" | "all">("failures");
   const [summary, setSummary] = useState<AuditSummaryResult | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -291,6 +302,7 @@ export function ReportClient({
     };
   }, [business.category, business.id, checksFinished, completedSignature, liveChecks]);
 
+  const selectedId = pickedId ?? recommendedCheckId(summary, liveChecks);
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
   const selectedDetail = selected ? detailLabel(selected) : undefined;
   const citationChecks = liveChecks.map((item) => ({ id: item.definition.id, title: item.definition.title }));
@@ -304,73 +316,68 @@ export function ReportClient({
   });
 
   const profiles = businessToProfiles(business);
+  const checksCaption =
+    filter === "failures"
+      ? `Showing checks that still need attention. ${visible.length} of ${liveChecks.length}.`
+      : `Showing all checks. ${visible.length} of ${liveChecks.length}.`;
+  const listingsCaption =
+    profiles.length === 0
+      ? "No listings stored yet."
+      : `${profiles.length} stored ${profiles.length === 1 ? "listing" : "listings"}.`;
 
   return (
     <>
       <section className="vbg-opening">
         <h1 className="vbg-display">{business.name}</h1>
-        <p className="vbg-lede">
-          Website and listing checks for this {business.category} business. Failures stay first so you can fix what is costing visibility.
-        </p>
-        <div className="vbg-custom-actions" style={{ marginTop: "24px" }}>
-          <Link href={`/${business.id}/edit`}>Edit listings</Link>
-        </div>
-      </section>
-
-      {checksFinished || summaryLoading || summary ? (
-        <section className="vbg-section">
-          <h2 className="vbg-heading-24">What the checks found</h2>
-          {summaryLoading && !summary ? (
-            <p className="vbg-lede">Listwell is writing the brief from the completed checks.</p>
-          ) : null}
-          {summary ? (
-            <>
-              {summary.overview.length > 0 ? (
-                <div className="vbg-reading">
-                  {summary.overview.map((claim, index) => (
-                    <p key={`${claim.text}-${index}`}>
-                      {claim.text}
-                      <span className="vbg-caption vbg-custom-citation-line">
-                        From{" "}
-                        <CitationLinks checkIds={claim.checkIds} checks={citationChecks} onSelect={setSelectedId} />
-                      </span>
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-              {summary.nextActions.length > 0 ? (
-                <ol className="vbg-custom-next-actions">
-                  {summary.nextActions.map((action) => (
-                    <li key={`${action.priority}-${action.text}`}>
-                      <span className="vbg-meta">{action.priority}</span>
-                      <div>
-                        <p>{action.text}</p>
-                        <p className="vbg-caption">
+        {checksFinished || summaryLoading || summary ? (
+          <>
+            <h2 className="vbg-heading-24">What the checks found</h2>
+            {summaryLoading && !summary ? (
+              <p className="vbg-lede">Listwell is writing the brief from the completed checks.</p>
+            ) : null}
+            {summary ? (
+              <>
+                {summary.overview.length > 0 ? (
+                  <div className="vbg-reading">
+                    {summary.overview.map((claim, index) => (
+                      <p key={`${claim.text}-${index}`}>
+                        {claim.text}
+                        <span className="vbg-caption vbg-custom-citation-line">
                           From{" "}
-                          <CitationLinks checkIds={action.checkIds} checks={citationChecks} onSelect={setSelectedId} />
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              ) : summary.overview.length > 0 ? (
-                <p className="vbg-caption">No failed checks to act on.</p>
-              ) : null}
-              {briefCaption ? <p className="vbg-caption">{briefCaption}</p> : null}
-            </>
-          ) : null}
-        </section>
-      ) : null}
+                          <CitationLinks checkIds={claim.checkIds} checks={citationChecks} onSelect={setPickedId} />
+                        </span>
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+                {summary.nextActions.length > 0 ? (
+                  <ol className="vbg-custom-next-actions">
+                    {summary.nextActions.map((action) => (
+                      <li key={`${action.priority}-${action.text}`}>
+                        <span className="vbg-meta">{action.priority}</span>
+                        <div>
+                          <p>{action.text}</p>
+                          <p className="vbg-caption">
+                            From{" "}
+                            <CitationLinks checkIds={action.checkIds} checks={citationChecks} onSelect={setPickedId} />
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : summary.overview.length > 0 ? (
+                  <p className="vbg-caption">No failed checks to act on.</p>
+                ) : null}
+                {briefCaption ? <p className="vbg-caption">{briefCaption}</p> : null}
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </section>
 
       <section className="vbg-section">
         <h2 className="vbg-heading-24">Checks</h2>
-        <p className="vbg-caption">
-          {filter === "failures"
-            ? "Showing checks that still need attention."
-            : "Showing all checks."}{" "}
-          {visible.length} of {liveChecks.length}.
-        </p>
-        <div className="vbg-custom-actions" style={{ marginTop: "16px" }}>
+        <div className="vbg-custom-actions">
           <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setFilter("failures")}>
             Failures first
           </button>
@@ -380,6 +387,7 @@ export function ReportClient({
         </div>
         <div className="vbg-table-wrap">
           <table>
+            <caption className="vbg-caption">{checksCaption}</caption>
             <thead>
               <tr>
                 <th scope="col">Check</th>
@@ -397,7 +405,7 @@ export function ReportClient({
                   className={item.definition.id === selectedId ? "vbg-custom-row-selected" : undefined}
                 >
                   <th scope="row">
-                    <button type="button" onClick={() => setSelectedId(item.definition.id)}>
+                    <button type="button" onClick={() => setPickedId(item.definition.id)}>
                       {item.definition.title}
                     </button>
                   </th>
@@ -428,13 +436,12 @@ export function ReportClient({
 
       <section className="vbg-section">
         <h2 className="vbg-heading-24">Listings on this audit</h2>
-        <p className="vbg-caption">
-          {profiles.length === 0
-            ? "No listings stored yet."
-            : `${profiles.length} stored ${profiles.length === 1 ? "listing" : "listings"}.`}
+        <p className="vbg-meta">
+          <Link href={`/${business.id}/edit`}>Edit listings</Link>
         </p>
         <div className="vbg-table-wrap">
           <table>
+            <caption className="vbg-caption">{listingsCaption}</caption>
             <thead>
               <tr>
                 <th scope="col">Channel</th>

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ListingChoices } from "@/components/place-search";
 import { CATEGORY_CONFIG, categoryIdSchema, getCategoryIdFromGooglePlaceTypes, type CategoryId } from "@/lib/category";
 import { lookupResponseSchema, type PlaceCandidate } from "@/lib/discover";
 
@@ -42,7 +43,7 @@ export function HomeForm() {
             return;
           }
           setCandidates([]);
-          setSearchStatus(null);
+          setSearchStatus("Search skipped");
         });
     }, 300);
 
@@ -107,24 +108,7 @@ export function HomeForm() {
         <p className="vbg-helper">Search Google Maps and Apple Maps, then choose the listing that is yours.</p>
       </div>
       {searchStatus ? <p className="vbg-helper">{searchStatus}</p> : null}
-      {candidates.length > 0 ? (
-        <ul className="vbg-custom-choices">
-          {candidates.map((candidate) => (
-            <li key={`${candidate.source}-${candidate.id}`}>
-              <button
-                className="vbg-custom-choice"
-                type="button"
-                aria-pressed={selected?.id === candidate.id && selected.source === candidate.source}
-                onClick={() => selectCandidate(candidate)}
-              >
-                <span>{candidate.name}</span>
-                {candidate.address ? <span className="vbg-meta">{candidate.address}</span> : null}
-                <span className="vbg-meta">{candidate.source === "google" ? "Google Maps" : "Apple Maps"}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ListingChoices candidates={candidates} selected={selected} onSelect={selectCandidate} />
       <div className="vbg-field">
         <label className="vbg-label" htmlFor="websiteUrl">
           Website URL
