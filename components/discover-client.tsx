@@ -27,7 +27,6 @@ export function DiscoverClient({
   const router = useRouter();
   const [status, setStatus] = useState("Looking for map listings, a website, and social profiles");
   const [result, setResult] = useState<DiscoverResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +77,7 @@ export function DiscoverClient({
         continueToConfirm(parsed, selectedCandidate);
       } catch {
         if (!cancelled) {
-          setError("Search skipped. You can add listings on the next screen.");
+          setStatus("Search skipped");
           await sentenceHold;
           if (cancelled) {
             return;
@@ -133,7 +132,6 @@ export function DiscoverClient({
       <p className="vbg-lede" aria-live="polite">
         {status}.
       </p>
-      {error ? <p className="vbg-error">{error}</p> : null}
       {needsChoice && result ? <ListingChoices candidates={result.candidates} onSelect={chooseCandidate} /> : null}
     </div>
   );
