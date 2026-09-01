@@ -34,7 +34,7 @@ export function DiscoverClient({
     let releaseHold = () => {};
     const sentenceHold = new Promise<void>((resolve) => {
       releaseHold = resolve;
-      holdTimer = window.setTimeout(resolve, 2000);
+      holdTimer = window.setTimeout(resolve, 700);
     });
 
     async function discover() {
