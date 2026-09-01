@@ -3,6 +3,8 @@
 open-next
 .open-next
 out
+tsconfig.tsbuildinfo
+*.tsbuildinfo
 
 # Nuxt leftovers
 .output
