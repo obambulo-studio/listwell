@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getCategoryIdFromGooglePlaceTypes, type CategoryId } from "@/lib/category";
-import { type DiscoveredProfile } from "@/lib/channel";
+import { CHANNEL_CONFIG, type DiscoveredProfile } from "@/lib/channel";
 import { z } from "zod";
 
 const googlePlacesSchema = z.object({
@@ -117,7 +117,7 @@ export function DiscoverClient({
       <ul>
         {profiles.map((profile) => (
           <li key={`${profile.type}-${profile.title}`}>
-            <span className="vbg-label">{profile.type}</span> {profile.title}
+            <span className="vbg-label">{CHANNEL_CONFIG[profile.type].name}</span> {profile.title}
             {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
           </li>
         ))}

@@ -141,22 +141,6 @@ export function ReportClient({
 
       <section className="vbg-section">
         <h2 className="vbg-heading-24">Score by channel</h2>
-        <div className="vbg-stat-strip">
-          <div className="vbg-stat">
-            <p className="vbg-stat-label">Overall</p>
-            <p className="vbg-stat-value">{overall}</p>
-            <p className="vbg-stat-detail">Weighted pass rate</p>
-          </div>
-          {channelScores.slice(0, 3).map((channel) => (
-            <div className="vbg-stat" key={channel.name}>
-              <p className="vbg-stat-label">{channel.name}</p>
-              <p className="vbg-stat-value">{channel.percentage}</p>
-              <p className="vbg-stat-detail">
-                {channel.score} of {channel.total} points
-              </p>
-            </div>
-          ))}
-        </div>
         <div className="vbg-bar-list">
           {channelScores.map((channel) => (
             <div className="vbg-bar" key={`bar-${channel.name}`} style={{ display: "contents" }}>
@@ -167,36 +151,6 @@ export function ReportClient({
               <p className="vbg-bar-value">{channel.percentage}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="vbg-section">
-        <h2 className="vbg-heading-24">Listings on this audit</h2>
-        <p className="vbg-caption">
-          {profiles.length === 0
-            ? "No listings stored yet."
-            : `${profiles.length} stored ${profiles.length === 1 ? "listing" : "listings"}.`}
-        </p>
-        <div className="vbg-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Channel</th>
-                <th scope="col">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.map((profile) => (
-                <tr key={`${profile.type}-${profile.title}`}>
-                  <td>{CHANNEL_CONFIG[profile.type].name}</td>
-                  <td>
-                    {profile.title}
-                    {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </section>
 
@@ -260,6 +214,36 @@ export function ReportClient({
           <CheckBody markdown={selected.definition.body} />
         </section>
       ) : null}
+
+      <section className="vbg-section">
+        <h2 className="vbg-heading-24">Listings on this audit</h2>
+        <p className="vbg-caption">
+          {profiles.length === 0
+            ? "No listings stored yet."
+            : `${profiles.length} stored ${profiles.length === 1 ? "listing" : "listings"}.`}
+        </p>
+        <div className="vbg-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Channel</th>
+                <th scope="col">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profiles.map((profile) => (
+                <tr key={`${profile.type}-${profile.title}`}>
+                  <td>{CHANNEL_CONFIG[profile.type].name}</td>
+                  <td>
+                    {profile.title}
+                    {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
