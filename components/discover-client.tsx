@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CHANNEL_CONFIG } from "@/lib/channel";
 import { type CategoryId } from "@/lib/category";
 import {
   discoverResponseSchema,
@@ -25,7 +24,7 @@ export function DiscoverClient({
   appleMapsId?: string;
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState("Looking for map listings");
+  const [status, setStatus] = useState("Looking for map listings, a website, and social profiles");
   const [result, setResult] = useState<DiscoverResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,11 +112,13 @@ export function DiscoverClient({
     router.replace(`/new?${params.toString()}`);
   }
 
+  const needsChoice = Boolean(result && result.candidates.length > 1 && !googlePlaceId && !appleMapsId);
+
   return (
     <div className="vbg-custom-progress">
       <p className="vbg-lede">{status}.</p>
       {error ? <p className="vbg-error">{error}</p> : null}
-      {result && result.candidates.length > 1 && !googlePlaceId && !appleMapsId ? (
+      {needsChoice && result ? (
         <div className="vbg-table-wrap">
           <table>
             <caption className="vbg-visually-hidden">Map listings to choose from</caption>
@@ -146,16 +147,7 @@ export function DiscoverClient({
             </tbody>
           </table>
         </div>
-      ) : (
-        <ul>
-          {(result?.profiles ?? []).map((profile) => (
-            <li key={`${profile.type}-${profile.title}`}>
-              <span className="vbg-label">{CHANNEL_CONFIG[profile.type].name}</span> {profile.title}
-              {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
-            </li>
-          ))}
-        </ul>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -27,7 +27,7 @@ export function PlaceSearch({
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setStatus("Searching");
+      setStatus("Searching listings");
       void fetch(`/api/lookups?source=${source}&q=${encodeURIComponent(trimmed)}`, {
         signal: controller.signal,
       })
