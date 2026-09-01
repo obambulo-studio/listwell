@@ -1,4 +1,16 @@
-const STORAGE_KEY = 'visimate-businesses'
+import { z } from 'zod'
+
+const STORAGE_KEY = 'listwell-businesses'
+const LEGACY_STORAGE_KEY = 'visimate-businesses'
+const storedIdsSchema = z.array(z.string())
+
+function readStoredIds(raw: string | null): string[] {
+  if (!raw) {
+    return []
+  }
+
+  return storedIdsSchema.parse(JSON.parse(raw))
+}
 
 /**
  * Get all business UUIDs from localStorage
@@ -7,8 +19,19 @@ export function getStoredBusinessIds(): string[] {
   if (!import.meta.client) return []
   
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
+    const stored = readStoredIds(localStorage.getItem(STORAGE_KEY))
+    if (stored.length > 0) {
+      return stored
+    }
+
+    const legacy = readStoredIds(localStorage.getItem(LEGACY_STORAGE_KEY))
+    if (legacy.length === 0) {
+      return []
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy))
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
+    return legacy
   } catch (error) {
     console.error('Error reading business IDs from localStorage:', error)
     return []

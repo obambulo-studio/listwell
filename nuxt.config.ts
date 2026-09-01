@@ -51,7 +51,8 @@ export default defineNuxtConfig({
     workers: true,
     cache: true,
     database: true,
-    browser: true
+    browser: true,
+    ai: true
   },
 
   nitro: {
@@ -62,15 +63,15 @@ export default defineNuxtConfig({
 
   site: {
     url: 'https://visimate.au/',
-    name: 'VisiMate.au — Get seen online',
+    name: 'Listwell — Get seen online',
     description: 'Get free, step-by-step fixes in under 2 minutes to improve your online visibility.',
     defaultLocale: 'en-au',
   },
 
   schemaOrg: {
     identity: defineOrganization({
-      name: 'VisiMate.au',
-      alternateName: 'VisiMate',
+      name: 'Listwell',
+      alternateName: 'Listwell',
       description: 'A free online visibility tool to help you get seen online.',
       logo: '/logo.png',
       url: 'https://visimate.au/',

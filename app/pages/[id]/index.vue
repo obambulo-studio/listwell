@@ -336,6 +336,53 @@ const checksAsSelectItems = computed(() => {
     }]
   )
 })
+
+const completedChecksPayload = computed(() =>
+  checks.value
+    .filter(check => check.status === 'pass' || check.status === 'fail' || check.status === 'error')
+    .map(check => ({
+      id: check.id,
+      title: check.title,
+      channelCategory: check.channelCategory,
+      status: check.status,
+      points: check.points,
+      label: check.result?.label,
+    }))
+)
+
+const checksFinished = computed(() =>
+  checks.value.length > 0 &&
+  checks.value.every(check => check.status !== 'pending' && check.status !== 'idle')
+)
+
+const auditSummary = ref<AuditSummaryResult | null>(null)
+const summaryLoading = ref(false)
+
+watch(checksFinished, async (finished) => {
+  if (!finished) {
+    auditSummary.value = null
+    return
+  }
+
+  summaryLoading.value = true
+  try {
+    const response = await $fetch(`/api/businesses/${id}/summary`, {
+      method: 'POST',
+      body: { checks: completedChecksPayload.value },
+    })
+    auditSummary.value = auditSummaryResultSchema.parse(response)
+  }
+  catch (error) {
+    console.error('Error loading Listwell summary:', error)
+    auditSummary.value = buildFallbackSummary(
+      z.array(completedCheckSchema).parse(completedChecksPayload.value),
+      'model_request_failed',
+    )
+  }
+  finally {
+    summaryLoading.value = false
+  }
+})
 </script>
 
 <template>
@@ -344,7 +391,7 @@ const checksAsSelectItems = computed(() => {
     <div class="hidden print:block">
       <!-- Print header -->
       <div class="mb-8 border-b pb-4">
-        <h1 class="text-2xl font-bold font-display tracking-tight">{{ business.name }} - Complete Analysis</h1>
+        <h1 class="text-2xl font-bold font-display tracking-tight">{{ business.name }}</h1>
         <p class="text-sm text-gray-600">Generated on {{ todayDate }}</p>
         <div class="mt-2">
           <span class="font-semibold">Overall Score: {{ totalImplementationScore.percentage }}%</span>
@@ -353,33 +400,14 @@ const checksAsSelectItems = computed(() => {
         </div>
       </div>
 
-      <!-- Executive Summary -->
-      <div class="mb-8 break-inside-avoid">
-        <h2 class="text-xl font-bold mb-4">Executive Summary</h2>
-        <div class="grid grid-cols-2 gap-4 text-sm">
-          <div v-for="channel in channelStatus" :key="channel.name" class="break-inside-avoid">
-            <div class="font-semibold">{{ channel.name }}: {{ channel.percentage }}%</div>
-            <div class="text-gray-600">{{ channel.score }}/{{ channel.total }} points</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Critical Issues -->
-      <div class="mb-8 break-inside-avoid">
-        <h2 class="text-xl font-bold mb-4">Critical Issues</h2>
-        <div v-for="[channelName, channelChecks] in Object.entries(channelChecks)" :key="channelName" class="mb-4">
-          <div v-if="channelChecks.some(c => c.status === 'fail' || c.status === 'error')">
-            <h3 class="font-semibold text-red-600 mb-2">{{ channelName }}</h3>
-            <ul class="list-disc list-inside text-sm space-y-1">
-              <li v-for="check in channelChecks.filter(c => c.status === 'fail' || c.status === 'error')"
-                :key="check.id">
-                <span class="font-medium">{{ check.title }}</span> ({{ check.points }} points)
-                <span v-if="check.result?.label" class="italic text-gray-600"> - {{ check.result.label }}</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <AuditExecutiveSummary
+        class="mb-8 break-inside-avoid"
+        :summary="auditSummary"
+        :loading="summaryLoading"
+        :checks-finished="checksFinished"
+        :checks="checks"
+        @select-check="selectedCheckId = $event"
+      />
 
       <!-- Page break before detailed sections -->
       <div class="page-break"></div>
@@ -437,6 +465,15 @@ const checksAsSelectItems = computed(() => {
           </UButton>
         </div>
       </div>
+
+      <AuditExecutiveSummary
+        class="mt-10"
+        :summary="auditSummary"
+        :loading="summaryLoading"
+        :checks-finished="checksFinished"
+        :checks="checks"
+        @select-check="selectedCheckId = $event"
+      />
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
         <UCard variant="subtle" class="col-span-1 max-md:row-start-3">
