@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { PlaceSearch } from "@/components/place-search";
 import { CATEGORY_CONFIG, categoryIdSchema, type CategoryId } from "@/lib/category";
 import { CHANNEL_CONFIG, channelIdSchema, type ChannelId, type DiscoveredProfile } from "@/lib/channel";
-import { mapProfilesToBusinessData, unusedChannels } from "@/lib/profiles";
+import { type PlaceCandidate } from "@/lib/discover";
+import { channelPlaceholder, mapProfilesToBusinessData, unusedChannels } from "@/lib/profiles";
 import { addBusinessId } from "@/lib/storage";
 import { businessSchema } from "@/lib/schema";
 
@@ -26,6 +28,7 @@ export function NewAuditForm({
   const [showAdd, setShowAdd] = useState(false);
   const [channelId, setChannelId] = useState<ChannelId | "">("");
   const [value, setValue] = useState("");
+  const [place, setPlace] = useState<PlaceCandidate | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,10 +96,10 @@ export function NewAuditForm({
       </section>
 
       <section className="vbg-section">
-        <h2 className="vbg-heading-20">Discovered profiles</h2>
+        <h2 className="vbg-heading-20">Listings we found</h2>
         <div className="vbg-table-wrap">
           <table>
-            <caption className="vbg-visually-hidden">Profiles attached to this audit</caption>
+            <caption className="vbg-visually-hidden">Listings attached to this audit</caption>
             <thead>
               <tr>
                 <th scope="col">Channel</th>
@@ -142,20 +145,38 @@ export function NewAuditForm({
             className="vbg-custom-form"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!channelId || !value.trim()) {
+              if (!channelId) {
                 return;
               }
               const parsedChannel = channelIdSchema.parse(channelId);
-              setProfiles((current) => [
-                ...current,
-                {
-                  type: parsedChannel,
-                  title: value.trim(),
-                  googlePlaceId: parsedChannel === "google-maps" ? value.trim() : undefined,
-                  appleMapsId: parsedChannel === "apple-maps" ? value.trim() : undefined,
-                },
-              ]);
+              if (parsedChannel === "google-maps" || parsedChannel === "apple-maps") {
+                if (!place) {
+                  return;
+                }
+                const selectedPlace = place;
+                setProfiles((current) => [
+                  ...current,
+                  {
+                    type: parsedChannel,
+                    title: selectedPlace.name,
+                    subtitle: selectedPlace.address,
+                    googlePlaceId: parsedChannel === "google-maps" ? selectedPlace.id : undefined,
+                    appleMapsId: parsedChannel === "apple-maps" ? selectedPlace.id : undefined,
+                  },
+                ]);
+              } else if (value.trim()) {
+                setProfiles((current) => [
+                  ...current,
+                  {
+                    type: parsedChannel,
+                    title: value.trim(),
+                  },
+                ]);
+              } else {
+                return;
+              }
               setValue("");
+              setPlace(null);
               setChannelId("");
               setShowAdd(false);
             }}
@@ -167,7 +188,11 @@ export function NewAuditForm({
               <select
                 id="channel"
                 value={channelId}
-                onChange={(event) => setChannelId(event.target.value === "" ? "" : channelIdSchema.parse(event.target.value))}
+                onChange={(event) => {
+                  setChannelId(event.target.value === "" ? "" : channelIdSchema.parse(event.target.value));
+                  setValue("");
+                  setPlace(null);
+                }}
               >
                 <option value="">Select a channel</option>
                 {available.map((id) => (
@@ -177,15 +202,49 @@ export function NewAuditForm({
                 ))}
               </select>
             </div>
-            <div className="vbg-field">
-              <label className="vbg-label" htmlFor="profileValue">
-                Value
-              </label>
-              <input id="profileValue" value={value} onChange={(event) => setValue(event.target.value)} />
-            </div>
+            {channelId === "google-maps" ? (
+              <PlaceSearch
+                source="google-search"
+                label="Google Maps listing"
+                onSelect={(candidate) => {
+                  setPlace(candidate);
+                  setValue(candidate.id);
+                }}
+              />
+            ) : null}
+            {channelId === "apple-maps" ? (
+              <PlaceSearch
+                source="apple-search"
+                label="Apple Maps listing"
+                onSelect={(candidate) => {
+                  setPlace(candidate);
+                  setValue(candidate.id);
+                }}
+              />
+            ) : null}
+            {channelId && channelId !== "google-maps" && channelId !== "apple-maps" ? (
+              <div className="vbg-field">
+                <label className="vbg-label" htmlFor="profileValue">
+                  {CHANNEL_CONFIG[channelId].name}
+                </label>
+                <input
+                  id="profileValue"
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                  placeholder={channelPlaceholder(channelId)}
+                />
+              </div>
+            ) : null}
             <div className="vbg-custom-actions">
-              <button className="vbg-button" type="submit">
-                Add profile
+              <button
+                className="vbg-button"
+                type="submit"
+                disabled={
+                  !channelId ||
+                  (channelId === "google-maps" || channelId === "apple-maps" ? !place : !value.trim())
+                }
+              >
+                Add listing
               </button>
               <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setShowAdd(false)}>
                 Cancel

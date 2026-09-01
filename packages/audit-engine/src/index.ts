@@ -6,7 +6,14 @@ export { CHECK_RUNNERS } from './checks'
 export { fetchWebsiteHtml, fetchWebsiteResponse, fetchBrowserRenderingHtml, fetchPlain } from './browser'
 export type { FetchWebsiteOptions, BrowserRenderingConfig } from './browser'
 export { parseDocument, parseJsonLd } from './html'
-export { fetchGooglePlace, locationPartsFromPlace } from './lookups/googlePlaces'
+export {
+  fetchGooglePlace,
+  locationPartsFromPlace,
+  searchGooglePlaces,
+  autocompleteGooglePlaces,
+  parseGooglePlacesSearch,
+  parseGooglePlaceAutocomplete,
+} from './lookups/googlePlaces'
 export { googleSearch } from './lookups/googleSearch'
 export { searchAppleMaps, fetchApplePlace, generateAppleMapKitToken } from './lookups/appleMaps'
 export { fetchCruxPerformance, fetchPageSpeedPerformance } from './lookups/performance'
@@ -34,6 +41,7 @@ export type {
   CheckResult,
   CheckStatus,
   GooglePlace,
+  PlacePrediction,
   GoogleSearchResult,
   JobStatus,
   QueueAuditMessage,

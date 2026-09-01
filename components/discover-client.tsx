@@ -2,105 +2,104 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getCategoryIdFromGooglePlaceTypes, type CategoryId } from "@/lib/category";
-import { CHANNEL_CONFIG, type DiscoveredProfile } from "@/lib/channel";
-import { z } from "zod";
-
-const googlePlacesSchema = z.object({
-  places: z
-    .array(
-      z.object({
-        id: z.string(),
-        displayName: z.object({ text: z.string() }),
-        websiteUri: z.string().optional(),
-        formattedAddress: z.string().optional(),
-        types: z.array(z.string()).optional(),
-      }),
-    )
-    .optional(),
-});
+import { type CategoryId } from "@/lib/category";
+import {
+  discoverResponseSchema,
+  filterProfilesForCandidate,
+  type DiscoverResponse,
+  type PlaceCandidate,
+} from "@/lib/discover";
 
 export function DiscoverClient({
   businessName,
   websiteUrl,
   categoryId,
+  googlePlaceId,
+  appleMapsId,
 }: {
   businessName: string;
   websiteUrl?: string;
   categoryId: CategoryId;
+  googlePlaceId?: string;
+  appleMapsId?: string;
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState("Looking for map listings");
-  const [profiles, setProfiles] = useState<DiscoveredProfile[]>([]);
+  const [status, setStatus] = useState("Looking for map listings, a website, and social profiles");
+  const [result, setResult] = useState<DiscoverResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let holdTimer = 0;
+    let releaseHold = () => {};
+    const sentenceHold = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+      holdTimer = window.setTimeout(resolve, 2000);
+    });
 
     async function discover() {
-      const found: DiscoveredProfile[] = [];
-      let nextCategory = categoryId;
+      setStatus("Looking for map listings, a website, and social profiles");
+      try {
+        const response = await fetch("/api/discover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessName,
+            websiteUrl,
+            categoryId,
+            googlePlaceId,
+            appleMapsId,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error("Could not search listings");
+        }
+        const parsed = discoverResponseSchema.parse(await response.json());
+        if (cancelled) {
+          return;
+        }
+        setResult(parsed);
 
-      if (websiteUrl) {
-        found.push({ type: "website", title: websiteUrl });
-      }
+        const selectedCandidate =
+          parsed.candidates.find((candidate) => googlePlaceId && candidate.source === "google" && candidate.id === googlePlaceId) ??
+          parsed.candidates.find((candidate) => appleMapsId && candidate.source === "apple" && candidate.id === appleMapsId) ??
+          parsed.candidates[0];
+        const preselected = Boolean(googlePlaceId || appleMapsId);
+        if (parsed.candidates.length > 1 && !preselected) {
+          setStatus("Choose the listing that is yours");
+          return;
+        }
 
-      const googleKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
-      if (googleKey) {
-        setStatus("Looking for map listings");
-        try {
-          const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Goog-Api-Key": googleKey,
-              "X-Goog-FieldMask": "places.id,places.displayName,places.websiteUri,places.formattedAddress,places.types",
-            },
-            body: JSON.stringify({
-              textQuery: businessName,
-              includePureServiceAreaBusinesses: true,
-              locationRestriction: {
-                rectangle: {
-                  low: { latitude: -44.0, longitude: 112.0 },
-                  high: { latitude: -10.0, longitude: 154.0 },
-                },
-              },
-            }),
-          });
-          const parsed = googlePlacesSchema.parse(await response.json());
-          const normalizedSearch = businessName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          for (const place of parsed.places ?? []) {
-            const normalizedName = place.displayName.text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            if (!normalizedName.includes(normalizedSearch)) {
-              continue;
-            }
-            found.push({
-              type: "google-maps",
-              title: place.displayName.text,
-              subtitle: place.formattedAddress,
-              googlePlaceId: place.id,
-            });
-            if (place.websiteUri && !found.some((profile) => profile.type === "website")) {
-              found.push({ type: "website", title: place.websiteUri });
-            }
-            if (place.types) {
-              nextCategory = getCategoryIdFromGooglePlaceTypes(place.types);
-            }
+        await sentenceHold;
+        if (cancelled) {
+          return;
+        }
+        continueToConfirm(parsed, selectedCandidate);
+      } catch {
+        if (!cancelled) {
+          setError("Search skipped. You can add listings on the next screen.");
+          await sentenceHold;
+          if (cancelled) {
+            return;
           }
-        } catch {
-          setStatus("Map search skipped");
+          continueToConfirm(
+            {
+              categoryId,
+              candidates: [],
+              profiles: websiteUrl ? [{ type: "website", title: websiteUrl }] : [],
+            },
+            undefined,
+          );
         }
       }
+    }
 
-      if (cancelled) {
-        return;
-      }
-
-      setProfiles(found);
-      setStatus("Opening what we found");
+    function continueToConfirm(discovery: DiscoverResponse, candidate: PlaceCandidate | undefined) {
+      const profiles = candidate ? filterProfilesForCandidate(discovery.profiles, candidate) : discovery.profiles;
       const params = new URLSearchParams({
         businessName,
-        categoryId: nextCategory,
-        discoveredProfiles: JSON.stringify(found),
+        categoryId: discovery.categoryId,
+        discoveredProfiles: JSON.stringify(profiles),
       });
       router.replace(`/new?${params.toString()}`);
     }
@@ -108,20 +107,62 @@ export function DiscoverClient({
     void discover();
     return () => {
       cancelled = true;
+      window.clearTimeout(holdTimer);
+      releaseHold();
     };
-  }, [businessName, categoryId, router, websiteUrl]);
+  }, [appleMapsId, businessName, categoryId, googlePlaceId, router, websiteUrl]);
+
+  function chooseCandidate(candidate: PlaceCandidate) {
+    if (!result) {
+      return;
+    }
+    const profiles = filterProfilesForCandidate(result.profiles, candidate);
+    const params = new URLSearchParams({
+      businessName: candidate.name,
+      categoryId: result.categoryId,
+      discoveredProfiles: JSON.stringify(profiles),
+    });
+    router.replace(`/new?${params.toString()}`);
+  }
+
+  const needsChoice = Boolean(result && result.candidates.length > 1 && !googlePlaceId && !appleMapsId);
 
   return (
     <div className="vbg-custom-progress">
-      <p className="vbg-lede">{status}.</p>
-      <ul>
-        {profiles.map((profile) => (
-          <li key={`${profile.type}-${profile.title}`}>
-            <span className="vbg-label">{CHANNEL_CONFIG[profile.type].name}</span> {profile.title}
-            {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
-          </li>
-        ))}
-      </ul>
+      <p className="vbg-lede" aria-live="polite">
+        {status}.
+      </p>
+      {error ? <p className="vbg-error">{error}</p> : null}
+      {needsChoice && result ? (
+        <div className="vbg-table-wrap">
+          <table>
+            <caption className="vbg-visually-hidden">Map listings to choose from</caption>
+            <thead>
+              <tr>
+                <th scope="col">Listing</th>
+                <th scope="col">Source</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.candidates.map((candidate) => (
+                <tr key={`${candidate.source}-${candidate.id}`}>
+                  <th scope="row">
+                    {candidate.name}
+                    {candidate.address ? <div className="vbg-meta">{candidate.address}</div> : null}
+                  </th>
+                  <td>{candidate.source === "google" ? "Google Maps" : "Apple Maps"}</td>
+                  <td>
+                    <button className="vbg-button vbg-button-quiet" type="button" onClick={() => chooseCandidate(candidate)}>
+                      This one
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

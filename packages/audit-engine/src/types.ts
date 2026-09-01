@@ -49,6 +49,13 @@ export interface GooglePlace {
   }>
 }
 
+export interface PlacePrediction {
+  id: string
+  title: string
+  description?: string
+  types: string[]
+}
+
 export interface SerializedHttpResponse {
   status: number
   statusText: string
