@@ -24,5 +24,29 @@
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "lib/db/migrations"
     }
-  ]
+  ],
+  // Browser Rendering Workers binding. Used when a page looks like a thin SPA.
+  "browser": {
+    "binding": "BROWSER"
+  },
+  // LIST-3 hook. Do not call from this ticket.
+  "ai": {
+    "binding": "AI"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AUDIT_KV",
+      // Replace with a real KV namespace id before deploy.
+      "id": "00000000000000000000000000000000",
+      "preview_id": "00000000000000000000000000000000"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "AUDIT_QUEUE",
+        "queue": "listwell-audit"
+      }
+    ]
+  }
 }

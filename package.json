@@ -2,6 +2,9 @@
   "name": "listwell",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,9 +14,12 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:push": "wrangler d1 execute listwell --local --file=lib/db/migrations/0000.sql",
     "catalog": "bun scripts/generate-check-catalog.ts",
-    "typecheck": "tsc --noEmit"
+    "test": "bun run --cwd packages/audit-engine test",
+    "typecheck": "tsc --noEmit && bun run --cwd packages/audit-engine typecheck"
   },
   "dependencies": {
+    "@cloudflare/puppeteer": "^1.0.4",
+    "@listwell/audit-engine": "workspace:*",
     "@opennextjs/cloudflare": "^1.11.0",
     "drizzle-orm": "^0.44.5",
     "linkedom": "^0.18.12",
