@@ -73,5 +73,14 @@ export const checkResultSchema = z.object({
   type: z.literal("check"),
   label: z.string().optional(),
   value: z.boolean().nullable(),
+  queued: z.boolean().optional(),
+  jobId: z.string().optional(),
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
+
+export const checkBatchResponseSchema = z.object({
+  results: z.record(z.string(), checkResultSchema),
+  pending: z.array(z.string()),
+  jobId: z.string().optional(),
+});
+export type CheckBatchResponse = z.infer<typeof checkBatchResponseSchema>;

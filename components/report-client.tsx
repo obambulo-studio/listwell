@@ -6,9 +6,15 @@ import { CheckBody } from "@/components/check-body";
 import { pointsFor, type CheckDefinition } from "@/lib/checks/types";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import { businessToProfiles } from "@/lib/profiles";
-import { businessSchema, checkResultSchema, type Business, type CheckResult } from "@/lib/schema";
+import {
+  businessSchema,
+  checkBatchResponseSchema,
+  checkResultSchema,
+  type Business,
+  type CheckResult,
+} from "@/lib/schema";
 
-type CheckStatus = "idle" | "pending" | "pass" | "fail" | "error";
+type CheckStatus = "idle" | "pending" | "queued" | "pass" | "fail" | "error";
 
 type LiveCheck = {
   definition: CheckDefinition;
@@ -16,6 +22,19 @@ type LiveCheck = {
   result: CheckResult | null;
   duration?: number;
 };
+
+function statusFromResult(result: CheckResult): CheckStatus {
+  if (result.queued) {
+    return "queued";
+  }
+  if (result.value === true) {
+    return "pass";
+  }
+  if (result.value === false) {
+    return "fail";
+  }
+  return "error";
+}
 
 function statusLabel(status: CheckStatus): string {
   switch (status) {
@@ -25,6 +44,8 @@ function statusLabel(status: CheckStatus): string {
       return "Fail";
     case "error":
       return "Error";
+    case "queued":
+      return "Queued";
     case "pending":
       return "Pending";
     default:
@@ -49,38 +70,94 @@ export function ReportClient({
   useEffect(() => {
     let cancelled = false;
 
-    async function run() {
-      await Promise.all(
-        checks.map(async (definition) => {
-          const start = Date.now();
-          try {
-            const response = await fetch(`/api/businesses/${business.id}/checks/${definition.id}`);
-            const result = checkResultSchema.parse(await response.json());
-            if (cancelled) {
-              return;
-            }
-            const status: CheckStatus = result.value === true ? "pass" : result.value === false ? "fail" : "error";
-            setLiveChecks((current) =>
-              current.map((item) =>
-                item.definition.id === definition.id
-                  ? { definition, status, result, duration: Date.now() - start }
-                  : item,
-              ),
-            );
-          } catch {
-            if (cancelled) {
-              return;
-            }
-            setLiveChecks((current) =>
-              current.map((item) =>
-                item.definition.id === definition.id
-                  ? { definition, status: "error", result: { type: "check", value: null, label: "Check failed to run" }, duration: Date.now() - start }
-                  : item,
-              ),
-            );
-          }
-        }),
+    function applyResult(checkId: string, result: CheckResult, duration?: number) {
+      const status = statusFromResult(result);
+      setLiveChecks((current) =>
+        current.map((item) =>
+          item.definition.id === checkId ? { ...item, status, result, duration } : item,
+        ),
       );
+    }
+
+    async function pollJob(jobId: string, pendingIds: string[]) {
+      const started = Date.now();
+      while (!cancelled) {
+        const response = await fetch(`/api/jobs/${jobId}`);
+        if (!response.ok) {
+          break;
+        }
+        const job: unknown = await response.json();
+        if (typeof job !== "object" || job === null || !("status" in job) || !("results" in job)) {
+          break;
+        }
+        const resultsValue = job.results;
+        if (typeof resultsValue === "object" && resultsValue !== null) {
+          for (const checkId of pendingIds) {
+            if (checkId in resultsValue) {
+              const parsed = checkResultSchema.safeParse(Reflect.get(resultsValue, checkId));
+              if (parsed.success) {
+                applyResult(checkId, parsed.data, Date.now() - started);
+              }
+            }
+          }
+        }
+        if (job.status === "error") {
+          for (const checkId of pendingIds) {
+            applyResult(checkId, { type: "check", value: null, label: "Check failed to run" }, Date.now() - started);
+          }
+          break;
+        }
+        if (job.status === "complete") {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    async function run() {
+      const start = Date.now();
+      try {
+        const response = await fetch(`/api/businesses/${business.id}/checks`);
+        const batch = checkBatchResponseSchema.parse(await response.json());
+        if (cancelled) {
+          return;
+        }
+        for (const item of checks) {
+          const result = batch.results[item.id];
+          if (result) {
+            applyResult(item.id, result, Date.now() - start);
+          } else if (batch.pending.includes(item.id)) {
+            applyResult(item.id, { type: "check", value: null, label: "Queued", queued: true, jobId: batch.jobId });
+          }
+        }
+        if (batch.jobId && batch.pending.length > 0) {
+          await pollJob(batch.jobId, batch.pending);
+        }
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        await Promise.all(
+          checks.map(async (definition) => {
+            const checkStart = Date.now();
+            try {
+              const response = await fetch(`/api/businesses/${business.id}/checks/${definition.id}`);
+              const result = checkResultSchema.parse(await response.json());
+              if (!cancelled) {
+                applyResult(definition.id, result, Date.now() - checkStart);
+              }
+            } catch {
+              if (!cancelled) {
+                applyResult(
+                  definition.id,
+                  { type: "check", value: null, label: "Check failed to run" },
+                  Date.now() - checkStart,
+                );
+              }
+            }
+          }),
+        );
+      }
     }
 
     void run();
@@ -122,7 +199,7 @@ export function ReportClient({
     if (filter === "all") {
       return true;
     }
-    return item.status === "fail" || item.status === "error" || item.status === "pending";
+    return item.status === "fail" || item.status === "error" || item.status === "pending" || item.status === "queued";
   });
 
   const profiles = businessToProfiles(business);

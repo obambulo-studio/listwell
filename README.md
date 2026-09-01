@@ -11,25 +11,50 @@ This repository is a MIT fork of [drevantonder/visimate](https://github.com/drev
 - Wrangler
 - Bun
 - Drizzle with SQLite / D1
+- `@listwell/audit-engine` for the 32 website and listing checks
 
 ## Scripts
 
 ```bash
 bun install
 bun run catalog
+bun run test
+bun run typecheck
 bun run dev
 bun run build
 bun run preview
 ```
 
-`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker. Create a D1 database named `listwell`, put its id in `wrangler.jsonc`, then apply `lib/db/migrations/0000.sql`.
+`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker.
+
+Create a D1 database named `listwell` and a KV namespace for audit jobs. Put those ids in `wrangler.jsonc` (placeholders are `0000…`), then apply `lib/db/migrations/0000.sql`.
 
 Local `next dev` can run without D1 and keeps audits in memory for the process.
 
-## What is ported
+## Bindings and secrets
 
-Homepage, discover, new audit, edit listings, and the report. Website checks that can run with `fetch` (title, meta, robots, sitemap, canonical, Open Graph, tel links, address, hours, JSON-LD, HTTPS, HTTP status) plus presence checks for stored Google, social, and food-delivery listings.
+`wrangler.jsonc` declares real Workers bindings. Replace placeholder ids before deploy:
 
-## Still to port
+- `DB` — D1
+- `AUDIT_KV` — queued check jobs (`00000000000000000000000000000000` until you create the namespace)
+- `AUDIT_QUEUE` — producer for `listwell-audit` (optional; the Worker also finishes `website-performance` with `waitUntil`)
+- `BROWSER` — Cloudflare Browser Rendering
+- `AI` — Workers AI, reserved for LIST-3 summaries
 
-Browser-only checks (performance, mobile viewport) and Google Business Profile field checks that need the Places API (reviews, photos, phone, hours, category, NAP match). Discovery of Apple Maps and social suggestions is also still outstanding; you can add those listings by hand on the new-audit screen.
+Set secrets with `wrangler secret put` (see `.env.example`):
+
+- `GOOGLE_API_KEY`
+- `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Browser Rendering REST fallback)
+- Apple MapKit keys if you later wire LIST-4/5 lookups
+
+## What the engine does
+
+All 32 `content/checks` IDs run in the Next Worker:
+
+- Plain `fetch` first, shared HTML per run
+- Browser Rendering only when the page looks like a thin SPA
+- Google Business Profile field checks via Places API
+- `website-performance` queued (CrUX, then PageSpeed)
+
+Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields, same as the original handlers.

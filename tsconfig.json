@@ -21,9 +21,10 @@
     "forceConsistentCasingInFileNames": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@listwell/audit-engine": ["./packages/audit-engine/src/index.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "cloudflare-env.d.ts"],
-  "exclude": ["node_modules", ".open-next", ".wrangler"]
+  "exclude": ["node_modules", ".open-next", ".wrangler", "packages/audit-engine"]
 }

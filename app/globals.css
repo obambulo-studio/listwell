@@ -509,7 +509,8 @@ textarea:focus-visible {
   color: var(--vbg-color-error);
 }
 
-.vbg-custom-status-pending {
+.vbg-custom-status-pending,
+.vbg-custom-status-queued {
   color: var(--vbg-text-secondary);
 }
 
