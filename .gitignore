@@ -1,4 +1,12 @@
-# Nuxt dev/build outputs
+# Next.js
+.next
+open-next
+.open-next
+out
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Nuxt leftovers
 .output
 .data
 .nuxt
@@ -6,7 +14,7 @@
 .cache
 dist
 
-# Node dependencies
+# Node
 node_modules
 
 # Logs
@@ -18,10 +26,11 @@ logs
 .fleet
 .idea
 
-# Local env files
+# Local env
 .env
 .env.*
 !.env.example
+.dev.vars
 
 .wrangler
 
