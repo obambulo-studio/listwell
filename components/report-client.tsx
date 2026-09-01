@@ -75,13 +75,7 @@ function degradedCaption(summary: AuditSummaryResult): string | null {
   if (summary.available) {
     return null;
   }
-  if (summary.degradedReason === "ai_binding_missing") {
-    return "Listwell wrote this from the completed checks. Workers AI is not bound on this deploy.";
-  }
-  if (summary.degradedReason === "no_completed_checks") {
-    return "The brief appears when a check has finished.";
-  }
-  return "Listwell wrote this from the completed checks after Workers AI could not return a cited brief.";
+  return "Listwell wrote this from the completed checks.";
 }
 
 function CitationLinks({
@@ -300,7 +294,6 @@ export function ReportClient({
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
   const selectedDetail = selected ? detailLabel(selected) : undefined;
   const citationChecks = liveChecks.map((item) => ({ id: item.definition.id, title: item.definition.title }));
-  const briefHeading = !summary || summary.nextActions.length === 0 ? "What the checks found" : "What should change first";
   const briefCaption = summary ? degradedCaption(summary) : null;
 
   const visible = liveChecks.filter((item) => {
@@ -326,7 +319,7 @@ export function ReportClient({
 
       {checksFinished || summaryLoading || summary ? (
         <section className="vbg-section">
-          <h2 className="vbg-heading-24">{briefHeading}</h2>
+          <h2 className="vbg-heading-24">What the checks found</h2>
           {summaryLoading && !summary ? (
             <p className="vbg-lede">Listwell is writing the brief from the completed checks.</p>
           ) : null}
