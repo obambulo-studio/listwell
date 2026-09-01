@@ -30,14 +30,12 @@ export function DiscoverClient({
 
   useEffect(() => {
     let cancelled = false;
-    const started = Date.now();
-
-    async function holdSentence() {
-      const wait = 700 - (Date.now() - started);
-      if (wait > 0) {
-        await new Promise((resolve) => setTimeout(resolve, wait));
-      }
-    }
+    let holdTimer = 0;
+    let releaseHold = () => {};
+    const sentenceHold = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+      holdTimer = window.setTimeout(resolve, 2000);
+    });
 
     async function discover() {
       setStatus("Looking for map listings, a website, and social profiles");
@@ -72,7 +70,7 @@ export function DiscoverClient({
           return;
         }
 
-        await holdSentence();
+        await sentenceHold;
         if (cancelled) {
           return;
         }
@@ -80,8 +78,7 @@ export function DiscoverClient({
       } catch {
         if (!cancelled) {
           setError("Search skipped. You can add listings on the next screen.");
-          setStatus("Opening the confirm screen");
-          await holdSentence();
+          await sentenceHold;
           if (cancelled) {
             return;
           }
@@ -99,7 +96,6 @@ export function DiscoverClient({
 
     function continueToConfirm(discovery: DiscoverResponse, candidate: PlaceCandidate | undefined) {
       const profiles = candidate ? filterProfilesForCandidate(discovery.profiles, candidate) : discovery.profiles;
-      setStatus("Opening what we found");
       const params = new URLSearchParams({
         businessName,
         categoryId: discovery.categoryId,
@@ -111,6 +107,8 @@ export function DiscoverClient({
     void discover();
     return () => {
       cancelled = true;
+      window.clearTimeout(holdTimer);
+      releaseHold();
     };
   }, [appleMapsId, businessName, categoryId, googlePlaceId, router, websiteUrl]);
 
@@ -119,7 +117,6 @@ export function DiscoverClient({
       return;
     }
     const profiles = filterProfilesForCandidate(result.profiles, candidate);
-    setStatus("Opening what we found");
     const params = new URLSearchParams({
       businessName: candidate.name,
       categoryId: result.categoryId,
