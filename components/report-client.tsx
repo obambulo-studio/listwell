@@ -227,7 +227,7 @@ export function ReportClient({
             <thead>
               <tr>
                 <th scope="col">Channel</th>
-                <th scope="col">Value</th>
+                <th scope="col">Listing</th>
               </tr>
             </thead>
             <tbody>
