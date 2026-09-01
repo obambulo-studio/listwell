@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckBody } from "@/components/check-body";
 import { pointsFor, type CheckDefinition } from "@/lib/checks/types";
 import { CHANNEL_CONFIG } from "@/lib/channel";
@@ -13,6 +13,14 @@ import {
   type Business,
   type CheckResult,
 } from "@/lib/schema";
+import {
+  auditSummaryResultSchema,
+  buildFallbackSummary,
+  completedCheckSchema,
+  type AuditSummaryResult,
+  type CompletedCheck,
+} from "@/lib/summaries";
+import { z } from "zod";
 
 type CheckStatus = "idle" | "pending" | "queued" | "pass" | "fail" | "error";
 
@@ -52,6 +60,47 @@ function statusLabel(status: CheckStatus): string {
   }
 }
 
+function completedStatus(status: CheckStatus): CompletedCheck["status"] | null {
+  if (status === "pass" || status === "fail" || status === "error") {
+    return status;
+  }
+  return null;
+}
+
+function titleForCheck(checks: Array<{ id: string; title: string }>, id: string): string {
+  return checks.find((check) => check.id === id)?.title ?? id;
+}
+
+function degradedCaption(summary: AuditSummaryResult): string | null {
+  if (summary.available) {
+    return null;
+  }
+  return "Listwell wrote this from the completed checks.";
+}
+
+function CitationLinks({
+  checkIds,
+  checks,
+  onSelect,
+}: {
+  checkIds: string[];
+  checks: Array<{ id: string; title: string }>;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <>
+      {checkIds.map((checkId, index) => (
+        <span key={checkId}>
+          {index > 0 ? ", " : null}
+          <button className="vbg-custom-citation" type="button" onClick={() => onSelect(checkId)}>
+            {titleForCheck(checks, checkId)}
+          </button>
+        </span>
+      ))}
+    </>
+  );
+}
+
 function detailLabel(item: LiveCheck): string | undefined {
   if (item.status === "queued" || item.status === "pending") {
     return undefined;
@@ -79,6 +128,8 @@ export function ReportClient({
   );
   const [selectedId, setSelectedId] = useState<string | undefined>(checks[0]?.id);
   const [filter, setFilter] = useState<"failures" | "all">("failures");
+  const [summary, setSummary] = useState<AuditSummaryResult | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,35 +230,71 @@ export function ReportClient({
     };
   }, [business.id, checks]);
 
+  const checksFinished =
+    liveChecks.length > 0 && liveChecks.every((item) => completedStatus(item.status) !== null);
+  const completedSignature = liveChecks
+    .map((item) => `${item.definition.id}:${item.status}:${item.result?.label ?? ""}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!checksFinished) {
+      setSummary(null);
+      setSummaryLoading(false);
+      return;
+    }
+
+    const completedChecks = liveChecks.flatMap((item) => {
+      const status = completedStatus(item.status);
+      if (!status) {
+        return [];
+      }
+      return [
+        completedCheckSchema.parse({
+          id: item.definition.id,
+          title: item.definition.title,
+          channelCategory: item.definition.channelCategory,
+          status,
+          points: pointsFor(item.definition, business.category),
+          label: item.result?.label,
+        }),
+      ];
+    });
+
+    let cancelled = false;
+    setSummaryLoading(true);
+
+    async function loadSummary() {
+      try {
+        const response = await fetch(`/api/businesses/${business.id}/summary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checks: completedChecks }),
+        });
+        const payload: unknown = await response.json();
+        if (!cancelled) {
+          setSummary(auditSummaryResultSchema.parse(payload));
+        }
+      } catch {
+        if (!cancelled) {
+          setSummary(buildFallbackSummary(z.array(completedCheckSchema).parse(completedChecks), "model_request_failed"));
+        }
+      } finally {
+        if (!cancelled) {
+          setSummaryLoading(false);
+        }
+      }
+    }
+
+    void loadSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, [business.category, business.id, checksFinished, completedSignature, liveChecks]);
+
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
   const selectedDetail = selected ? detailLabel(selected) : undefined;
-
-  const channelScores = useMemo(() => {
-    const groups = new Map<string, LiveCheck[]>();
-    for (const item of liveChecks) {
-      const current = groups.get(item.definition.channelCategory) ?? [];
-      current.push(item);
-      groups.set(item.definition.channelCategory, current);
-    }
-    return [...groups.entries()].map(([name, items]) => {
-      const total = items.reduce((sum, item) => sum + pointsFor(item.definition, business.category), 0);
-      const score = items.reduce(
-        (sum, item) => sum + (item.status === "pass" ? pointsFor(item.definition, business.category) : 0),
-        0,
-      );
-      const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
-      return { name, score, total, percentage };
-    });
-  }, [business.category, liveChecks]);
-
-  const overall = useMemo(() => {
-    const total = liveChecks.reduce((sum, item) => sum + pointsFor(item.definition, business.category), 0);
-    const score = liveChecks.reduce(
-      (sum, item) => sum + (item.status === "pass" ? pointsFor(item.definition, business.category) : 0),
-      0,
-    );
-    return total > 0 ? Math.round((score / total) * 100) : 0;
-  }, [business.category, liveChecks]);
+  const citationChecks = liveChecks.map((item) => ({ id: item.definition.id, title: item.definition.title }));
+  const briefCaption = summary ? degradedCaption(summary) : null;
 
   const visible = liveChecks.filter((item) => {
     if (filter === "all") {
@@ -221,7 +308,7 @@ export function ReportClient({
   return (
     <>
       <section className="vbg-opening">
-        <h1 className="vbg-display">{business.name} is scoring {overall} of 100</h1>
+        <h1 className="vbg-display">{business.name}</h1>
         <p className="vbg-lede">
           Website and listing checks for this {business.category} business. Failures stay first so you can fix what is costing visibility.
         </p>
@@ -230,20 +317,50 @@ export function ReportClient({
         </div>
       </section>
 
-      <section className="vbg-section">
-        <h2 className="vbg-heading-24">Score by channel</h2>
-        <div className="vbg-bar-list">
-          {channelScores.map((channel) => (
-            <div className="vbg-bar" key={`bar-${channel.name}`} style={{ display: "contents" }}>
-              <p className="vbg-bar-label">{channel.name}</p>
-              <div className="vbg-bar-track">
-                <div className="vbg-bar-fill" style={{ width: `${channel.percentage}%` }} />
-              </div>
-              <p className="vbg-bar-value">{channel.percentage}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {checksFinished || summaryLoading || summary ? (
+        <section className="vbg-section">
+          <h2 className="vbg-heading-24">What the checks found</h2>
+          {summaryLoading && !summary ? (
+            <p className="vbg-lede">Listwell is writing the brief from the completed checks.</p>
+          ) : null}
+          {summary ? (
+            <>
+              {summary.overview.length > 0 ? (
+                <div className="vbg-reading">
+                  {summary.overview.map((claim, index) => (
+                    <p key={`${claim.text}-${index}`}>
+                      {claim.text}
+                      <span className="vbg-caption vbg-custom-citation-line">
+                        From{" "}
+                        <CitationLinks checkIds={claim.checkIds} checks={citationChecks} onSelect={setSelectedId} />
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              {summary.nextActions.length > 0 ? (
+                <ol className="vbg-custom-next-actions">
+                  {summary.nextActions.map((action) => (
+                    <li key={`${action.priority}-${action.text}`}>
+                      <span className="vbg-meta">{action.priority}</span>
+                      <div>
+                        <p>{action.text}</p>
+                        <p className="vbg-caption">
+                          From{" "}
+                          <CitationLinks checkIds={action.checkIds} checks={citationChecks} onSelect={setSelectedId} />
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : summary.overview.length > 0 ? (
+                <p className="vbg-caption">No failed checks to act on.</p>
+              ) : null}
+              {briefCaption ? <p className="vbg-caption">{briefCaption}</p> : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="vbg-section">
         <h2 className="vbg-heading-24">Checks</h2>

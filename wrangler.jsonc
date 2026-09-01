@@ -29,7 +29,7 @@
   "browser": {
     "binding": "BROWSER"
   },
-  // LIST-3 hook. Do not call from this ticket.
+  // Workers AI. LIST-3 report briefs call env.AI.run.
   "ai": {
     "binding": "AI"
   },

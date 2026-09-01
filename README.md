@@ -39,7 +39,7 @@ Local `next dev` can run without D1 and keeps audits in memory for the process.
 - `AUDIT_KV` — queued check jobs (`00000000000000000000000000000000` until you create the namespace)
 - `AUDIT_QUEUE` — producer for `listwell-audit` (optional; the Worker also finishes `website-performance` with `waitUntil`)
 - `BROWSER` — Cloudflare Browser Rendering
-- `AI` — Workers AI, reserved for LIST-3 summaries
+- `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary.
 
 Set secrets with `wrangler secret put` (see `.env.example`):
 

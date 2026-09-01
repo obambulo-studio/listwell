@@ -41,6 +41,9 @@ export function toBusinessSnapshot(business: Business): BusinessSnapshot {
 }
 
 export async function getCloudflareEnv(): Promise<CloudflareEnv | null> {
+  if (process.env.SKIP_OPENNEXT_DEV === "1") {
+    return null;
+  }
   try {
     const context = await getCloudflareContext({ async: true });
     return context.env;
