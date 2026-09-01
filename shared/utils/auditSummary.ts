@@ -223,7 +223,7 @@ export function buildFallbackSummary(
     const highest = failed[0]
     if (highest) {
       overview.push({
-        text: `${failed.length} checks did not pass. Highest listed weight is ${highest.title} at ${highest.points} points.`,
+        text: `${failed.length} checks did not pass. The highest-weight miss is ${highest.title}.`,
         checkIds: failed.map(check => check.id),
       })
     }

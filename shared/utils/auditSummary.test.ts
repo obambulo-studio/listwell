@@ -102,7 +102,10 @@ describe('buildFallbackSummary', () => {
       'website-title',
       'google-listing-photos',
     ])
-    expect(summary.overview[0]?.text).toContain('6 points')
+    expect(summary.overview[0]?.text).toBe(
+      '2 checks did not pass. The highest-weight miss is Title contains business name and suburb/city.',
+    )
+    expect(summary.overview[0]?.text).not.toMatch(/points/i)
     expect(JSON.stringify(summary)).not.toMatch(/visimate/i)
   })
 

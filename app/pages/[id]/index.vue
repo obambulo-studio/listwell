@@ -104,61 +104,6 @@ const channelChecks = computed<Record<string, Check[]>>(() => {
   return channels
 })
 
-type ChannelStatus = {
-  name: string;
-  status: 'active' | 'warning' | 'missing';
-  score: number;
-  total: number;
-  percentage: number;
-}
-
-// Calculate channel status for scorecard
-const channelStatus = computed<ChannelStatus[]>(() => {
-  return Object.entries(channelChecks.value).map(([name, items]) => {
-    let status: 'active' | 'warning' | 'missing' = 'missing'
-    let score = 0
-    let totalWeight = 0
-
-    if (items.length) {
-      // Count successful checks, factoring in their weights
-      items.forEach(item => {
-        totalWeight += item.points
-        if (item.status === 'pass') {
-          score += item.points
-        }
-      })
-
-      const active = items.some(i => i.status === 'pass')
-      const warning = items.some(i => i.status === 'fail' || i.status === 'error')
-
-      if (active) status = 'active'
-      else if (warning) status = 'warning'
-    }
-
-    const percentage = totalWeight > 0 ? Math.round((score / totalWeight) * 100) : 0
-
-    return { name, status, score, total: totalWeight, percentage }
-  })
-})
-
-// Total implementation score
-const totalImplementationScore = computed(() => {
-  // Calculate total weight of all checks
-  const totalWeight = checks.value.reduce((acc, check) => acc + check.points, 0)
-  // Calculate scored weight based on check results
-  const scoredWeight = checks.value.reduce((acc, check) => {
-    return acc + (check.status === 'pass' ? check.points : 0)
-  }, 0)
-  // Compute percentage using the critical score algorithm
-  const percentage = totalWeight > 0 ? (scoredWeight / totalWeight) * 100 : 0
-
-  return {
-    score: Math.round(percentage),
-    total: 100,
-    percentage: Math.round(percentage)
-  }
-})
-
 // Track total time taken for all checks (end of last check - start of first check)
 const totalCheckTime = computed(() => {
   const completedChecks = checks.value.filter(check => check.startTime !== undefined && check.endTime !== undefined)
@@ -393,11 +338,6 @@ watch(checksFinished, async (finished) => {
       <div class="mb-8 border-b pb-4">
         <h1 class="text-2xl font-bold font-display tracking-tight">{{ business.name }}</h1>
         <p class="text-sm text-gray-600">Generated on {{ todayDate }}</p>
-        <div class="mt-2">
-          <span class="font-semibold">Overall Score: {{ totalImplementationScore.percentage }}%</span>
-          <span class="ml-4 text-sm">({{ totalImplementationScore.score }}/{{ totalImplementationScore.total }}
-            points)</span>
-        </div>
       </div>
 
       <AuditExecutiveSummary
@@ -475,8 +415,8 @@ watch(checksFinished, async (finished) => {
         @select-check="selectedCheckId = $event"
       />
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
-        <UCard variant="subtle" class="col-span-1 max-md:row-start-3">
+      <div class="grid grid-cols-1 gap-8 mt-8">
+        <UCard variant="subtle">
           <div class="flex items-center justify-between gap-2">
             <h2 class="text-xl font-bold">{{ business.name }}</h2>
 
@@ -515,45 +455,7 @@ watch(checksFinished, async (finished) => {
           </div>
         </UCard>
 
-
-        <UCard variant="subtle" class="col-span-1 md:col-span-2" :ui="{ body: 'flex flex-col gap-8 items-center justify-around h-full' }">
-            <div class="flex flex-col items-center gap-4">
-              <CircularProgress :percentage="totalImplementationScore.percentage" class="size-40" />
-
-              <div class="text-xl font-bold">Overall Score</div>
-            </div>
-
-            <div class="grid gap-4"
-              :class="business.category === 'food' ? 'grid-cols-2 md:grid-cols-4' : 'md:grid-cols-3'">
-              <div class="flex flex-col items-center gap-2">
-                <CircularProgress
-                  :percentage="channelStatus.find(s => s.name === 'Google Business Profile')?.percentage || 0"
-                  class="size-20" />
-                <div class="text-base font-bold">Google Business Profile</div>
-              </div>
-
-              <div class="flex flex-col items-center gap-2">
-                <CircularProgress :percentage="channelStatus.find(s => s.name === 'Website')?.percentage || 0"
-                  class="size-20" />
-                <div class="text-base font-bold">Website</div>
-              </div>
-
-              <div class="flex flex-col items-center gap-2">
-                <CircularProgress :percentage="channelStatus.find(s => s.name === 'Social Media')?.percentage || 0"
-                  class="size-20" />
-                <div class="text-base font-bold">Social Media</div>
-              </div>
-
-              <!-- Food Delivery channel only for food businesses -->
-              <div class="flex flex-col items-center gap-2" v-if="business.category === 'food'">
-                <CircularProgress :percentage="channelStatus.find(s => s.name === 'Food Delivery')?.percentage || 0"
-                  class="size-20" />
-                <div class="text-base font-bold">Food Delivery</div>
-              </div>
-            </div>
-        </UCard>
-
-        <UCard variant="subtle" class="md:col-span-3">
+        <UCard variant="subtle">
           <div class="flex max-md:flex-col gap-12">
             <!-- Left Column: Tree View -->
             <div class="md:shrink-0 md:w-sm flex flex-col gap-4">
