@@ -16,7 +16,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "jose": "^6.0.11",
     "linkedom": "^0.18.10",
     "robots-parser": "^3.0.1",
     "zod": "^3.25.43"

@@ -1,93 +1,171 @@
-import { fetchErrorResult, noPlaceResult, type CheckContext } from '../context'
+import { fetchErrorResult, noListingResult, type CheckContext } from '../context'
+import { hasAttachedListing, urlsMatch, type ListingEvidence } from '../lookups/listingEvidence'
 import { checkResult } from '../schemas'
 import type { CheckResult } from '../types'
 
+interface ListingFacts {
+  mode: 'listing' | 'website' | 'inconclusive' | 'missing'
+  evidence: ListingEvidence
+  reason?: string
+}
+
+async function listingFacts(ctx: CheckContext): Promise<ListingFacts> {
+  const listing = await ctx.getListingEvidence()
+  if (listing.sourceUrl && !listing.fetched) {
+    return {
+      mode: 'inconclusive',
+      evidence: listing,
+      reason: `Listing page could not be read: ${listing.fetchReason ?? 'unknown error'}`,
+    }
+  }
+  if (listing.fetched) {
+    return { mode: 'listing', evidence: listing }
+  }
+
+  const website = await ctx.getWebsiteEvidence()
+  if (website.fetched) {
+    return { mode: 'website', evidence: website }
+  }
+  return {
+    mode: 'missing',
+    evidence: listing,
+    reason: listing.fetchReason ?? 'No Google listing URL or website facts to check',
+  }
+}
+
+function sourceLabel(mode: ListingFacts['mode']): string {
+  if (mode === 'listing') return 'pasted listing page'
+  if (mode === 'website') return 'business website'
+  return 'available sources'
+}
+
 export async function checkGoogleListing(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(ctx.business.locations.some((location) => Boolean(location.googlePlaceId)))
+  const attached = hasAttachedListing(ctx.business.locations)
+  return checkResult(
+    attached,
+    attached
+      ? 'A Google listing URL or identifier is attached to this audit'
+      : 'No Google listing URL provided',
+  )
 }
 
 export async function checkGoogleListingPhone(ctx: CheckContext): Promise<CheckResult> {
   try {
-    const place = await ctx.getGooglePlace()
-    if (!place) return noPlaceResult()
-    return checkResult(Boolean(place.nationalPhoneNumber))
+    const facts = await listingFacts(ctx)
+    if (facts.mode === 'inconclusive') return checkResult(null, facts.reason)
+    if (facts.mode === 'missing') return noListingResult(facts.reason)
+    return checkResult(
+      Boolean(facts.evidence.phone),
+      facts.evidence.phone
+        ? `Phone found on the ${sourceLabel(facts.mode)}: ${facts.evidence.phone}`
+        : `No phone number found on the ${sourceLabel(facts.mode)}`,
+    )
   } catch (error) {
-    return fetchErrorResult(error, 'Error fetching Google listing')
+    return fetchErrorResult(error, 'Error reading listing facts')
   }
 }
 
 export async function checkGoogleListingReviews(ctx: CheckContext): Promise<CheckResult> {
   try {
-    const place = await ctx.getGooglePlace()
-    if (!place) return noPlaceResult()
-
-    const count = place.userRatingCount ?? 0
-    const rating = place.rating ?? 0
-    const hasGoodRating = rating >= 4.0
-    const hasEnoughReviews = count >= 20
-    const passesCheck = hasGoodRating && hasEnoughReviews
-
-    let label = `${count} reviews with ${rating.toFixed(1)} rating. Good job!`
-    if (!passesCheck) {
-      if (!hasGoodRating && !hasEnoughReviews) {
-        label = `Only ${count} reviews with ${rating.toFixed(1)} rating. Need ≥ 20 reviews with ≥ 4.0 rating.`
-      } else if (!hasGoodRating) {
-        label = `Rating is ${rating.toFixed(1)}, which is below 4.0 target.`
-      } else {
-        label = `Only ${count} reviews. Need at least 20 reviews.`
-      }
+    const facts = await listingFacts(ctx)
+    if (facts.mode === 'inconclusive') return checkResult(null, facts.reason)
+    if (facts.mode === 'missing') {
+      return checkResult(null, 'Review counts are not visible without a readable listing page or website schema. We do not invent ratings.')
     }
 
-    return checkResult(passesCheck, label)
+    const count = facts.evidence.reviewCount
+    const rating = facts.evidence.rating
+    if (count === undefined && rating === undefined) {
+      return checkResult(
+        null,
+        `No aggregate rating was published on the ${sourceLabel(facts.mode)}. We do not invent review counts.`,
+      )
+    }
+
+    const safeCount = count ?? 0
+    const safeRating = rating ?? 0
+    const passes = safeRating >= 4 && safeCount >= 20
+    return checkResult(
+      passes,
+      `${safeCount} reviews with ${safeRating.toFixed(1)} rating on the ${sourceLabel(facts.mode)}${passes ? '' : '. Need ≥ 20 reviews with ≥ 4.0 rating.'}`,
+    )
   } catch (error) {
-    return fetchErrorResult(error, 'Error fetching Google listing')
+    return fetchErrorResult(error, 'Error reading listing facts')
   }
 }
 
 export async function checkGoogleListingPhotos(ctx: CheckContext): Promise<CheckResult> {
   try {
-    const place = await ctx.getGooglePlace()
-    if (!place) return noPlaceResult()
-    const photoCount = place.photos?.length ?? 0
-    const hasPhotos = photoCount > 0
+    const listing = await ctx.getListingEvidence()
+    if (listing.sourceUrl && !listing.fetched) {
+      return checkResult(null, `Listing page could not be read: ${listing.fetchReason ?? 'unknown error'}`)
+    }
+    if (!listing.fetched) {
+      return checkResult(null, 'Photos cannot be counted without a readable listing page. We do not invent photo counts.')
+    }
+    const photoCount = listing.photoCount ?? 0
     return checkResult(
-      hasPhotos,
-      hasPhotos ? `${photoCount} photo${photoCount !== 1 ? 's' : ''} found` : 'No photos found on Google listing',
+      photoCount > 0,
+      photoCount > 0
+        ? `${photoCount} photo${photoCount !== 1 ? 's' : ''} found on the pasted listing page`
+        : 'No photos found on the pasted listing page',
     )
   } catch (error) {
-    return fetchErrorResult(error, 'Error fetching Google listing')
+    return fetchErrorResult(error, 'Error reading listing facts')
   }
 }
 
 export async function checkGoogleListingOpeningTimes(ctx: CheckContext): Promise<CheckResult> {
   try {
-    const place = await ctx.getGooglePlace()
-    if (!place) return noPlaceResult()
-    return checkResult(Boolean(place.currentOpeningHours))
+    const facts = await listingFacts(ctx)
+    if (facts.mode === 'inconclusive') return checkResult(null, facts.reason)
+    if (facts.mode === 'missing') return noListingResult(facts.reason)
+    return checkResult(
+      Boolean(facts.evidence.hours),
+      facts.evidence.hours
+        ? `Opening hours found on the ${sourceLabel(facts.mode)}: ${facts.evidence.hours}`
+        : `No opening hours found on the ${sourceLabel(facts.mode)}`,
+    )
   } catch (error) {
-    return fetchErrorResult(error, 'Error fetching Google listing')
+    return fetchErrorResult(error, 'Error reading listing facts')
   }
 }
 
 export async function checkGoogleListingPrimaryCategory(ctx: CheckContext): Promise<CheckResult> {
   try {
-    const place = await ctx.getGooglePlace()
-    if (!place) return noPlaceResult()
-    const hasTypes = Boolean(place.types && place.types.length > 0)
-    const primary = place.types?.[0]
-    return checkResult(hasTypes, primary ? `Primary category: ${primary}` : undefined)
+    const facts = await listingFacts(ctx)
+    if (facts.mode === 'inconclusive') return checkResult(null, facts.reason)
+    if (facts.mode === 'missing') return noListingResult(facts.reason)
+    return checkResult(
+      Boolean(facts.evidence.category),
+      facts.evidence.category
+        ? `Category on the ${sourceLabel(facts.mode)}: ${facts.evidence.category}`
+        : `No category found on the ${sourceLabel(facts.mode)}`,
+    )
   } catch (error) {
-    return fetchErrorResult(error, 'Error fetching Google listing')
+    return fetchErrorResult(error, 'Error reading listing facts')
   }
 }
 
 export async function checkGoogleListingWebsiteMatches(ctx: CheckContext): Promise<CheckResult> {
   try {
-    const place = await ctx.getGooglePlace()
-    if (!place) return noPlaceResult()
-    const matches = Boolean(place.websiteUri && ctx.business.websiteUrl && place.websiteUri === ctx.business.websiteUrl)
-    return checkResult(matches)
+    const listing = await ctx.getListingEvidence()
+    if (listing.sourceUrl && !listing.fetched) {
+      return checkResult(null, `Listing page could not be read: ${listing.fetchReason ?? 'unknown error'}`)
+    }
+    if (!listing.fetched) {
+      return checkResult(null, 'No website link found on a listing page to compare.')
+    }
+    const matches = urlsMatch(listing.website, ctx.business.websiteUrl)
+    return checkResult(
+      matches,
+      matches
+        ? `Listing website matches ${ctx.business.websiteUrl}`
+        : listing.website
+          ? `Listing website ${listing.website} does not match ${ctx.business.websiteUrl ?? 'the stored website'}`
+          : 'No website link found on the pasted listing page',
+    )
   } catch (error) {
-    return fetchErrorResult(error, 'Error fetching Google listing')
+    return fetchErrorResult(error, 'Error reading listing facts')
   }
 }

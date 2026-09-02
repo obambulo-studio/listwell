@@ -13,6 +13,13 @@ export interface FetchWebsiteOptions {
   preferBrowser?: boolean
   /** Workers Browser Rendering binding (or any HTML renderer). Used after a thin-SPA fetch. */
   renderHtml?: (url: string) => Promise<string>
+  /** Optional synthetic LCP / load timing from the Browser Rendering session. */
+  measurePerformance?: (url: string) => Promise<{
+    lcp?: number
+    passes?: boolean
+    kind?: 'lcp' | 'load' | 'none'
+    message: string
+  }>
 }
 
 const browserContentSchema = z.object({
@@ -55,22 +62,28 @@ export async function fetchBrowserRenderingHtml(
   url: string,
   config: BrowserRenderingConfig,
   fetchImpl: typeof fetch = fetch,
+  extras: { injectScript?: string } = {},
 ): Promise<string> {
   if (!config.accountId || !config.apiToken) {
     throw new Error('Cloudflare Browser Rendering is not configured')
   }
 
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/browser-rendering/content`
+  const payload: Record<string, unknown> = {
+    url,
+    gotoOptions: { waitUntil: 'networkidle0', timeout: 30000 },
+  }
+  if (extras.injectScript) {
+    payload.addScriptTag = [{ content: extras.injectScript }]
+  }
+
   const response = await fetchImpl(endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      url,
-      gotoOptions: { waitUntil: 'networkidle0', timeout: 30000 },
-    }),
+    body: JSON.stringify(payload),
   })
 
   const json: unknown = await response.json()

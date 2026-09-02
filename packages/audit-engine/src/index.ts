@@ -7,16 +7,30 @@ export { fetchWebsiteHtml, fetchWebsiteResponse, fetchBrowserRenderingHtml, fetc
 export type { FetchWebsiteOptions, BrowserRenderingConfig } from './browser'
 export { parseDocument, parseJsonLd } from './html'
 export {
-  fetchGooglePlace,
-  locationPartsFromPlace,
-  searchGooglePlaces,
-  autocompleteGooglePlaces,
-  parseGooglePlacesSearch,
-  parseGooglePlaceAutocomplete,
-} from './lookups/googlePlaces'
-export { googleSearch } from './lookups/googleSearch'
-export { searchAppleMaps, fetchApplePlace, generateAppleMapKitToken } from './lookups/appleMaps'
-export { fetchCruxPerformance, fetchPageSpeedPerformance } from './lookups/performance'
+  searchNominatim,
+  reverseNominatim,
+  rankNominatimMatches,
+  pickStrongMatch,
+  parseNominatimSearch,
+  parseNominatimReverse,
+  namesOverlap,
+  normalizeName,
+  categoryFromOsm,
+  NOMINATIM_USER_AGENT,
+} from './lookups/nominatim'
+export type { NominatimMatch, NominatimLocality, NominatimItem } from './lookups/nominatim'
+export {
+  evidenceFromHtml,
+  emptyEvidence,
+  firstListingUrl,
+  hasAttachedListing,
+  isHttpUrl,
+  urlsMatch,
+} from './lookups/listingEvidence'
+export type { ListingEvidence } from './lookups/listingEvidence'
+export { locationPartsFromAddress } from './lookups/location'
+export { measureSyntheticPerformance, parseSyntheticTiming, performanceFromTiming, LCP_PROBE_SCRIPT } from './lookups/performance'
+export type { PerformanceData } from './lookups/performance'
 export {
   searchSocial,
   extractFacebookPage,
@@ -27,6 +41,7 @@ export {
   extractTwitterProfile,
   rankFacebookPages,
   rankInstagramProfiles,
+  socialsFromDocument,
 } from './lookups/social'
 export { parseQueueMessage, createQueueMessage } from './queue'
 
@@ -40,8 +55,6 @@ export type {
   CheckId,
   CheckResult,
   CheckStatus,
-  GooglePlace,
-  PlacePrediction,
   GoogleSearchResult,
   JobStatus,
   QueueAuditMessage,

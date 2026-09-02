@@ -31,31 +31,6 @@ export interface LocationParts {
   locationParts: string[]
 }
 
-export interface GooglePlace {
-  id?: string
-  displayName?: { text: string }
-  nationalPhoneNumber?: string
-  currentOpeningHours?: unknown
-  websiteUri?: string
-  userRatingCount?: number
-  formattedAddress?: string
-  rating?: number
-  photos?: unknown[]
-  types?: string[]
-  addressComponents?: Array<{
-    longText?: string
-    shortText?: string
-    types?: string[]
-  }>
-}
-
-export interface PlacePrediction {
-  id: string
-  title: string
-  description?: string
-  types: string[]
-}
-
 export interface SerializedHttpResponse {
   status: number
   statusText: string
@@ -98,11 +73,6 @@ export interface QueueAuditMessage {
 }
 
 export interface AuditEngineEnv {
-  googleApiKey?: string
-  googleProgrammableSearchEngineId?: string
-  appleMapkitTeamId?: string
-  appleMapkitKeyId?: string
-  appleMapkitPrivateKey?: string
   cloudflareAccountId?: string
   cloudflareApiToken?: string
 }

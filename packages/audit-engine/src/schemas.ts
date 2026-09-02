@@ -92,29 +92,3 @@ export const queueAuditMessageSchema = z.object({
   business: businessSnapshotSchema,
   checkIds: z.array(checkIdSchema),
 })
-
-export const googlePlaceSchema = z.object({
-  id: z.string().optional(),
-  displayName: z.object({ text: z.string() }).optional(),
-  nationalPhoneNumber: z.string().optional(),
-  currentOpeningHours: z.unknown().optional(),
-  websiteUri: z.string().optional(),
-  userRatingCount: z.number().optional(),
-  formattedAddress: z.string().optional(),
-  rating: z.number().optional(),
-  photos: z.array(z.unknown()).optional(),
-  types: z.array(z.string()).optional(),
-  addressComponents: z.array(z.object({
-    longText: z.string().optional(),
-    shortText: z.string().optional(),
-    long_name: z.string().optional(),
-    short_name: z.string().optional(),
-    types: z.array(z.string()).optional(),
-  })).optional(),
-})
-
-export const googleSearchResultSchema = z.object({
-  title: z.string(),
-  link: z.string(),
-  description: z.string(),
-})
