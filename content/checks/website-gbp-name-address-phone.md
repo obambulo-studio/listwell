@@ -12,7 +12,7 @@ points:
 Ensure your business Name, Address, and Phone (NAP) information matches exactly between your website and Google Business Profile for maximum local search credibility and customer trust.
 
 ::tech-detail{summary="What we check for NAP consistency"}
-We compare your business name, complete address, and phone number between your website and Google Business Profile to ensure they match exactly. NAP consistency is a crucial local SEO ranking factor - search engines use matching information across platforms to verify business legitimacy and determine local search rankings.
+When `GOOGLE_API_KEY` and a Place ID are present, we compare website NAP with official Places name, address, and phone. Otherwise we compare the website with a pasted listing page, then with the name and address you typed. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

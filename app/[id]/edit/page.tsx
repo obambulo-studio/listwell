@@ -30,6 +30,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       businessName={business.name}
       categoryId={business.category}
       initialProfiles={businessToProfiles(business)}
+      initialAddress={business.locations.find((location) => location.address)?.address ?? undefined}
       existingId={business.id}
     />
   );

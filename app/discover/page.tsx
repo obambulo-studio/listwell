@@ -12,6 +12,11 @@ export default async function DiscoverPage({
   const categoryId = parseCategoryParam(firstSearchParam(params.categoryId));
   const googlePlaceId = firstSearchParam(params.googlePlaceId);
   const appleMapsId = firstSearchParam(params.appleMapsId);
+  const listingUrl = firstSearchParam(params.listingUrl);
+  const address = firstSearchParam(params.address);
+  const facebookUrl = firstSearchParam(params.facebookUrl);
+  const instagramUsername = firstSearchParam(params.instagramUsername);
+  const near = firstSearchParam(params.near);
 
   return (
     <section className="vbg-opening">
@@ -22,6 +27,11 @@ export default async function DiscoverPage({
           categoryId={categoryId}
           googlePlaceId={googlePlaceId}
           appleMapsId={appleMapsId}
+          listingUrl={listingUrl}
+          address={address}
+          facebookUrl={facebookUrl}
+          instagramUsername={instagramUsername}
+          near={near}
         />
       ) : (
         <p className="vbg-lede">Enter a business name on the home page to start an audit.</p>

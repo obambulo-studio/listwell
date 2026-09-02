@@ -12,16 +12,14 @@ points:
 Your website needs to load fast - we check if customers can see your content within 3 seconds, because that's when most people give up and leave.
 
 ::tech-detail{summary="Technical details: Largest Contentful Paint (LCP) measurement"}
-We use Google's Core Web Vitals to measure your site's performance. Specifically, we check the Largest Contentful Paint (LCP) - this measures when the main content (biggest image or text block) becomes visible. Google uses two data sources:
-1. **Chrome User Experience Report (CrUX)** - Real user data from Chrome browsers
-2. **PageSpeed Insights** - Simulated tests when real data isn't available
+When `GOOGLE_API_KEY` is present, we read Chrome UX Report LCP first, then PageSpeed Insights LCP. If those keys are missing or return no LCP, we load the site in Cloudflare Browser Rendering for a synthetic LCP. The fallback is degraded and is not field data.
 
 A good LCP score is under 2.5 seconds, acceptable is under 4 seconds, and anything over 4 seconds is considered poor.
 ::
 
 ## What we're checking
 
-We measure how long real visitors wait before they can see and use your website's main content. Think of it like the time between opening your shop door and customers being able to see your products.
+We measure how long our test browser waits before the main content is visible. This is a lab load, not a field report from Chrome users. Think of it like the time between opening your shop door and customers being able to see your products.
 
 ::impact{type="money" severity="high"}
 **Amazon found that every 100ms of delay cost them 1% in sales.** For a small business making $100k/year online, a 1-second delay could mean $7,000 in lost revenue.

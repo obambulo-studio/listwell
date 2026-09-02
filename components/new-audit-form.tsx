@@ -14,11 +14,13 @@ export function NewAuditForm({
   businessName,
   categoryId,
   initialProfiles,
+  initialAddress,
   existingId,
 }: {
   businessName: string;
   categoryId: CategoryId;
   initialProfiles: DiscoveredProfile[];
+  initialAddress?: string;
   existingId?: string;
 }) {
   const router = useRouter();
@@ -29,6 +31,7 @@ export function NewAuditForm({
   const [channelId, setChannelId] = useState<ChannelId | "">("");
   const [value, setValue] = useState("");
   const [place, setPlace] = useState<PlaceCandidate | null>(null);
+  const [address, setAddress] = useState(initialAddress ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +45,16 @@ export function NewAuditForm({
     setError(null);
     try {
       const payload = mapProfilesToBusinessData(name, category, profiles);
+      if (address.trim()) {
+        if (payload.locations.length === 0) {
+          payload.locations.push({ name, address: address.trim() });
+        } else {
+          const first = payload.locations[0];
+          if (first && !first.address) {
+            first.address = address.trim();
+          }
+        }
+      }
       const response = await fetch(existingId ? `/api/businesses/${existingId}` : "/api/businesses", {
         method: existingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,6 +88,17 @@ export function NewAuditForm({
               Business name
             </label>
             <input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+          </div>
+          <div className="vbg-field">
+            <label className="vbg-label" htmlFor="address">
+              Address
+            </label>
+            <input
+              id="address"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              autoComplete="street-address"
+            />
           </div>
           <div className="vbg-field">
             <label className="vbg-label" htmlFor="category">
@@ -150,20 +174,31 @@ export function NewAuditForm({
               }
               const parsedChannel = channelIdSchema.parse(channelId);
               if (parsedChannel === "google-maps" || parsedChannel === "apple-maps") {
-                if (!place) {
+                if (place) {
+                  setProfiles((current) => [
+                    ...current,
+                    {
+                      type: parsedChannel,
+                      title: place.name,
+                      subtitle: place.address ?? (address.trim() || undefined),
+                      googlePlaceId: parsedChannel === "google-maps" ? place.id : undefined,
+                      appleMapsId: parsedChannel === "apple-maps" ? place.id : undefined,
+                    },
+                  ]);
+                } else if (value.trim()) {
+                  setProfiles((current) => [
+                    ...current,
+                    {
+                      type: parsedChannel,
+                      title: value.trim(),
+                      subtitle: address.trim() || undefined,
+                      googlePlaceId: parsedChannel === "google-maps" ? value.trim() : undefined,
+                      appleMapsId: parsedChannel === "apple-maps" ? value.trim() : undefined,
+                    },
+                  ]);
+                } else {
                   return;
                 }
-                const selectedPlace = place;
-                setProfiles((current) => [
-                  ...current,
-                  {
-                    type: parsedChannel,
-                    title: selectedPlace.name,
-                    subtitle: selectedPlace.address,
-                    googlePlaceId: parsedChannel === "google-maps" ? selectedPlace.id : undefined,
-                    appleMapsId: parsedChannel === "apple-maps" ? selectedPlace.id : undefined,
-                  },
-                ]);
               } else if (value.trim()) {
                 setProfiles((current) => [
                   ...current,
@@ -203,24 +238,56 @@ export function NewAuditForm({
               </select>
             </div>
             {channelId === "google-maps" ? (
-              <PlaceSearch
-                source="google-search"
-                label="Google Maps listing"
-                onSelect={(candidate) => {
-                  setPlace(candidate);
-                  setValue(candidate.id);
-                }}
-              />
+              <>
+                <PlaceSearch
+                  source="google-search"
+                  label="Google Maps listing"
+                  onSelect={(candidate) => {
+                    setPlace(candidate);
+                    setValue(candidate.id);
+                  }}
+                />
+                <div className="vbg-field">
+                  <label className="vbg-label" htmlFor="profileValue">
+                    Or paste a listing URL
+                  </label>
+                  <input
+                    id="profileValue"
+                    value={place ? "" : value}
+                    onChange={(event) => {
+                      setPlace(null);
+                      setValue(event.target.value);
+                    }}
+                    placeholder="https://maps.google.com/..."
+                  />
+                </div>
+              </>
             ) : null}
             {channelId === "apple-maps" ? (
-              <PlaceSearch
-                source="apple-search"
-                label="Apple Maps listing"
-                onSelect={(candidate) => {
-                  setPlace(candidate);
-                  setValue(candidate.id);
-                }}
-              />
+              <>
+                <PlaceSearch
+                  source="apple-search"
+                  label="Apple Maps listing"
+                  onSelect={(candidate) => {
+                    setPlace(candidate);
+                    setValue(candidate.id);
+                  }}
+                />
+                <div className="vbg-field">
+                  <label className="vbg-label" htmlFor="appleListingUrl">
+                    Or paste a listing URL
+                  </label>
+                  <input
+                    id="appleListingUrl"
+                    value={place ? "" : value}
+                    onChange={(event) => {
+                      setPlace(null);
+                      setValue(event.target.value);
+                    }}
+                    placeholder="https://maps.apple.com/..."
+                  />
+                </div>
+              </>
             ) : null}
             {channelId && channelId !== "google-maps" && channelId !== "apple-maps" ? (
               <div className="vbg-field">
@@ -241,7 +308,7 @@ export function NewAuditForm({
                 type="submit"
                 disabled={
                   !channelId ||
-                  (channelId === "google-maps" || channelId === "apple-maps" ? !place : !value.trim())
+                  (channelId === "google-maps" || channelId === "apple-maps" ? !place && !value.trim() : !value.trim())
                 }
               >
                 Add listing

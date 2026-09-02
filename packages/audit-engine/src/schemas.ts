@@ -69,30 +69,6 @@ export const businessSnapshotSchema = z.object({
   locations: z.array(locationSnapshotSchema).default([]),
 })
 
-export const checkResultSchema = z.object({
-  type: z.literal('check'),
-  value: z.boolean().nullable(),
-  label: z.string().optional(),
-})
-
-export function checkResult(value: boolean | null, label?: string) {
-  return checkResultSchema.parse(label === undefined
-    ? { type: 'check', value }
-    : { type: 'check', value, label })
-}
-
-export const runChecksRequestSchema = z.object({
-  business: businessSnapshotSchema,
-  checks: z.array(checkIdSchema).optional(),
-  mode: z.enum(['sync', 'async']).default('sync'),
-})
-
-export const queueAuditMessageSchema = z.object({
-  jobId: z.string(),
-  business: businessSnapshotSchema,
-  checkIds: z.array(checkIdSchema),
-})
-
 export const googlePlaceSchema = z.object({
   id: z.string().optional(),
   displayName: z.object({ text: z.string() }).optional(),
@@ -117,4 +93,28 @@ export const googleSearchResultSchema = z.object({
   title: z.string(),
   link: z.string(),
   description: z.string(),
+})
+
+export const checkResultSchema = z.object({
+  type: z.literal('check'),
+  value: z.boolean().nullable(),
+  label: z.string().optional(),
+})
+
+export function checkResult(value: boolean | null, label?: string) {
+  return checkResultSchema.parse(label === undefined
+    ? { type: 'check', value }
+    : { type: 'check', value, label })
+}
+
+export const runChecksRequestSchema = z.object({
+  business: businessSnapshotSchema,
+  checks: z.array(checkIdSchema).optional(),
+  mode: z.enum(['sync', 'async']).default('sync'),
+})
+
+export const queueAuditMessageSchema = z.object({
+  jobId: z.string(),
+  business: businessSnapshotSchema,
+  checkIds: z.array(checkIdSchema),
 })

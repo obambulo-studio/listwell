@@ -12,7 +12,7 @@ points:
 Help customers visit your business at the right time by clearly displaying your opening hours on Google - one of the most searched-for pieces of business information.
 
 ::tech-detail{summary="What we check for opening hours"}
-We verify that your Google Business Profile has complete opening hours listed for each day of the week. This includes regular hours, holiday hours, and any special hours. Google uses this information to show when your business is open in search results and Maps, and to determine if you're "Open Now" or "Closed."
+When `GOOGLE_API_KEY` and a Place ID are present, we read official Places opening hours. Otherwise we look on a pasted listing page, then website schema or visible hours. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

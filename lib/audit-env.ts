@@ -1,9 +1,13 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   businessSnapshotSchema,
+  LCP_PROBE_SCRIPT,
+  parseSyntheticTiming,
+  performanceFromTiming,
   type AuditEngineEnv,
   type BusinessSnapshot,
   type FetchWebsiteOptions,
+  type PerformanceData,
 } from "@listwell/audit-engine";
 import { z } from "zod";
 import type { Business } from "./schema";
@@ -87,6 +91,9 @@ export async function getFetchWebsiteOptions(): Promise<FetchWebsiteOptions> {
       apiToken: engineEnv.cloudflareApiToken,
     },
     renderHtml: browser ? async (url: string) => renderWithBrowserBinding(browser, url) : undefined,
+    measurePerformance: browser
+      ? async (url: string) => measureWithBrowserBinding(browser, url)
+      : undefined,
   };
 }
 
@@ -97,6 +104,52 @@ async function renderWithBrowserBinding(browser: Fetcher, url: string): Promise<
     const page = await instance.newPage();
     await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
     return await page.content();
+  } finally {
+    await instance.close();
+  }
+}
+
+async function measureWithBrowserBinding(browser: Fetcher, url: string): Promise<PerformanceData> {
+  const puppeteer = await import("@cloudflare/puppeteer");
+  const instance = await puppeteer.launch(browser);
+  try {
+    const page = await instance.newPage();
+    await page.evaluateOnNewDocument(LCP_PROBE_SCRIPT);
+    await page.goto(url, { waitUntil: "networkidle0", timeout: 30000 });
+    await page.waitForFunction(
+      () => Boolean(document.documentElement.getAttribute("data-listwell-lcp") || document.documentElement.getAttribute("data-listwell-timing")),
+      { timeout: 5000 },
+    ).catch(() => undefined);
+    const html = await page.content();
+    const timing = parseSyntheticTiming(html);
+    if (timing.value !== undefined) {
+      return performanceFromTiming(timing.value, timing.kind);
+    }
+
+    const evaluatedSchema = z.object({
+      value: z.number().optional(),
+      kind: z.enum(["lcp", "load", "none"]),
+    });
+    const evaluated = evaluatedSchema.parse(
+      await page.evaluate(() => {
+        const entries = performance.getEntriesByType("largest-contentful-paint");
+        const last = entries[entries.length - 1];
+        if (last && typeof last.startTime === "number") {
+          return { value: Math.round(last.startTime), kind: "lcp" };
+        }
+        const navigation = performance.getEntriesByType("navigation")[0];
+        if (
+          navigation
+          && "loadEventEnd" in navigation
+          && typeof navigation.loadEventEnd === "number"
+          && navigation.loadEventEnd > 0
+        ) {
+          return { value: Math.round(navigation.loadEventEnd), kind: "load" };
+        }
+        return { kind: "none" };
+      }),
+    );
+    return performanceFromTiming(evaluated.value, evaluated.kind);
   } finally {
     await instance.close();
   }

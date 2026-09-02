@@ -1,3 +1,4 @@
+import type { HtmlDocument } from '../html'
 import type { GoogleSearchResult, SocialSearchHit } from '../types'
 
 function titleScore(title: string, searchQuery: string, suffixes: RegExp[]): number {
@@ -347,4 +348,47 @@ export async function searchSocial(
     search(`"${query}" site:twitter.com`),
   ])
   return rankTwitterProfiles([...xResults, ...twitterResults], query)
+}
+
+export interface WebsiteSocialLinks {
+  facebook?: string
+  instagram?: string
+  tiktok?: string
+  linkedin?: string
+  youtube?: string
+  x?: string
+}
+
+export function socialsFromDocument(document: HtmlDocument): WebsiteSocialLinks {
+  const hrefs = document.querySelectorAll('a').map((anchor) => anchor.getAttribute('href') ?? '')
+  const found: WebsiteSocialLinks = {}
+
+  for (const href of hrefs) {
+    if (!found.facebook) {
+      const page = extractFacebookPage(href)
+      if (page) found.facebook = page.url
+    }
+    if (!found.instagram) {
+      const profile = extractInstagramProfile(href)
+      if (profile) found.instagram = profile.username
+    }
+    if (!found.tiktok) {
+      const profile = extractTikTokProfile(href)
+      if (profile) found.tiktok = profile.username
+    }
+    if (!found.linkedin) {
+      const profile = extractLinkedInProfile(href)
+      if (profile) found.linkedin = profile.url
+    }
+    if (!found.youtube) {
+      const channel = extractYouTubeChannel(href)
+      if (channel) found.youtube = channel.url
+    }
+    if (!found.x) {
+      const profile = extractTwitterProfile(href)
+      if (profile) found.x = profile.username
+    }
+  }
+
+  return found
 }

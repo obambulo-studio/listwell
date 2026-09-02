@@ -1,5 +1,6 @@
 import { fetchErrorResult, noWebsiteResult, type CheckContext } from '../context'
 import { locationPartsFromPlace } from '../lookups/googlePlaces'
+import { locationPartsFromAddress } from '../lookups/location'
 import { checkResult } from '../schemas'
 import type { CheckResult } from '../types'
 
@@ -36,9 +37,10 @@ export async function checkWebsiteTitle(ctx: CheckContext): Promise<CheckResult>
     }
 
     const place = await ctx.getGooglePlace()
+    const storedAddress = ctx.business.locations.find((location) => location.address)?.address
     const locationInfo = place
       ? locationPartsFromPlace(place)
-      : { suburb: null, city: null, state: null, country: null, locationParts: [] }
+      : locationPartsFromAddress(storedAddress)
 
     const matchedLocations: string[] = []
     const checkLocationMatch = (locationValue: string | null): boolean => {

@@ -17,12 +17,22 @@ export function DiscoverClient({
   categoryId,
   googlePlaceId,
   appleMapsId,
+  listingUrl,
+  address,
+  facebookUrl,
+  instagramUsername,
+  near,
 }: {
   businessName: string;
   websiteUrl?: string;
   categoryId: CategoryId;
   googlePlaceId?: string;
   appleMapsId?: string;
+  listingUrl?: string;
+  address?: string;
+  facebookUrl?: string;
+  instagramUsername?: string;
+  near?: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState("Looking for map listings, a website, and social profiles");
@@ -49,6 +59,11 @@ export function DiscoverClient({
             categoryId,
             googlePlaceId,
             appleMapsId,
+            listingUrl,
+            address,
+            facebookUrl,
+            instagramUsername,
+            near,
           }),
         });
         if (!response.ok) {
@@ -77,7 +92,7 @@ export function DiscoverClient({
         continueToConfirm(parsed, selectedCandidate);
       } catch {
         if (!cancelled) {
-          setStatus("Search skipped");
+          setStatus("Continuing with the details you entered");
           await sentenceHold;
           if (cancelled) {
             return;
@@ -86,7 +101,13 @@ export function DiscoverClient({
             {
               categoryId,
               candidates: [],
-              profiles: websiteUrl ? [{ type: "website", title: websiteUrl }] : [],
+              profiles: [
+                websiteUrl ? { type: "website" as const, title: websiteUrl } : null,
+                listingUrl ? { type: "google-maps" as const, title: listingUrl, googlePlaceId: listingUrl, subtitle: address } : null,
+                facebookUrl ? { type: "facebook" as const, title: facebookUrl } : null,
+                instagramUsername ? { type: "instagram" as const, title: instagramUsername } : null,
+              ].filter((profile): profile is NonNullable<typeof profile> => profile !== null),
+              address,
             },
             undefined,
           );
@@ -101,6 +122,9 @@ export function DiscoverClient({
         categoryId: discovery.categoryId,
         discoveredProfiles: JSON.stringify(profiles),
       });
+      if (discovery.address ?? address) {
+        params.set("address", discovery.address ?? address ?? "");
+      }
       router.replace(`/new?${params.toString()}`);
     }
 
@@ -110,7 +134,7 @@ export function DiscoverClient({
       window.clearTimeout(holdTimer);
       releaseHold();
     };
-  }, [appleMapsId, businessName, categoryId, googlePlaceId, router, websiteUrl]);
+  }, [address, appleMapsId, businessName, categoryId, facebookUrl, googlePlaceId, instagramUsername, listingUrl, near, router, websiteUrl]);
 
   function chooseCandidate(candidate: PlaceCandidate) {
     if (!result) {
@@ -122,6 +146,9 @@ export function DiscoverClient({
       categoryId: result.categoryId,
       discoveredProfiles: JSON.stringify(profiles),
     });
+    if (result.address ?? candidate.address ?? address) {
+      params.set("address", result.address ?? candidate.address ?? address ?? "");
+    }
     router.replace(`/new?${params.toString()}`);
   }
 

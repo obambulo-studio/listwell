@@ -14,8 +14,14 @@ export default async function NewAuditPage({
   const businessName = firstSearchParam(params.businessName) ?? "";
   const categoryId = parseCategoryParam(firstSearchParam(params.categoryId));
   const profiles = parseProfilesParam(firstSearchParam(params.discoveredProfiles));
+  const address = firstSearchParam(params.address);
 
   return (
-    <NewAuditForm businessName={businessName} categoryId={categoryId} initialProfiles={profiles} />
+    <NewAuditForm
+      businessName={businessName}
+      categoryId={categoryId}
+      initialProfiles={profiles}
+      initialAddress={address}
+    />
   );
 }

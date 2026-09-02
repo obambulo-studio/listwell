@@ -1,7 +1,7 @@
 import robotsParser from 'robots-parser'
 import { fetchErrorResult, noWebsiteResult, type CheckContext } from '../context'
 import { parseJsonLd } from '../html'
-import { locationPartsFromPlace } from '../lookups/googlePlaces'
+import { addressPartsMatch, phonesMatch } from '../lookups/listingEvidence'
 import { checkResult } from '../schemas'
 import type { CheckResult } from '../types'
 
@@ -188,10 +188,14 @@ export async function checkWebsitePerformance(ctx: CheckContext): Promise<CheckR
       return checkResult(cruxResult.passes ?? false, cruxResult.message)
     }
     const pageSpeedResult = await ctx.fetchPageSpeed(ctx.business.websiteUrl)
-    return checkResult(
-      pageSpeedResult.lcp !== undefined ? pageSpeedResult.passes ?? null : null,
-      pageSpeedResult.message,
-    )
+    if (pageSpeedResult.lcp !== undefined) {
+      return checkResult(pageSpeedResult.passes ?? false, pageSpeedResult.message)
+    }
+    const synthetic = await ctx.measurePerformance(ctx.business.websiteUrl)
+    if (synthetic.lcp !== undefined) {
+      return checkResult(synthetic.passes ?? false, synthetic.message)
+    }
+    return checkResult(null, synthetic.message)
   } catch (error) {
     return checkResult(null, `Performance check failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
@@ -448,57 +452,101 @@ export async function checkWebsiteGbpNap(ctx: CheckContext): Promise<CheckResult
   if (!ctx.business.websiteUrl) return noWebsiteResult()
   try {
     const place = await ctx.getGooglePlace()
-    if (!place) {
-      return checkResult(false, 'No Google Business Profile ID (googlePlaceId) provided')
+    if (place) {
+      const gbpName = place.displayName?.text ?? ''
+      const gbpAddress = place.formattedAddress ?? ''
+      const gbpPhone = place.nationalPhoneNumber ?? ''
+      if (!gbpName && !gbpAddress && !gbpPhone) {
+        return checkResult(false, 'No NAP information found in Google Business Profile')
+      }
+
+      const document = await ctx.getWebsiteDocument()
+      const pageText = document.body?.textContent?.toLowerCase().replace(/\s+/g, ' ').trim() ?? ''
+      const results: string[] = []
+      let nameFound = false
+      let addressFound = false
+      let phoneFound = false
+
+      if (gbpName) {
+        nameFound = pageText.includes(gbpName.toLowerCase())
+        results.push(`Name ${nameFound ? 'found' : 'missing'}`)
+      }
+      if (gbpAddress) {
+        const significantParts = gbpAddress.split(',').map((part) => part.trim().toLowerCase()).filter((part) => part.length > 3)
+        if (significantParts.length > 0) {
+          const foundParts = significantParts.filter((part) => pageText.includes(part))
+          addressFound = foundParts.length / significantParts.length >= 0.7
+          results.push(`Address ${addressFound ? 'found' : 'missing'}`)
+        }
+      }
+      if (gbpPhone) {
+        const normalizedGbpPhone = gbpPhone.replace(/\D/g, '')
+        phoneFound = pageText.includes(gbpPhone)
+          || pageText.includes(normalizedGbpPhone)
+          || Boolean(pageText.match(new RegExp(normalizedGbpPhone.replace(/(\d{3})(\d{3})(\d{4})/, '\\(?$1\\)?[\\s.-]*$2[\\s.-]*$3'))))
+        results.push(`Phone ${phoneFound ? 'found' : 'missing'}`)
+      }
+
+      const componentsToCheck = [gbpName, gbpAddress, gbpPhone].filter(Boolean).length
+      const foundComponents = [gbpName && nameFound, gbpAddress && addressFound, gbpPhone && phoneFound].filter(Boolean).length
+      const matchPercentage = componentsToCheck > 0 ? foundComponents / componentsToCheck : 0
+      const passes = matchPercentage >= 0.7
+      return checkResult(
+        passes,
+        passes
+          ? `NAP consistency check passed (${results.join(', ')})`
+          : `NAP consistency check failed (${results.join(', ')})`,
+      )
     }
 
-    const gbpName = place.displayName?.text ?? ''
-    const gbpAddress = place.formattedAddress ?? ''
-    const gbpPhone = place.nationalPhoneNumber ?? ''
-    if (!gbpName && !gbpAddress && !gbpPhone) {
-      return checkResult(false, 'No NAP information found in Google Business Profile')
+    const listing = await ctx.getListingEvidence()
+    if (listing.sourceUrl && !listing.fetched) {
+      return checkResult(null, `Listing page could not be read: ${listing.fetchReason ?? 'unknown error'}`)
+    }
+
+    const expectedName = listing.fetched && listing.name ? listing.name : ctx.business.name
+    const expectedAddress = listing.fetched && listing.address
+      ? listing.address
+      : ctx.business.locations.find((location) => location.address)?.address ?? ''
+    const expectedPhone = listing.fetched ? listing.phone ?? '' : ''
+    const source = listing.fetched ? 'pasted listing page' : 'typed business details'
+
+    if (!expectedName && !expectedAddress && !expectedPhone) {
+      return checkResult(false, 'No listing URL or typed name and address to compare with the website')
     }
 
     const document = await ctx.getWebsiteDocument()
     const pageText = document.body?.textContent?.toLowerCase().replace(/\s+/g, ' ').trim() ?? ''
+    const website = await ctx.getWebsiteEvidence()
     const results: string[] = []
     let nameFound = false
     let addressFound = false
     let phoneFound = false
 
-    if (gbpName) {
-      nameFound = pageText.includes(gbpName.toLowerCase())
+    if (expectedName) {
+      nameFound = pageText.includes(expectedName.toLowerCase())
       results.push(`Name ${nameFound ? 'found' : 'missing'}`)
     }
-    if (gbpAddress) {
-      const significantParts = gbpAddress.split(',').map((part) => part.trim().toLowerCase()).filter((part) => part.length > 3)
-      if (significantParts.length > 0) {
-        const foundParts = significantParts.filter((part) => pageText.includes(part))
-        addressFound = foundParts.length / significantParts.length >= 0.7
-        results.push(`Address ${addressFound ? 'found' : 'missing'}`)
-      }
+    if (expectedAddress) {
+      addressFound = addressPartsMatch(expectedAddress, pageText)
+      results.push(`Address ${addressFound ? 'found' : 'missing'}`)
     }
-    if (gbpPhone) {
-      const normalizedGbpPhone = gbpPhone.replace(/\D/g, '')
-      phoneFound = pageText.includes(gbpPhone)
-        || pageText.includes(normalizedGbpPhone)
-        || Boolean(pageText.match(new RegExp(normalizedGbpPhone.replace(/(\d{3})(\d{3})(\d{4})/, '\\(?$1\\)?[\\s.-]*$2[\\s.-]*$3'))))
+    if (expectedPhone) {
+      phoneFound = phonesMatch(expectedPhone, website.phone) || pageText.includes(expectedPhone.toLowerCase())
       results.push(`Phone ${phoneFound ? 'found' : 'missing'}`)
     }
 
-    const componentsToCheck = [gbpName, gbpAddress, gbpPhone].filter(Boolean).length
-    const foundComponents = [gbpName && nameFound, gbpAddress && addressFound, gbpPhone && phoneFound].filter(Boolean).length
+    const componentsToCheck = [expectedName, expectedAddress, expectedPhone].filter(Boolean).length
+    const foundComponents = [expectedName && nameFound, expectedAddress && addressFound, expectedPhone && phoneFound].filter(Boolean).length
     const matchPercentage = componentsToCheck > 0 ? foundComponents / componentsToCheck : 0
     const passes = matchPercentage >= 0.7
     return checkResult(
       passes,
       passes
-        ? `NAP consistency check passed (${results.join(', ')})`
-        : `NAP consistency check failed (${results.join(', ')})`,
+        ? `NAP matches the ${source} (${results.join(', ')})`
+        : `NAP does not match the ${source} (${results.join(', ')})`,
     )
   } catch (error) {
     return fetchErrorResult(error, 'Error checking NAP consistency')
   }
 }
-
-export { locationPartsFromPlace }

@@ -1,8 +1,8 @@
 # Listwell
 
-Listwell is a local and website SEO auditor. Create an audit. Then run the website checks and the listing checks. Then read the report. The report gives step-by-step fixes.
+Local and website SEO auditor. Create an audit, run website and listing checks, then read a report with step-by-step fixes.
 
-This project uses the MIT license.
+This repository is a MIT fork of [drevantonder/visimate](https://github.com/drevantonder/visimate).
 
 ## Stack
 
@@ -25,43 +25,51 @@ bun run build
 bun run preview
 ```
 
-`bun run preview` builds the Worker with OpenNext. Then Wrangler serves the Worker.
+`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker.
 
-`bun run deploy` deploys that Worker.
+Create a D1 database named `listwell` and a KV namespace for audit jobs. Put those ids in `wrangler.jsonc` (placeholders are `0000…`), then apply `lib/db/migrations/0000.sql`.
 
-## Database and storage
-
-1. Create a D1 database named `listwell`.
-2. Create a KV namespace for audit jobs.
-3. Put those ids in `wrangler.jsonc`. The file uses `0000…` as placeholders.
-4. Apply `lib/db/migrations/0000.sql`.
-
-If you use local `next dev` without D1, the process stores audits in memory.
+Local `next dev` can run without D1 and keeps audits in memory for the process.
 
 ## Bindings and secrets
 
-`wrangler.jsonc` declares the Workers bindings. Replace the placeholder ids before you deploy:
+`wrangler.jsonc` declares real Workers bindings. Replace placeholder ids before deploy:
 
 - `DB` — D1
-- `AUDIT_KV` — queued check jobs. Use `00000000000000000000000000000000` until you create the namespace.
-- `AUDIT_QUEUE` — producer for `listwell-audit`. This binding is optional. The Worker also finishes `website-performance` with `waitUntil`.
+- `AUDIT_KV` — queued check jobs (`00000000000000000000000000000000` until you create the namespace)
+- `AUDIT_QUEUE` — producer for `listwell-audit` (optional; the Worker also finishes `website-performance` with `waitUntil`)
 - `BROWSER` — Cloudflare Browser Rendering
-- `AI` — Workers AI for the report executive brief. If this binding is missing, the Worker uses a cited check summary.
+- `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary.
 
-Set secrets with `wrangler secret put`. See `.env.example`:
+Set secrets with `wrangler secret put` (see `.env.example`):
 
-- `GOOGLE_API_KEY`
-- `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`
-- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for Browser Rendering REST when the binding is missing
-- `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, and `APPLE_MAPKIT_PRIVATE_KEY` for Apple Maps search on create-audit
+- `GOOGLE_API_KEY` — required for full Google Business Profile quality (official reviews, photos, Places category, claimed listing, Places autocomplete). Also used for Programmable Search, CrUX, and PageSpeed
+- `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` — web-wide social and website discovery
+- `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY` — Apple Maps listing search
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Browser Rendering REST fallback)
+
+**Full Google Business Profile quality requires `GOOGLE_API_KEY`.** Without it, create-audit and listing checks fall back to Nominatim, pasted URLs, website markup, and a synthetic browser LCP. That fallback is degraded: no official reviews, photo gallery, Places category, or claimed-listing facts.
+
+The product never scrapes Google Maps HTML or bypasses bot walls.
+
+## Create an audit
+
+1. Type the business name.
+2. Confirm or correct the suburb from browser geolocation.
+3. Listwell resolves candidates with Google Places first (and Apple MapKit when configured). If those keys are missing or return nothing, it asks OpenStreetMap Nominatim.
+4. If one match is strong, confirm or reject it. If several matches appear, pick one. If none are confident, add a website URL, optional listing URL, optional social URLs, and an address.
+
+The product does not invent a business.
 
 ## What the engine does
 
-The Next Worker runs all 32 check IDs in `content/checks`:
+All 32 `content/checks` IDs run in the Next Worker:
 
-- Plain `fetch` first. Each run shares HTML.
-- Browser Rendering only when the page looks like a thin SPA.
-- Google Business Profile field checks through the Places API.
-- `website-performance` is queued (CrUX, then PageSpeed).
+- Plain `fetch` first, shared HTML per run
+- Browser Rendering only when the page looks like a thin SPA
+- Google listing checks use Places details when a Place ID and `GOOGLE_API_KEY` exist
+- Fallback listing facts from website schema.org / visible NAP and from HTML of listing URLs the user pasted
+- If a listing URL cannot be fetched and Places is unavailable, that check is inconclusive
+- `website-performance` uses CrUX then PageSpeed when `GOOGLE_API_KEY` is present, otherwise a synthetic Browser Rendering LCP
 
-Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields. This matches the original handlers.
+Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields. Programmable Search can also discover social profiles when configured.
