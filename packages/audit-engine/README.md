@@ -2,7 +2,7 @@
 
 Workers-friendly TypeScript modules for Listwell website and local SEO checks.
 
-Check IDs match `content/checks/*.md` so reports stay comparable with the original Nuxt handlers. Upstream `drevantonder/visimate` is fork history only.
+Check IDs match `content/checks/*.md` so reports stay comparable with the original Nuxt handlers.
 
 The Next.js OpenNext Worker imports this package and runs checks on the existing report routes. Do not stand up a parallel app.
 
