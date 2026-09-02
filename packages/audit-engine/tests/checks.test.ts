@@ -142,6 +142,41 @@ describe('website html checks', () => {
 })
 
 describe('google listing checks', () => {
+  it('uses Places details when a place id and GOOGLE_API_KEY exist', async () => {
+    const placesCafe = {
+      ...cafe,
+      locations: [{ googlePlaceId: 'places/abc', address: '12 Example St, Brisbane QLD' }],
+    }
+    const fetchImpl = mockFetch({
+      'places.googleapis.com': new Response(JSON.stringify({
+        nationalPhoneNumber: '07 3000 0000',
+        currentOpeningHours: { openNow: true },
+        websiteUri: 'https://seoulbistro.example',
+        userRatingCount: 12,
+        rating: 3.8,
+        photos: [{ name: 'photo1' }],
+        types: ['restaurant'],
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    })
+
+    const results = await runChecks(placesCafe, [
+      'google-listing-phone-number',
+      'google-listing-reviews',
+      'google-listing-photos',
+      'google-listing-opening-times',
+      'google-listing-primary-category',
+      'google-listing-website-matches',
+    ], { fetchImpl, env: { googleApiKey: 'test-key' } })
+
+    expect(results['google-listing-phone-number']?.value).toBe(true)
+    expect(results['google-listing-reviews']?.value).toBe(false)
+    expect(results['google-listing-reviews']?.label).toContain('Need ≥ 20 reviews')
+    expect(results['google-listing-photos']?.label).toBe('1 photo found')
+    expect(results['google-listing-opening-times']?.value).toBe(true)
+    expect(results['google-listing-primary-category']?.label).toBe('Primary category: restaurant')
+    expect(results['google-listing-website-matches']?.value).toBe(true)
+  })
+
   it('reads listing facts from pasted listing HTML without a Google API key', async () => {
     const fetchImpl = mockFetch({
       'maps.example/seoul-bistro': listingPage,
@@ -198,6 +233,20 @@ describe('google listing checks', () => {
 })
 
 describe('website performance', () => {
+  it('prefers CrUX LCP when a Google API key is present', async () => {
+    const fetchImpl = mockFetch({
+      'chromeuxreport.googleapis.com': new Response(JSON.stringify({
+        record: { metrics: { largest_contentful_paint: { percentiles: { p75: 1900 } } } },
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    })
+    const result = await runCheck('website-performance', cafe, {
+      fetchImpl,
+      env: { googleApiKey: 'test-key' },
+    })
+    expect(result.value).toBe(true)
+    expect(result.label).toContain('LCP p75: 1900ms')
+  })
+
   it('labels a synthetic browser LCP and does not mention API keys', async () => {
     const result = await runCheck('website-performance', cafe, {
       measurePerformance: async () => ({

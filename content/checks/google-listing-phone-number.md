@@ -12,7 +12,7 @@ points:
 Ensure your phone number is consistent between your Google Business Profile and website - mismatched contact information confuses customers and hurts your search rankings.
 
 ::tech-detail{summary="What we check for phone number consistency"}
-We look for a phone number on the Google listing URL you pasted. If that page cannot be fetched, the check is inconclusive. If you did not paste a listing URL, we fall back to schema.org or visible phone facts on your website. We do not invent numbers and we do not call Google Places.
+When `GOOGLE_API_KEY` and a Place ID are present, we read the official Places phone number. Otherwise we look on a pasted listing page, then website schema or visible NAP. We do not invent numbers. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

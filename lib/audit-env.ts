@@ -68,6 +68,14 @@ export async function getExecutionContext(): Promise<ExecutionContext | null> {
 export async function getAuditEngineEnv(): Promise<AuditEngineEnv> {
   const env = await getCloudflareEnv();
   return {
+    googleApiKey: readSecret(env?.GOOGLE_API_KEY) ?? readSecret(process.env.GOOGLE_API_KEY),
+    googleProgrammableSearchEngineId:
+      readSecret(env?.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID) ??
+      readSecret(process.env.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID),
+    appleMapkitTeamId: readSecret(env?.APPLE_MAPKIT_TEAM_ID) ?? readSecret(process.env.APPLE_MAPKIT_TEAM_ID),
+    appleMapkitKeyId: readSecret(env?.APPLE_MAPKIT_KEY_ID) ?? readSecret(process.env.APPLE_MAPKIT_KEY_ID),
+    appleMapkitPrivateKey:
+      readSecret(env?.APPLE_MAPKIT_PRIVATE_KEY) ?? readSecret(process.env.APPLE_MAPKIT_PRIVATE_KEY),
     cloudflareAccountId: readSecret(env?.CLOUDFLARE_ACCOUNT_ID) ?? readSecret(process.env.CLOUDFLARE_ACCOUNT_ID),
     cloudflareApiToken: readSecret(env?.CLOUDFLARE_API_TOKEN) ?? readSecret(process.env.CLOUDFLARE_API_TOKEN),
   };

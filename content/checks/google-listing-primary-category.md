@@ -12,7 +12,7 @@ points:
 Set the right primary category for your business to ensure you appear in relevant searches and attract the right customers looking for exactly what you offer.
 
 ::tech-detail{summary="What we check for primary category"}
-We read the published category from the pasted listing page or from website schema.org `@type` (for example Restaurant or LocalBusiness). If that evidence is missing or the listing page cannot be fetched, the check is inconclusive or fails with a clear reason. We do not call Google Places.
+When `GOOGLE_API_KEY` and a Place ID are present, we read official Places types (primary category). Otherwise we read a published category from a pasted listing page or website schema.org `@type`. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

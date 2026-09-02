@@ -1,14 +1,29 @@
 import { fetchText, fetchWebsiteHtml, fetchWebsiteResponse, type FetchWebsiteOptions } from './browser'
 import { parseDocument, type HtmlDocument } from './html'
+import { fetchApplePlace, searchAppleMaps } from './lookups/appleMaps'
+import { fetchGooglePlace } from './lookups/googlePlaces'
+import { googleSearch } from './lookups/googleSearch'
 import {
   emptyEvidence,
   evidenceFromHtml,
   firstListingUrl,
+  isHttpUrl,
   type ListingEvidence,
 } from './lookups/listingEvidence'
-import { measureSyntheticPerformance, type PerformanceData } from './lookups/performance'
+import {
+  fetchCruxPerformance,
+  fetchPageSpeedPerformance,
+  measureSyntheticPerformance,
+  type PerformanceData,
+} from './lookups/performance'
 import { checkResult } from './schemas'
-import type { AuditEngineEnv, BusinessSnapshot, SerializedHttpResponse } from './types'
+import type {
+  AuditEngineEnv,
+  BusinessSnapshot,
+  GooglePlace,
+  GoogleSearchResult,
+  SerializedHttpResponse,
+} from './types'
 
 export interface CheckContext {
   business: BusinessSnapshot
@@ -19,8 +34,14 @@ export interface CheckContext {
   getWebsiteResponse: () => Promise<SerializedHttpResponse>
   getWebsiteEvidence: () => Promise<ListingEvidence>
   getListingEvidence: () => Promise<ListingEvidence>
+  getGooglePlace: () => Promise<GooglePlace | null>
+  googleSearch: (query: string) => Promise<GoogleSearchResult[]>
   fetchText: (url: string) => Promise<{ ok: boolean; status: number; body: string }>
+  fetchCrux: (url: string) => Promise<PerformanceData>
+  fetchPageSpeed: (url: string) => Promise<PerformanceData>
   measurePerformance: (url: string) => Promise<PerformanceData>
+  searchAppleMaps: (query: string, userLocation?: string) => ReturnType<typeof searchAppleMaps>
+  getApplePlace: (id: string) => ReturnType<typeof fetchApplePlace>
 }
 
 export function firstGooglePlaceId(business: BusinessSnapshot): string | null {
@@ -28,6 +49,12 @@ export function firstGooglePlaceId(business: BusinessSnapshot): string | null {
     if (location.googlePlaceId) return location.googlePlaceId
   }
   return null
+}
+
+function placesApiId(business: BusinessSnapshot): string | null {
+  const placeId = firstGooglePlaceId(business)
+  if (!placeId || isHttpUrl(placeId)) return null
+  return placeId
 }
 
 export function createCheckContext(
@@ -50,6 +77,7 @@ export function createCheckContext(
   let responsePromise: Promise<SerializedHttpResponse> | undefined
   let websiteEvidencePromise: Promise<ListingEvidence> | undefined
   let listingEvidencePromise: Promise<ListingEvidence> | undefined
+  let placePromise: Promise<GooglePlace | null> | undefined
 
   return {
     business,
@@ -108,8 +136,21 @@ export function createCheckContext(
       })()
       return listingEvidencePromise
     },
+    getGooglePlace: () => {
+      placePromise ??= (async () => {
+        const placeId = placesApiId(business)
+        if (!placeId || !env.googleApiKey) return null
+        return fetchGooglePlace(placeId, env.googleApiKey, fetchImpl)
+      })()
+      return placePromise
+    },
+    googleSearch: (query: string) => googleSearch(query, env, fetchImpl),
     fetchText: (url: string) => fetchText(url, fetchImpl),
+    fetchCrux: (url: string) => fetchCruxPerformance(url, env.googleApiKey, fetchImpl),
+    fetchPageSpeed: (url: string) => fetchPageSpeedPerformance(url, env.googleApiKey, fetchImpl),
     measurePerformance: (url: string) => measureSyntheticPerformance(url, browserOptions),
+    searchAppleMaps: (query: string, userLocation?: string) => searchAppleMaps(query, env, fetchImpl, userLocation),
+    getApplePlace: (id: string) => fetchApplePlace(id, env, fetchImpl),
   }
 }
 
@@ -118,6 +159,10 @@ export function noWebsiteResult(label = 'No website URL provided') {
 }
 
 export function noListingResult(label = 'No Google listing URL provided') {
+  return checkResult(false, label)
+}
+
+export function noPlaceResult(label = 'No Google Place ID found for this business location') {
   return checkResult(false, label)
 }
 

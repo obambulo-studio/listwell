@@ -7,6 +7,16 @@ export { fetchWebsiteHtml, fetchWebsiteResponse, fetchBrowserRenderingHtml, fetc
 export type { FetchWebsiteOptions, BrowserRenderingConfig } from './browser'
 export { parseDocument, parseJsonLd } from './html'
 export {
+  fetchGooglePlace,
+  locationPartsFromPlace,
+  searchGooglePlaces,
+  autocompleteGooglePlaces,
+  parseGooglePlacesSearch,
+  parseGooglePlaceAutocomplete,
+} from './lookups/googlePlaces'
+export { googleSearch } from './lookups/googleSearch'
+export { searchAppleMaps, fetchApplePlace, generateAppleMapKitToken } from './lookups/appleMaps'
+export {
   searchNominatim,
   reverseNominatim,
   rankNominatimMatches,
@@ -29,7 +39,14 @@ export {
 } from './lookups/listingEvidence'
 export type { ListingEvidence } from './lookups/listingEvidence'
 export { locationPartsFromAddress } from './lookups/location'
-export { measureSyntheticPerformance, parseSyntheticTiming, performanceFromTiming, LCP_PROBE_SCRIPT } from './lookups/performance'
+export {
+  fetchCruxPerformance,
+  fetchPageSpeedPerformance,
+  measureSyntheticPerformance,
+  parseSyntheticTiming,
+  performanceFromTiming,
+  LCP_PROBE_SCRIPT,
+} from './lookups/performance'
 export type { PerformanceData } from './lookups/performance'
 export {
   searchSocial,
@@ -55,6 +72,8 @@ export type {
   CheckId,
   CheckResult,
   CheckStatus,
+  GooglePlace,
+  PlacePrediction,
   GoogleSearchResult,
   JobStatus,
   QueueAuditMessage,

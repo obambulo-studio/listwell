@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const parsed = lookupQuerySchema.parse({
       source: url.searchParams.get("source") ?? undefined,
       q: url.searchParams.get("q") ?? undefined,
+      id: url.searchParams.get("id") ?? undefined,
       near: url.searchParams.get("near") ?? undefined,
       lat: url.searchParams.get("lat") ?? undefined,
       lon: url.searchParams.get("lon") ?? undefined,

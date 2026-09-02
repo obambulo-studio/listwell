@@ -12,7 +12,7 @@ points:
 Your Google reviews are your digital reputation - we check if you have enough positive reviews to build trust and attract new customers.
 
 ::tech-detail{summary="How we measure review performance"}
-We read aggregate rating and review count only when they are published on the pasted listing page or website schema (for example `aggregateRating`). We do not call Google's API and we do not invent ratings. If no review markup is visible, the check is inconclusive.
+When `GOOGLE_API_KEY` and a Google Place ID are present, we read official review count and rating from Google Places. If those are missing, we only use aggregate rating published on a pasted listing page or website schema. We do not invent ratings. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

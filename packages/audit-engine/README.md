@@ -11,20 +11,22 @@ import { runChecks } from "@listwell/audit-engine";
 
 const results = await runChecks(business, undefined, {
   env: {
+    googleApiKey: process.env.GOOGLE_API_KEY,
+    googleProgrammableSearchEngineId: process.env.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID,
     cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
     cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
   },
 });
 ```
 
-Google, Apple, CrUX, and PageSpeed keys are not used.
+**Full Google Business Profile quality requires `GOOGLE_API_KEY`.** Fallback (Nominatim, pasted URLs, website markup, synthetic LCP) is degraded.
 
 ## Faster than NuxtHub/puppeteer
 
 - Website HTML is fetched once per run and shared across checks.
 - Plain `fetch` is used first. Cloudflare Browser Rendering (Workers binding, then REST `/content`) is only used when the page looks like a thin SPA.
-- Listing checks read website and pasted listing HTML. They do not call Places.
-- `website-performance` is a synthetic Browser Rendering LCP. It is marked `queued` so the Next Worker can finish it in the background.
+- Listing checks call Google Places when a Place ID and API key exist. They fall back to website and pasted listing HTML only when Places is unavailable.
+- `website-performance` uses CrUX then PageSpeed when a Google API key exists, otherwise a synthetic Browser Rendering LCP. It is marked `queued` so the Next Worker can finish it in the background.
 
 ## Next Worker routes
 

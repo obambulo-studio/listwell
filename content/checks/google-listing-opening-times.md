@@ -12,7 +12,7 @@ points:
 Help customers visit your business at the right time by clearly displaying your opening hours on Google - one of the most searched-for pieces of business information.
 
 ::tech-detail{summary="What we check for opening hours"}
-We look for opening hours on the pasted listing page, then on your website schema or visible hours. If a pasted listing URL cannot be fetched, the check is inconclusive. We do not call Google Places.
+When `GOOGLE_API_KEY` and a Place ID are present, we read official Places opening hours. Otherwise we look on a pasted listing page, then website schema or visible hours. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

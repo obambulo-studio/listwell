@@ -43,18 +43,23 @@ Local `next dev` can run without D1 and keeps audits in memory for the process.
 
 Set secrets with `wrangler secret put` (see `.env.example`):
 
+- `GOOGLE_API_KEY` — required for full Google Business Profile quality (official reviews, photos, Places category, claimed listing, Places autocomplete). Also used for Programmable Search, CrUX, and PageSpeed
+- `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` — web-wide social and website discovery
+- `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY` — Apple Maps listing search
 - `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Browser Rendering REST fallback)
 
-Google Places, Programmable Search, CrUX, PageSpeed, and Apple MapKit keys are not required. The product ignores those secrets if they are still present.
+**Full Google Business Profile quality requires `GOOGLE_API_KEY`.** Without it, create-audit and listing checks fall back to Nominatim, pasted URLs, website markup, and a synthetic browser LCP. That fallback is degraded: no official reviews, photo gallery, Places category, or claimed-listing facts.
+
+The product never scrapes Google Maps HTML or bypasses bot walls.
 
 ## Create an audit
 
 1. Type the business name.
 2. Confirm or correct the suburb from browser geolocation.
-3. Listwell asks OpenStreetMap Nominatim for nearby matches. It identifies the app and rate-limits requests.
+3. Listwell resolves candidates with Google Places first (and Apple MapKit when configured). If those keys are missing or return nothing, it asks OpenStreetMap Nominatim.
 4. If one match is strong, confirm or reject it. If several matches appear, pick one. If none are confident, add a website URL, optional listing URL, optional social URLs, and an address.
 
-The product does not invent a business. It does not search Google Maps or Apple Maps.
+The product does not invent a business.
 
 ## What the engine does
 
@@ -62,8 +67,9 @@ All 32 `content/checks` IDs run in the Next Worker:
 
 - Plain `fetch` first, shared HTML per run
 - Browser Rendering only when the page looks like a thin SPA
-- Listing facts from website schema.org / visible NAP and from HTML of listing URLs the user pasted
-- If a listing URL cannot be fetched, that check is inconclusive
-- `website-performance` queued as a synthetic Browser Rendering LCP, not CrUX or PageSpeed
+- Google listing checks use Places details when a Place ID and `GOOGLE_API_KEY` exist
+- Fallback listing facts from website schema.org / visible NAP and from HTML of listing URLs the user pasted
+- If a listing URL cannot be fetched and Places is unavailable, that check is inconclusive
+- `website-performance` uses CrUX then PageSpeed when `GOOGLE_API_KEY` is present, otherwise a synthetic Browser Rendering LCP
 
-Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields.
+Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields. Programmable Search can also discover social profiles when configured.

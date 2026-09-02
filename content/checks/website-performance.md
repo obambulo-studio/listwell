@@ -12,7 +12,7 @@ points:
 Your website needs to load fast - we check if customers can see your content within 3 seconds, because that's when most people give up and leave.
 
 ::tech-detail{summary="Technical details: Largest Contentful Paint (LCP) measurement"}
-We load your website in Cloudflare Browser Rendering and read Largest Contentful Paint (LCP), or load timing if LCP is not available. This is a synthetic browser load from Listwell, not Chrome UX Report (CrUX) or PageSpeed Insights.
+When `GOOGLE_API_KEY` is present, we read Chrome UX Report LCP first, then PageSpeed Insights LCP. If those keys are missing or return no LCP, we load the site in Cloudflare Browser Rendering for a synthetic LCP. The fallback is degraded and is not field data.
 
 A good LCP score is under 2.5 seconds, acceptable is under 4 seconds, and anything over 4 seconds is considered poor.
 ::

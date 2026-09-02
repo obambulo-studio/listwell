@@ -12,7 +12,7 @@ points:
 Make your business visually appealing with quality photos - listings with photos receive 42% more requests for directions and 35% more clicks than those without images.
 
 ::tech-detail{summary="What we check for photo presence"}
-We count photos that are visible on the pasted listing page, including schema.org images. If the listing URL cannot be fetched, the check is inconclusive. We do not invent a photo gallery from Google Places.
+When `GOOGLE_API_KEY` and a Place ID are present, we count official Places photos. Otherwise we count photos visible on a pasted listing page, including schema.org images. We do not invent a photo gallery. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

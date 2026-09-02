@@ -12,7 +12,7 @@ points:
 Ensure your Google Business Profile links to your correct website - mismatched URLs confuse customers and can send traffic to competitors or broken pages.
 
 ::tech-detail{summary="What we check for website link accuracy"}
-We compare the website link published on the pasted listing page with the website stored on this audit. Hostnames are compared without `www`. If the listing page cannot be fetched, the check is inconclusive. We do not call Google Places.
+When `GOOGLE_API_KEY` and a Place ID are present, we compare the official Places `websiteUri` with the stored website. Otherwise we compare a website link on a pasted listing page. Full Google Business Profile quality requires `GOOGLE_API_KEY`; the fallback is degraded.
 ::
 
 ## What we're checking

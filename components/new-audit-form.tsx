@@ -2,8 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { PlaceSearch } from "@/components/place-search";
 import { CATEGORY_CONFIG, categoryIdSchema, type CategoryId } from "@/lib/category";
 import { CHANNEL_CONFIG, channelIdSchema, type ChannelId, type DiscoveredProfile } from "@/lib/channel";
+import { type PlaceCandidate } from "@/lib/discover";
 import { channelPlaceholder, mapProfilesToBusinessData, unusedChannels } from "@/lib/profiles";
 import { addBusinessId } from "@/lib/storage";
 import { businessSchema } from "@/lib/schema";
@@ -28,6 +30,7 @@ export function NewAuditForm({
   const [showAdd, setShowAdd] = useState(false);
   const [channelId, setChannelId] = useState<ChannelId | "">("");
   const [value, setValue] = useState("");
+  const [place, setPlace] = useState<PlaceCandidate | null>(null);
   const [address, setAddress] = useState(initialAddress ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,26 +173,32 @@ export function NewAuditForm({
                 return;
               }
               const parsedChannel = channelIdSchema.parse(channelId);
-              if (parsedChannel === "google-maps" && value.trim()) {
-                setProfiles((current) => [
-                  ...current,
-                  {
-                    type: parsedChannel,
-                    title: value.trim(),
-                    subtitle: address.trim() || undefined,
-                    googlePlaceId: value.trim(),
-                  },
-                ]);
-              } else if (parsedChannel === "apple-maps" && value.trim()) {
-                setProfiles((current) => [
-                  ...current,
-                  {
-                    type: parsedChannel,
-                    title: value.trim(),
-                    subtitle: address.trim() || undefined,
-                    appleMapsId: value.trim(),
-                  },
-                ]);
+              if (parsedChannel === "google-maps" || parsedChannel === "apple-maps") {
+                if (place) {
+                  setProfiles((current) => [
+                    ...current,
+                    {
+                      type: parsedChannel,
+                      title: place.name,
+                      subtitle: place.address ?? (address.trim() || undefined),
+                      googlePlaceId: parsedChannel === "google-maps" ? place.id : undefined,
+                      appleMapsId: parsedChannel === "apple-maps" ? place.id : undefined,
+                    },
+                  ]);
+                } else if (value.trim()) {
+                  setProfiles((current) => [
+                    ...current,
+                    {
+                      type: parsedChannel,
+                      title: value.trim(),
+                      subtitle: address.trim() || undefined,
+                      googlePlaceId: parsedChannel === "google-maps" ? value.trim() : undefined,
+                      appleMapsId: parsedChannel === "apple-maps" ? value.trim() : undefined,
+                    },
+                  ]);
+                } else {
+                  return;
+                }
               } else if (value.trim()) {
                 setProfiles((current) => [
                   ...current,
@@ -202,6 +211,7 @@ export function NewAuditForm({
                 return;
               }
               setValue("");
+              setPlace(null);
               setChannelId("");
               setShowAdd(false);
             }}
@@ -216,6 +226,7 @@ export function NewAuditForm({
                 onChange={(event) => {
                   setChannelId(event.target.value === "" ? "" : channelIdSchema.parse(event.target.value));
                   setValue("");
+                  setPlace(null);
                 }}
               >
                 <option value="">Select a channel</option>
@@ -226,7 +237,59 @@ export function NewAuditForm({
                 ))}
               </select>
             </div>
-            {channelId ? (
+            {channelId === "google-maps" ? (
+              <>
+                <PlaceSearch
+                  source="google-search"
+                  label="Google Maps listing"
+                  onSelect={(candidate) => {
+                    setPlace(candidate);
+                    setValue(candidate.id);
+                  }}
+                />
+                <div className="vbg-field">
+                  <label className="vbg-label" htmlFor="profileValue">
+                    Or paste a listing URL
+                  </label>
+                  <input
+                    id="profileValue"
+                    value={place ? "" : value}
+                    onChange={(event) => {
+                      setPlace(null);
+                      setValue(event.target.value);
+                    }}
+                    placeholder="https://maps.google.com/..."
+                  />
+                </div>
+              </>
+            ) : null}
+            {channelId === "apple-maps" ? (
+              <>
+                <PlaceSearch
+                  source="apple-search"
+                  label="Apple Maps listing"
+                  onSelect={(candidate) => {
+                    setPlace(candidate);
+                    setValue(candidate.id);
+                  }}
+                />
+                <div className="vbg-field">
+                  <label className="vbg-label" htmlFor="appleListingUrl">
+                    Or paste a listing URL
+                  </label>
+                  <input
+                    id="appleListingUrl"
+                    value={place ? "" : value}
+                    onChange={(event) => {
+                      setPlace(null);
+                      setValue(event.target.value);
+                    }}
+                    placeholder="https://maps.apple.com/..."
+                  />
+                </div>
+              </>
+            ) : null}
+            {channelId && channelId !== "google-maps" && channelId !== "apple-maps" ? (
               <div className="vbg-field">
                 <label className="vbg-label" htmlFor="profileValue">
                   {CHANNEL_CONFIG[channelId].name}
@@ -243,7 +306,10 @@ export function NewAuditForm({
               <button
                 className="vbg-button"
                 type="submit"
-                disabled={!channelId || !value.trim()}
+                disabled={
+                  !channelId ||
+                  (channelId === "google-maps" || channelId === "apple-maps" ? !place && !value.trim() : !value.trim())
+                }
               >
                 Add listing
               </button>

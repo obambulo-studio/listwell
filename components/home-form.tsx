@@ -75,7 +75,7 @@ export function HomeForm() {
     const timer = window.setTimeout(() => {
       setSearchStatus("Looking up nearby businesses");
       const params = new URLSearchParams({
-        source: "nominatim-search",
+        source: "places",
         q: trimmed,
       });
       if (location.trim()) params.set("near", location.trim());
@@ -124,10 +124,13 @@ export function HomeForm() {
     });
     const website = extras?.websiteUrl ?? candidate?.websiteUrl ?? websiteUrl.trim();
     if (website) params.set("websiteUrl", website);
+    if (candidate?.source === "google") params.set("googlePlaceId", candidate.id);
+    if (candidate?.source === "apple") params.set("appleMapsId", candidate.id);
     const listing = extras?.listingUrl ?? listingUrl.trim();
     if (listing) params.set("listingUrl", listing);
     const nextAddress = extras?.address ?? candidate?.address ?? address.trim();
     if (nextAddress) params.set("address", nextAddress);
+    if (location.trim()) params.set("near", location.trim());
     if (facebookUrl.trim()) params.set("facebookUrl", facebookUrl.trim());
     if (instagramUsername.trim()) params.set("instagramUsername", instagramUsername.trim());
     router.push(`/discover?${params.toString()}`);

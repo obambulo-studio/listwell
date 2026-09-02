@@ -183,13 +183,21 @@ export async function checkWebsiteOgImage(ctx: CheckContext): Promise<CheckResul
 export async function checkWebsitePerformance(ctx: CheckContext): Promise<CheckResult> {
   if (!ctx.business.websiteUrl) return noWebsiteResult()
   try {
-    const result = await ctx.measurePerformance(ctx.business.websiteUrl)
-    if (result.lcp === undefined) {
-      return checkResult(null, result.message)
+    const cruxResult = await ctx.fetchCrux(ctx.business.websiteUrl)
+    if (cruxResult.lcp !== undefined) {
+      return checkResult(cruxResult.passes ?? false, cruxResult.message)
     }
-    return checkResult(result.passes ?? false, result.message)
+    const pageSpeedResult = await ctx.fetchPageSpeed(ctx.business.websiteUrl)
+    if (pageSpeedResult.lcp !== undefined) {
+      return checkResult(pageSpeedResult.passes ?? false, pageSpeedResult.message)
+    }
+    const synthetic = await ctx.measurePerformance(ctx.business.websiteUrl)
+    if (synthetic.lcp !== undefined) {
+      return checkResult(synthetic.passes ?? false, synthetic.message)
+    }
+    return checkResult(null, synthetic.message)
   } catch (error) {
-    return checkResult(null, `Synthetic browser performance check failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    return checkResult(null, `Performance check failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -443,6 +451,54 @@ export async function checkWebsiteMenuJsonLd(ctx: CheckContext): Promise<CheckRe
 export async function checkWebsiteGbpNap(ctx: CheckContext): Promise<CheckResult> {
   if (!ctx.business.websiteUrl) return noWebsiteResult()
   try {
+    const place = await ctx.getGooglePlace()
+    if (place) {
+      const gbpName = place.displayName?.text ?? ''
+      const gbpAddress = place.formattedAddress ?? ''
+      const gbpPhone = place.nationalPhoneNumber ?? ''
+      if (!gbpName && !gbpAddress && !gbpPhone) {
+        return checkResult(false, 'No NAP information found in Google Business Profile')
+      }
+
+      const document = await ctx.getWebsiteDocument()
+      const pageText = document.body?.textContent?.toLowerCase().replace(/\s+/g, ' ').trim() ?? ''
+      const results: string[] = []
+      let nameFound = false
+      let addressFound = false
+      let phoneFound = false
+
+      if (gbpName) {
+        nameFound = pageText.includes(gbpName.toLowerCase())
+        results.push(`Name ${nameFound ? 'found' : 'missing'}`)
+      }
+      if (gbpAddress) {
+        const significantParts = gbpAddress.split(',').map((part) => part.trim().toLowerCase()).filter((part) => part.length > 3)
+        if (significantParts.length > 0) {
+          const foundParts = significantParts.filter((part) => pageText.includes(part))
+          addressFound = foundParts.length / significantParts.length >= 0.7
+          results.push(`Address ${addressFound ? 'found' : 'missing'}`)
+        }
+      }
+      if (gbpPhone) {
+        const normalizedGbpPhone = gbpPhone.replace(/\D/g, '')
+        phoneFound = pageText.includes(gbpPhone)
+          || pageText.includes(normalizedGbpPhone)
+          || Boolean(pageText.match(new RegExp(normalizedGbpPhone.replace(/(\d{3})(\d{3})(\d{4})/, '\\(?$1\\)?[\\s.-]*$2[\\s.-]*$3'))))
+        results.push(`Phone ${phoneFound ? 'found' : 'missing'}`)
+      }
+
+      const componentsToCheck = [gbpName, gbpAddress, gbpPhone].filter(Boolean).length
+      const foundComponents = [gbpName && nameFound, gbpAddress && addressFound, gbpPhone && phoneFound].filter(Boolean).length
+      const matchPercentage = componentsToCheck > 0 ? foundComponents / componentsToCheck : 0
+      const passes = matchPercentage >= 0.7
+      return checkResult(
+        passes,
+        passes
+          ? `NAP consistency check passed (${results.join(', ')})`
+          : `NAP consistency check failed (${results.join(', ')})`,
+      )
+    }
+
     const listing = await ctx.getListingEvidence()
     if (listing.sourceUrl && !listing.fetched) {
       return checkResult(null, `Listing page could not be read: ${listing.fetchReason ?? 'unknown error'}`)
