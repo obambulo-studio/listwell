@@ -29,7 +29,7 @@ async function listingFacts(ctx: CheckContext): Promise<ListingFacts> {
   return {
     mode: 'missing',
     evidence: listing,
-    reason: listing.fetchReason ?? 'No Google listing URL or website facts to check',
+    reason: listing.fetchReason ?? 'No Google listing or website facts to check',
   }
 }
 
@@ -44,8 +44,8 @@ export async function checkGoogleListing(ctx: CheckContext): Promise<CheckResult
   return checkResult(
     attached,
     attached
-      ? 'A Google listing URL or identifier is attached to this audit'
-      : 'No Google listing URL provided',
+      ? 'A Google listing is attached to this audit'
+      : 'No Google listing provided',
   )
 }
 

@@ -82,7 +82,7 @@ describe('presence checks', () => {
     expect(await runCheck('facebook-page', cafe)).toEqual(checkResult(true))
     expect(await runCheck('instagram-profile', cafe)).toEqual(checkResult(true))
     expect(await runCheck('uber-eats-listing', cafe)).toEqual(checkResult(true))
-    expect(await runCheck('google-listing', cafe)).toEqual(checkResult(true, 'A Google listing URL or identifier is attached to this audit'))
+    expect(await runCheck('google-listing', cafe)).toEqual(checkResult(true, 'A Google listing is attached to this audit'))
     expect(await runCheck('doordash-listing', cafe)).toEqual(checkResult(false))
     expect(await runCheck('linkedin-profile', cafe)).toEqual(checkResult(false))
   })
@@ -261,10 +261,11 @@ describe('website performance', () => {
     expect(result.label).not.toContain('API key')
   })
 
-  it('is inconclusive when Browser Rendering is not configured', async () => {
+  it('is inconclusive when a lab speed check cannot run', async () => {
     const result = await runCheck('website-performance', cafe, { env: {} })
     expect(result.value).toBeNull()
-    expect(result.label).toContain('Browser Rendering')
+    expect(result.label).toBe('Listwell could not run a lab speed check for this site.')
     expect(result.label).not.toContain('API key')
+    expect(result.label).not.toContain('Browser Rendering')
   })
 })

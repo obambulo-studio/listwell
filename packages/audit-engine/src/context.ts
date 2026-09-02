@@ -122,7 +122,7 @@ export function createCheckContext(
       listingEvidencePromise ??= (async () => {
         const listingUrl = firstListingUrl(business.locations)
         if (!listingUrl) {
-          return emptyEvidence('', 'No Google listing URL provided')
+          return emptyEvidence('', 'No Google listing provided')
         }
         try {
           const html = await fetchWebsiteHtml(listingUrl, browserOptions)
@@ -158,7 +158,7 @@ export function noWebsiteResult(label = 'No website URL provided') {
   return checkResult(false, label)
 }
 
-export function noListingResult(label = 'No Google listing URL provided') {
+export function noListingResult(label = 'No Google listing provided') {
   return checkResult(false, label)
 }
 

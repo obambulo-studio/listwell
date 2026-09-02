@@ -161,6 +161,6 @@ export async function measureSyntheticPerformance(
 
   return performanceDataSchema.parse({
     kind: 'none',
-    message: 'Browser Rendering is not configured, so Listwell cannot measure a synthetic LCP. This check does not use CrUX or PageSpeed.',
+    message: 'Listwell could not run a lab speed check for this site.',
   })
 }

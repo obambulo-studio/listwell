@@ -253,7 +253,7 @@ export function HomeForm() {
           </div>
           <div className="vbg-field">
             <label className="vbg-label" htmlFor="listingUrl">
-              Google listing URL
+              Google listing
             </label>
             <input
               id="listingUrl"
@@ -263,7 +263,7 @@ export function HomeForm() {
               onChange={(event) => setListingUrl(event.target.value)}
               placeholder="https://maps.google.com/..."
             />
-            <p className="vbg-helper">Optional. Paste the public listing page if you have it.</p>
+            <p className="vbg-helper">Optional. Paste the public listing URL if you have it.</p>
           </div>
           <div className="vbg-field">
             <label className="vbg-label" htmlFor="address">

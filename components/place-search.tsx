@@ -6,7 +6,7 @@ import { lookupResponseSchema, type PlaceCandidate } from "@/lib/discover";
 
 function sourceLabel(source: PlaceCandidate["source"]): string {
   if (source === "osm") return "OpenStreetMap";
-  if (source === "google") return "Google Maps";
+  if (source === "google") return "Google listing";
   return "Apple Maps";
 }
 

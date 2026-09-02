@@ -241,7 +241,7 @@ export function NewAuditForm({
               <>
                 <PlaceSearch
                   source="google-search"
-                  label="Google Maps listing"
+                  label="Google listing"
                   onSelect={(candidate) => {
                     setPlace(candidate);
                     setValue(candidate.id);

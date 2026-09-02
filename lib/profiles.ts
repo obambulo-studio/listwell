@@ -16,7 +16,7 @@ export function channelLabel(channelId: ChannelId): string {
     doordash: "DoorDash URL",
     menulog: "Menulog URL",
     "apple-maps": "Apple Maps listing URL",
-    "google-maps": "Google listing URL",
+    "google-maps": "Google listing",
     linkedin: "LinkedIn profile URL",
     x: "X username",
   };

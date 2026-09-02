@@ -34,7 +34,7 @@ export const CHANNEL_CONFIG: Record<ChannelId, Channel> = {
   doordash: { id: "doordash", name: "DoorDash" },
   menulog: { id: "menulog", name: "Menulog" },
   "apple-maps": { id: "apple-maps", name: "Apple Maps" },
-  "google-maps": { id: "google-maps", name: "Google Maps" },
+  "google-maps": { id: "google-maps", name: "Google listing" },
   linkedin: { id: "linkedin", name: "LinkedIn" },
   x: { id: "x", name: "X" },
 };

@@ -17,7 +17,7 @@ Previously called "Google My Business", this is your free business listing that 
 
 ## What we're checking
 
-We verify that a Google Place ID or public listing URL is attached to this audit. Official Places details (reviews, photos, category, claimed listing) need `GOOGLE_API_KEY`. Without that key, later checks fall back to a pasted listing page or website markup.
+We verify that your business has a Google listing attached to this audit. Later checks can then read hours, photos, reviews, and contact details from that listing.
 
 ::impact{type="customers" severity="high"}
 **97% of consumers** search online for local businesses - without a Google listing, you're invisible to them
