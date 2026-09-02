@@ -1,14 +1,10 @@
 # Listwell
 
-Listwell is a local and website SEO auditor.
+Listwell is a local and website SEO auditor. Create an audit. Then run the website checks and the listing checks. Then read the report. The report gives step-by-step fixes.
 
-You create an audit. Listwell runs website checks and listing checks. Then you read a report. The report gives step-by-step fixes.
-
-This repository is a MIT fork of [drevantonder/visimate](https://github.com/drevantonder/visimate).
+This project uses the MIT license.
 
 ## Stack
-
-The application uses these tools:
 
 - Next.js App Router
 - OpenNext on Cloudflare Workers
@@ -19,21 +15,12 @@ The application uses these tools:
 
 ## Scripts
 
-Install the packages. Then generate the check catalog. Then run the tests:
-
 ```bash
 bun install
 bun run catalog
 bun run test
 bun run typecheck
 bun run dev
-```
-
-`bun run dev` starts the local Next.js server.
-
-Use these commands for a Worker build:
-
-```bash
 bun run build
 bun run preview
 ```
@@ -44,46 +31,37 @@ bun run preview
 
 ## Database and storage
 
-Create a D1 database. Use the name `listwell`.
+1. Create a D1 database named `listwell`.
+2. Create a KV namespace for audit jobs.
+3. Put those ids in `wrangler.jsonc`. The file uses `0000…` as placeholders.
+4. Apply `lib/db/migrations/0000.sql`.
 
-Create a KV namespace for audit jobs.
-
-Put the ids in `wrangler.jsonc`. The file has placeholder ids (`0000…`).
-
-Then apply `lib/db/migrations/0000.sql`.
-
-Local `next dev` can run without D1. In that case, the process keeps audits in memory.
+If you use local `next dev` without D1, the process stores audits in memory.
 
 ## Bindings and secrets
 
-`wrangler.jsonc` declares the Workers bindings.
-
-Before you deploy, replace the placeholder ids.
-
-Bindings:
+`wrangler.jsonc` declares the Workers bindings. Replace the placeholder ids before you deploy:
 
 - `DB` — D1
-- `AUDIT_KV` — queued check jobs. The id is `00000000000000000000000000000000` until you create the namespace.
-- `AUDIT_QUEUE` — producer for the `listwell-audit` queue. This binding is optional. The Worker can also finish `website-performance` with `waitUntil`.
+- `AUDIT_KV` — queued check jobs. Use `00000000000000000000000000000000` until you create the namespace.
+- `AUDIT_QUEUE` — producer for `listwell-audit`. This binding is optional. The Worker also finishes `website-performance` with `waitUntil`.
 - `BROWSER` — Cloudflare Browser Rendering
-- `AI` — Workers AI for the report executive brief. If the binding is missing, Listwell uses a cited check summary.
+- `AI` — Workers AI for the report executive brief. If this binding is missing, the Worker uses a cited check summary.
 
-Set secrets with `wrangler secret put`. See `.env.example`.
-
-Secrets:
+Set secrets with `wrangler secret put`. See `.env.example`:
 
 - `GOOGLE_API_KEY`
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`
-- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Browser Rendering REST fallback)
-- `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, and `APPLE_MAPKIT_PRIVATE_KEY` (Apple Maps search when you create an audit)
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for Browser Rendering REST when the binding is missing
+- `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, and `APPLE_MAPKIT_PRIVATE_KEY` for Apple Maps search on create-audit
 
 ## What the engine does
 
-The Next Worker runs all 32 check IDs in `content/checks`.
+The Next Worker runs all 32 check IDs in `content/checks`:
 
-- The Worker uses plain `fetch` first. The Worker shares the HTML for one run.
-- The Worker uses Browser Rendering only when the page looks like a thin SPA.
-- The Worker checks Google Business Profile fields with the Places API.
-- The Worker queues `website-performance` (CrUX, then PageSpeed).
+- Plain `fetch` first. Each run shares HTML.
+- Browser Rendering only when the page looks like a thin SPA.
+- Google Business Profile field checks through the Places API.
+- `website-performance` is queued (CrUX, then PageSpeed).
 
-Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields. This is the same behaviour as the original handlers.
+Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery still test stored fields. This matches the original handlers.
