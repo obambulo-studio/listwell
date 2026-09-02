@@ -15,8 +15,8 @@ export function channelLabel(channelId: ChannelId): string {
     deliveroo: "Deliveroo URL",
     doordash: "DoorDash URL",
     menulog: "Menulog URL",
-    "apple-maps": "Apple Maps listing",
-    "google-maps": "Google Maps listing",
+    "apple-maps": "Apple Maps listing URL",
+    "google-maps": "Google listing URL",
     linkedin: "LinkedIn profile URL",
     x: "X username",
   };
@@ -34,8 +34,8 @@ export function channelPlaceholder(channelId: ChannelId): string {
     deliveroo: "https://deliveroo.com/...",
     doordash: "https://doordash.com/...",
     menulog: "https://menulog.com/...",
-    "apple-maps": "Apple Maps place id",
-    "google-maps": "Google Maps place id",
+    "apple-maps": "https://maps.apple.com/...",
+    "google-maps": "https://maps.google.com/...",
     linkedin: "https://linkedin.com/company/...",
     x: "username",
   };
@@ -164,12 +164,12 @@ export function businessToProfiles(business: Business): DiscoveredProfile[] {
     profiles.push({ type: "menulog", title: business.menulogUrl });
   }
   for (const location of business.locations) {
-    if (location.googlePlaceId) {
+    if (location.googlePlaceId || (location.address && !location.appleMapsId)) {
       profiles.push({
         type: "google-maps",
-        title: location.name ?? location.googlePlaceId,
+        title: location.googlePlaceId ?? location.name ?? location.address ?? "Listing",
         subtitle: location.address ?? undefined,
-        googlePlaceId: location.googlePlaceId,
+        googlePlaceId: location.googlePlaceId ?? undefined,
       });
     }
     if (location.appleMapsId) {

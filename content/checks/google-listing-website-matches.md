@@ -12,7 +12,7 @@ points:
 Ensure your Google Business Profile links to your correct website - mismatched URLs confuse customers and can send traffic to competitors or broken pages.
 
 ::tech-detail{summary="What we check for website link accuracy"}
-We verify that the website URL in your Google Business Profile exactly matches your official business website. This includes checking for proper protocols (https://), correct domain spelling, and ensuring the link directs to your main business website rather than social media pages or third-party sites.
+We compare the website link published on the pasted listing page with the website stored on this audit. Hostnames are compared without `www`. If the listing page cannot be fetched, the check is inconclusive. We do not call Google Places.
 ::
 
 ## What we're checking

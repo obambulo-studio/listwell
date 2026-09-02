@@ -12,7 +12,7 @@ points:
 Make your business visually appealing with quality photos - listings with photos receive 42% more requests for directions and 35% more clicks than those without images.
 
 ::tech-detail{summary="What we check for photo presence"}
-We verify that your Google Business Profile has at least 3 high-quality photos uploaded. This includes exterior shots, interior views, products, team photos, or service demonstrations. Google prioritizes businesses with complete photo galleries in search results and Maps listings, as visual content significantly impacts customer engagement.
+We count photos that are visible on the pasted listing page, including schema.org images. If the listing URL cannot be fetched, the check is inconclusive. We do not invent a photo gallery from Google Places.
 ::
 
 ## What we're checking

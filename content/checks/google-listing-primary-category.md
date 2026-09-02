@@ -12,7 +12,7 @@ points:
 Set the right primary category for your business to ensure you appear in relevant searches and attract the right customers looking for exactly what you offer.
 
 ::tech-detail{summary="What we check for primary category"}
-We verify that your Google Business Profile has a primary category selected that accurately describes your main business focus. The primary category is the most important classification Google uses to determine when and where to show your business in search results. It affects which searches trigger your listing and what features are available in your profile.
+We read the published category from the pasted listing page or from website schema.org `@type` (for example Restaurant or LocalBusiness). If that evidence is missing or the listing page cannot be fetched, the check is inconclusive or fails with a clear reason. We do not call Google Places.
 ::
 
 ## What we're checking

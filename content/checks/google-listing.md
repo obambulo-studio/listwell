@@ -17,7 +17,7 @@ Previously called "Google My Business", this is your free business listing that 
 
 ## What we're checking
 
-We verify if your business has been claimed and set up on Google's business platform. This check looks for a valid Google Place ID in our system, which confirms your business is properly registered with Google.
+We verify that you attached a public Google listing URL (or identifier) to this audit. We do not look up Google Places. If you have a listing, paste its public URL so later checks can read visible facts from that page.
 
 ::impact{type="customers" severity="high"}
 **97% of consumers** search online for local businesses - without a Google listing, you're invisible to them

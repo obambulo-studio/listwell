@@ -12,11 +12,7 @@ points:
 Your Google reviews are your digital reputation - we check if you have enough positive reviews to build trust and attract new customers.
 
 ::tech-detail{summary="How we measure review performance"}
-We check two critical metrics from your Google Business Profile:
-1. **Average rating**: Must be 4.0 stars or higher (out of 5)
-2. **Review count**: Must have at least 20 reviews
-
-Both conditions must be met to pass this check. We pull this data directly from Google's API to ensure accuracy. Reviews are one of the strongest local ranking factors in Google's algorithm.
+We read aggregate rating and review count only when they are published on the pasted listing page or website schema (for example `aggregateRating`). We do not call Google's API and we do not invent ratings. If no review markup is visible, the check is inconclusive.
 ::
 
 ## What we're checking

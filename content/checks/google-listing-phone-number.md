@@ -12,7 +12,7 @@ points:
 Ensure your phone number is consistent between your Google Business Profile and website - mismatched contact information confuses customers and hurts your search rankings.
 
 ::tech-detail{summary="What we check for phone number consistency"}
-We compare the phone number listed in your Google Business Profile with the phone number displayed on your website. We check for exact matches including formatting (parentheses, dashes, spaces). Google uses consistent business information across platforms as a ranking factor, and mismatched data can hurt local search performance.
+We look for a phone number on the Google listing URL you pasted. If that page cannot be fetched, the check is inconclusive. If you did not paste a listing URL, we fall back to schema.org or visible phone facts on your website. We do not invent numbers and we do not call Google Places.
 ::
 
 ## What we're checking
