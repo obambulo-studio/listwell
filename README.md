@@ -27,7 +27,9 @@ bun run preview
 
 `bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker.
 
-Create a D1 database named `listwell` and a KV namespace for audit jobs. Put those ids in `wrangler.jsonc` (placeholders are `0000…`), then apply `lib/db/migrations/0000.sql`.
+Create a D1 database named `listwell` and a KV namespace for audit jobs. Put those ids in `wrangler.jsonc` (placeholders are `0000…`). Discover persists the chosen listing through the Drizzle `businesses` and `business_locations` tables. The Worker path reads that row back, so a refresh does not lose it.
+
+Apply `lib/db/migrations/0000.sql` to a local D1 (`bun run db:push`). LIST-8 deploy still applies this schema to the live database. Do not invent a Cloudflare account or database id in this repo.
 
 Local `next dev` can run without D1 and keeps audits in memory for the process.
 
