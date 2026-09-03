@@ -140,7 +140,7 @@ export function DiscoverClient({
         if (cancelled) {
           return;
         }
-        await goToConfirm(router, selectedCandidate?.name ?? businessName, parsed, selectedCandidate, address);
+        await goToConfirm(router, businessName, parsed, selectedCandidate, address);
       } catch {
         if (!cancelled) {
           setStatus("Continuing with the details you entered");
