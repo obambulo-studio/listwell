@@ -38,7 +38,7 @@ interface AiBinding {
 }
 
 interface CloudflareEnv {
-  DB: D1Database;
+  DB?: D1Database;
   AUDIT_KV?: KVNamespace;
   AUDIT_QUEUE?: Queue;
   BROWSER?: Fetcher;

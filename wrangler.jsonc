@@ -17,15 +17,6 @@
       "service": "listwell"
     }
   ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "listwell",
-      // No database_id: a nil UUID is treated as a real remote id and Workers Builds fails.
-      // Wrangler looks up or auto-provisions the D1 named `listwell`.
-      "migrations_dir": "lib/db/migrations"
-    }
-  ],
   // Browser Rendering Workers binding. Used when a page looks like a thin SPA.
   "browser": {
     "binding": "BROWSER"
@@ -33,20 +24,10 @@
   // Workers AI. LIST-3 report briefs call env.AI.run.
   "ai": {
     "binding": "AI"
-  },
-  "kv_namespaces": [
-    {
-      // No id: a placeholder namespace id fails Workers Builds the same way as a nil D1 id.
-      // Wrangler looks up or auto-provisions AUDIT_KV.
-      "binding": "AUDIT_KV"
-    }
-  ],
-  "queues": {
-    "producers": [
-      {
-        "binding": "AUDIT_QUEUE",
-        "queue": "listwell-audit"
-      }
-    ]
   }
+  // D1, KV, and queues are not declared here. `wrangler versions upload`
+  // (Workers Builds PR previews) requires a real database_id / KV id and does
+  // not auto-provision. Nil or invented ids fail the same way. LIST-5 already
+  // falls back to in-process memory when env.DB / AUDIT_KV are unbound.
+  // Local `bun run db:push` uses wrangler.local.jsonc. LIST-8 adds live ids.
 }
