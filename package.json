@@ -8,11 +8,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/workers-ci-opennext.mjs",
+    "prepare": "node scripts/ensure-open-next-placeholder.mjs",
     "start": "next start",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview --config wrangler.open-next.jsonc",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --config wrangler.open-next.jsonc",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload --config wrangler.open-next.jsonc",
+    "cf:build": "opennextjs-cloudflare build",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "db:push": "wrangler d1 execute listwell --local --file=lib/db/migrations/0000.sql",
+    "db:push": "wrangler d1 execute listwell --local --config wrangler.local.jsonc --file=lib/db/migrations/0000.sql",
     "catalog": "bun scripts/generate-check-catalog.ts",
     "test": "vitest run && bun run --cwd packages/audit-engine test",
     "typecheck": "tsc --noEmit && bun run --cwd packages/audit-engine typecheck"

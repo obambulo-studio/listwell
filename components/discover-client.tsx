@@ -10,6 +10,57 @@ import {
   type DiscoverResponse,
   type PlaceCandidate,
 } from "@/lib/discover";
+import { businessInputFromDiscovery } from "@/lib/profiles";
+import { addBusinessId } from "@/lib/storage";
+import { businessSchema } from "@/lib/schema";
+
+async function persistDiscovery(
+  name: string,
+  nextCategory: CategoryId,
+  profiles: DiscoverResponse["profiles"],
+  nextAddress?: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch("/api/businesses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(businessInputFromDiscovery(name, nextCategory, profiles, nextAddress)),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const business = businessSchema.parse(await response.json());
+    addBusinessId(business.id);
+    return business.id;
+  } catch {
+    return null;
+  }
+}
+
+async function goToConfirm(
+  router: ReturnType<typeof useRouter>,
+  name: string,
+  discovery: DiscoverResponse,
+  candidate: PlaceCandidate | undefined,
+  fallbackAddress?: string,
+): Promise<void> {
+  const profiles = candidate ? filterProfilesForCandidate(discovery.profiles, candidate) : discovery.profiles;
+  const nextAddress = discovery.address ?? candidate?.address ?? fallbackAddress;
+  const persisted = await persistDiscovery(name, discovery.categoryId, profiles, nextAddress);
+  if (persisted) {
+    router.replace(`/new?id=${encodeURIComponent(persisted)}`);
+    return;
+  }
+  const params = new URLSearchParams({
+    businessName: name,
+    categoryId: discovery.categoryId,
+    discoveredProfiles: JSON.stringify(profiles),
+  });
+  if (nextAddress) {
+    params.set("address", nextAddress);
+  }
+  router.replace(`/new?${params.toString()}`);
+}
 
 export function DiscoverClient({
   businessName,
@@ -89,7 +140,7 @@ export function DiscoverClient({
         if (cancelled) {
           return;
         }
-        continueToConfirm(parsed, selectedCandidate);
+        await goToConfirm(router, businessName, parsed, selectedCandidate, address);
       } catch {
         if (!cancelled) {
           setStatus("Continuing with the details you entered");
@@ -97,7 +148,9 @@ export function DiscoverClient({
           if (cancelled) {
             return;
           }
-          continueToConfirm(
+          await goToConfirm(
+            router,
+            businessName,
             {
               categoryId,
               candidates: [],
@@ -110,22 +163,10 @@ export function DiscoverClient({
               address,
             },
             undefined,
+            address,
           );
         }
       }
-    }
-
-    function continueToConfirm(discovery: DiscoverResponse, candidate: PlaceCandidate | undefined) {
-      const profiles = candidate ? filterProfilesForCandidate(discovery.profiles, candidate) : discovery.profiles;
-      const params = new URLSearchParams({
-        businessName,
-        categoryId: discovery.categoryId,
-        discoveredProfiles: JSON.stringify(profiles),
-      });
-      if (discovery.address ?? address) {
-        params.set("address", discovery.address ?? address ?? "");
-      }
-      router.replace(`/new?${params.toString()}`);
     }
 
     void discover();
@@ -140,16 +181,7 @@ export function DiscoverClient({
     if (!result) {
       return;
     }
-    const profiles = filterProfilesForCandidate(result.profiles, candidate);
-    const params = new URLSearchParams({
-      businessName: candidate.name,
-      categoryId: result.categoryId,
-      discoveredProfiles: JSON.stringify(profiles),
-    });
-    if (result.address ?? candidate.address ?? address) {
-      params.set("address", result.address ?? candidate.address ?? address ?? "");
-    }
-    router.replace(`/new?${params.toString()}`);
+    void goToConfirm(router, candidate.name, result, candidate, address);
   }
 
   const needsChoice = Boolean(result && result.candidates.length > 1 && !googlePlaceId && !appleMapsId);

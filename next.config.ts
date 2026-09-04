@@ -8,6 +8,6 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
-if (process.env.SKIP_OPENNEXT_DEV !== "1") {
-  initOpenNextCloudflareForDev();
+if (process.env.NODE_ENV !== "production" && process.env.SKIP_OPENNEXT_DEV !== "1") {
+  void initOpenNextCloudflareForDev();
 }

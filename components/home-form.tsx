@@ -113,7 +113,8 @@ export function HomeForm() {
   const showSingle = !rejected && Boolean(strongMatch);
 
   function continueWith(candidate: PlaceCandidate | null, extras?: { websiteUrl?: string; listingUrl?: string; address?: string }) {
-    const name = (candidate?.name ?? businessName).trim();
+    const typedName = businessName.trim();
+    const name = typedName || (candidate?.name ?? "").trim();
     if (!name) {
       setError("Enter your business name");
       return;

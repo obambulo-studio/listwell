@@ -1,52 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "workers/preview.js",
   "name": "listwell",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": [
     "nodejs_compat",
     "global_fetch_strictly_public"
-  ],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "listwell"
-    }
-  ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "listwell",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "lib/db/migrations"
-    }
-  ],
-  // Browser Rendering Workers binding. Used when a page looks like a thin SPA.
-  "browser": {
-    "binding": "BROWSER"
-  },
-  // Workers AI. LIST-3 report briefs call env.AI.run.
-  "ai": {
-    "binding": "AI"
-  },
-  "kv_namespaces": [
-    {
-      "binding": "AUDIT_KV",
-      // Replace with a real KV namespace id before deploy.
-      "id": "00000000000000000000000000000000",
-      "preview_id": "00000000000000000000000000000000"
-    }
-  ],
-  "queues": {
-    "producers": [
-      {
-        "binding": "AUDIT_QUEUE",
-        "queue": "listwell-audit"
-      }
-    ]
-  }
+  ]
 }

@@ -25,21 +25,25 @@ bun run build
 bun run preview
 ```
 
-`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker.
+`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker. `bun run upload` uploads a new version for gradual or preview deploys.
 
-Create a D1 database named `listwell` and a KV namespace for audit jobs. Put those ids in `wrangler.jsonc` (placeholders are `0000…`), then apply `lib/db/migrations/0000.sql`.
+Workers Builds should use `npx opennextjs-cloudflare build`, then `npx opennextjs-cloudflare deploy --config wrangler.open-next.jsonc` on the production branch and `npx opennextjs-cloudflare upload --config wrangler.open-next.jsonc` on other branches.
 
-Local `next dev` can run without D1 and keeps audits in memory for the process.
+The default uploaded file is `wrangler.jsonc`. It points at the committed `workers/preview.js` Worker so `npx wrangler versions upload` does not need `.open-next`, D1 ids, or extra token grants. Local preview and deploy use `wrangler.open-next.jsonc`. `postbuild` still packages the real OpenNext worker when `WORKERS_CI=1` after `next build`.
+
+Discover still persists through Drizzle `businesses` / `business_locations` when `env.DB` is bound. Preview Workers and local `next dev` keep the chosen listing in memory when D1 is absent, so a refresh in that process does not lose it.
+
+Apply `lib/db/migrations/0000.sql` to a local D1 with `bun run db:push` (`wrangler.local.jsonc`). LIST-8 deploy still applies this schema to the live database and adds real resource ids. Do not invent a Cloudflare account or database id in this repo.
 
 ## Bindings and secrets
 
-`wrangler.jsonc` declares real Workers bindings. Replace placeholder ids before deploy:
+`wrangler.jsonc` is the uploaded preview config and has no product bindings. `wrangler.open-next.jsonc` is for local preview and deploy. The Worker already treats these as optional:
 
-- `DB` — D1
-- `AUDIT_KV` — queued check jobs (`00000000000000000000000000000000` until you create the namespace)
-- `AUDIT_QUEUE` — producer for `listwell-audit` (optional; the Worker also finishes `website-performance` with `waitUntil`)
+- `DB` — D1 named `listwell` (local apply via `wrangler.local.jsonc`)
+- `AUDIT_KV` — queued check jobs
+- `AUDIT_QUEUE` — producer for `listwell-audit` (the Worker also finishes `website-performance` with `waitUntil`)
 - `BROWSER` — Cloudflare Browser Rendering
-- `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary.
+- `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary
 
 Set secrets with `wrangler secret put` (see `.env.example`):
 

@@ -128,6 +128,28 @@ export function mapProfilesToBusinessData(
   return data;
 }
 
+export function businessInputFromDiscovery(
+  name: string,
+  category: CreateBusinessRequest["category"],
+  profiles: DiscoveredProfile[],
+  address?: string,
+): CreateBusinessRequest {
+  const payload = mapProfilesToBusinessData(name, category, profiles);
+  const trimmed = address?.trim();
+  if (!trimmed) {
+    return payload;
+  }
+  if (payload.locations.length === 0) {
+    payload.locations.push({ name, address: trimmed });
+    return payload;
+  }
+  const first = payload.locations[0];
+  if (first && !first.address) {
+    first.address = trimmed;
+  }
+  return payload;
+}
+
 export function businessToProfiles(business: Business): DiscoveredProfile[] {
   const profiles: DiscoveredProfile[] = [];
   if (business.websiteUrl) {
