@@ -21,7 +21,8 @@
     {
       "binding": "DB",
       "database_name": "listwell",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // No database_id: a nil UUID is treated as a real remote id and Workers Builds fails.
+      // Wrangler looks up or auto-provisions the D1 named `listwell`.
       "migrations_dir": "lib/db/migrations"
     }
   ],
@@ -35,10 +36,9 @@
   },
   "kv_namespaces": [
     {
-      "binding": "AUDIT_KV",
-      // Replace with a real KV namespace id before deploy.
-      "id": "00000000000000000000000000000000",
-      "preview_id": "00000000000000000000000000000000"
+      // No id: a placeholder namespace id fails Workers Builds the same way as a nil D1 id.
+      // Wrangler looks up or auto-provisions AUDIT_KV.
+      "binding": "AUDIT_KV"
     }
   ],
   "queues": {

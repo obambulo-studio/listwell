@@ -25,9 +25,13 @@ bun run build
 bun run preview
 ```
 
-`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker.
+`bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker. `bun run upload` uploads a new version for gradual or preview deploys.
 
-Create a D1 database named `listwell` and a KV namespace for audit jobs. Put those ids in `wrangler.jsonc` (placeholders are `0000…`). Discover persists the chosen listing through the Drizzle `businesses` and `business_locations` tables. The Worker path reads that row back, so a refresh does not lose it.
+Workers Builds should use `npx opennextjs-cloudflare build`, then `npx opennextjs-cloudflare deploy` on the production branch and `npx opennextjs-cloudflare upload` on other branches. Do not run `next build` alone, and do not run Wrangler until OpenNext has written `.open-next`.
+
+`wrangler.jsonc` binds D1 `listwell` and KV `AUDIT_KV` by name. Do not put a nil or invented resource id in that file. Wrangler looks up those resources, or auto-provisions them on deploy.
+
+Discover persists the chosen listing through the Drizzle `businesses` and `business_locations` tables. The Worker path reads that row back, so a refresh does not lose it.
 
 Apply `lib/db/migrations/0000.sql` to a local D1 (`bun run db:push`). LIST-8 deploy still applies this schema to the live database. Do not invent a Cloudflare account or database id in this repo.
 
@@ -35,10 +39,10 @@ Local `next dev` can run without D1 and keeps audits in memory for the process.
 
 ## Bindings and secrets
 
-`wrangler.jsonc` declares real Workers bindings. Replace placeholder ids before deploy:
+`wrangler.jsonc` declares real Workers bindings. Create a D1 database named `listwell` and a KV namespace for audit jobs if they do not already exist. Do not invent ids in this repo:
 
-- `DB` — D1
-- `AUDIT_KV` — queued check jobs (`00000000000000000000000000000000` until you create the namespace)
+- `DB` — D1 named `listwell`
+- `AUDIT_KV` — queued check jobs
 - `AUDIT_QUEUE` — producer for `listwell-audit` (optional; the Worker also finishes `website-performance` with `waitUntil`)
 - `BROWSER` — Cloudflare Browser Rendering
 - `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary.
