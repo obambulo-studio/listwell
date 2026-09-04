@@ -1,24 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "workers/preview.js",
   "name": "listwell",
   "compatibility_date": "2025-09-01",
   "compatibility_flags": [
     "nodejs_compat",
     "global_fetch_strictly_public"
-  ],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "listwell"
-    }
   ]
-  // Preview `versions upload` only keeps bindings that do not need a product
-  // id or extra API-token grant. D1, KV, queues, Browser Rendering, and
-  // Workers AI stay optional at runtime (LIST-5 memory fallback). Local D1
-  // apply uses wrangler.local.jsonc. LIST-8 adds live resource ids.
 }
