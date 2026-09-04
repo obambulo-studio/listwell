@@ -16,18 +16,9 @@
       "binding": "WORKER_SELF_REFERENCE",
       "service": "listwell"
     }
-  ],
-  // Browser Rendering Workers binding. Used when a page looks like a thin SPA.
-  "browser": {
-    "binding": "BROWSER"
-  },
-  // Workers AI. LIST-3 report briefs call env.AI.run.
-  "ai": {
-    "binding": "AI"
-  }
-  // D1, KV, and queues are not declared here. `wrangler versions upload`
-  // (Workers Builds PR previews) requires a real database_id / KV id and does
-  // not auto-provision. Nil or invented ids fail the same way. LIST-5 already
-  // falls back to in-process memory when env.DB / AUDIT_KV are unbound.
-  // Local `bun run db:push` uses wrangler.local.jsonc. LIST-8 adds live ids.
+  ]
+  // Preview `versions upload` only keeps bindings that do not need a product
+  // id or extra API-token grant. D1, KV, queues, Browser Rendering, and
+  // Workers AI stay optional at runtime (LIST-5 memory fallback). Local D1
+  // apply uses wrangler.local.jsonc. LIST-8 adds live resource ids.
 }

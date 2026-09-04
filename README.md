@@ -27,7 +27,7 @@ bun run preview
 
 `bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker. `bun run upload` uploads a new version for gradual or preview deploys.
 
-Workers Builds should use `npx opennextjs-cloudflare build`, then `npx opennextjs-cloudflare deploy` on the production branch and `npx opennextjs-cloudflare upload` on other branches. Do not run `next build` alone, and do not run Wrangler until OpenNext has written `.open-next`.
+Workers Builds should use `npx opennextjs-cloudflare build`, then `npx opennextjs-cloudflare deploy` on the production branch and `npx opennextjs-cloudflare upload` on other branches. If the dashboard still runs `npm run build` then `wrangler versions upload`, `postbuild` packages `.open-next` when `WORKERS_CI=1` and the worker file is missing. Do not run Wrangler until OpenNext has written `.open-next`.
 
 `wrangler.jsonc` is what Workers Builds uploads. It does not declare D1, KV, or queues. `wrangler versions upload` requires a real D1 `database_id` and KV `id`, and it does not auto-provision. A nil or invented id fails the same way.
 
@@ -37,16 +37,13 @@ Apply `lib/db/migrations/0000.sql` to a local D1 with `bun run db:push` (`wrangl
 
 ## Bindings and secrets
 
-`wrangler.jsonc` declares Worker bindings that do not need a resource id:
-
-- `BROWSER` — Cloudflare Browser Rendering
-- `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary
-
-These stay out of the uploaded config until LIST-8 has real ids. The Worker already treats them as optional:
+`wrangler.jsonc` is the uploaded preview config. It only declares `WORKER_SELF_REFERENCE` and `ASSETS`. The Worker already treats these as optional:
 
 - `DB` — D1 named `listwell` (local apply via `wrangler.local.jsonc`)
 - `AUDIT_KV` — queued check jobs
 - `AUDIT_QUEUE` — producer for `listwell-audit` (the Worker also finishes `website-performance` with `waitUntil`)
+- `BROWSER` — Cloudflare Browser Rendering
+- `AI` — Workers AI for the report executive brief. Missing binding falls back to a cited check summary
 
 Set secrets with `wrangler secret put` (see `.env.example`):
 
