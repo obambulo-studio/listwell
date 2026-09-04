@@ -27,7 +27,9 @@ bun run preview
 
 `bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker. `bun run upload` uploads a new version for gradual or preview deploys.
 
-Workers Builds should use `npx opennextjs-cloudflare build`, then `npx opennextjs-cloudflare deploy` on the production branch and `npx opennextjs-cloudflare upload` on other branches. If the dashboard still runs `npm run build` then `wrangler versions upload`, `postbuild` packages `.open-next` when `WORKERS_CI=1` and the worker file is missing. Do not run Wrangler until OpenNext has written `.open-next`.
+Workers Builds should use `npx opennextjs-cloudflare build`, then `npx opennextjs-cloudflare deploy` on the production branch and `npx opennextjs-cloudflare upload` on other branches.
+
+`prepare` writes a tiny `.open-next/worker.js` and assets directory if they are missing, so a dashboard that only runs `wrangler versions upload` does not fail on absent paths. `postbuild` replaces that placeholder with the real OpenNext worker when `WORKERS_CI=1` after `next build`.
 
 `wrangler.jsonc` is what Workers Builds uploads. It does not declare D1, KV, or queues. `wrangler versions upload` requires a real D1 `database_id` and KV `id`, and it does not auto-provision. A nil or invented id fails the same way.
 

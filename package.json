@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node scripts/workers-ci-opennext.mjs",
+    "prepare": "node scripts/ensure-open-next-placeholder.mjs",
     "start": "next start",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
