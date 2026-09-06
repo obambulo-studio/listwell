@@ -6,7 +6,7 @@ import { PlaceSearch } from "@/components/place-search";
 import { CATEGORY_CONFIG, categoryIdSchema, type CategoryId } from "@/lib/category";
 import { CHANNEL_CONFIG, channelIdSchema, type ChannelId, type DiscoveredProfile } from "@/lib/channel";
 import { type PlaceCandidate } from "@/lib/discover";
-import { channelPlaceholder, mapProfilesToBusinessData, unusedChannels } from "@/lib/profiles";
+import { businessInputFromDiscovery, channelPlaceholder, unusedChannels } from "@/lib/profiles";
 import { addBusinessId } from "@/lib/storage";
 import { businessSchema } from "@/lib/schema";
 
@@ -44,17 +44,7 @@ export function NewAuditForm({
     setSaving(true);
     setError(null);
     try {
-      const payload = mapProfilesToBusinessData(name, category, profiles);
-      if (address.trim()) {
-        if (payload.locations.length === 0) {
-          payload.locations.push({ name, address: address.trim() });
-        } else {
-          const first = payload.locations[0];
-          if (first && !first.address) {
-            first.address = address.trim();
-          }
-        }
-      }
+      const payload = businessInputFromDiscovery(name, category, profiles, address);
       const response = await fetch(existingId ? `/api/businesses/${existingId}` : "/api/businesses", {
         method: existingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },

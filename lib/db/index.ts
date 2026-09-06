@@ -2,7 +2,9 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { z } from "zod";
-import { categoryIdSchema } from "../category";
+import { categoryIdSchema, type CategoryId } from "../category";
+import type { DiscoveredProfile } from "../channel";
+import { businessInputFromDiscovery } from "../profiles";
 import {
   businessSchema,
   createBusinessRequestSchema,
@@ -76,17 +78,45 @@ CREATE TABLE IF NOT EXISTS business_locations (
 `;
 
 let schemaReady = false;
+let injectedD1: D1Database | null | undefined;
+
+export function setTestD1(db: D1Database | null | undefined): void {
+  injectedD1 = db;
+  schemaReady = false;
+}
+
+export function resetBusinessStoreForTests(): void {
+  memory.businesses.clear();
+  memory.locations.clear();
+  memory.nextLocationId = 1;
+  injectedD1 = undefined;
+  schemaReady = false;
+}
+
+async function applySchema(db: D1Database): Promise<void> {
+  if (schemaReady) {
+    return;
+  }
+  await db.exec(SCHEMA_SQL);
+  schemaReady = true;
+}
 
 async function getD1(): Promise<D1Database | null> {
+  if (injectedD1 !== undefined) {
+    if (injectedD1) {
+      await applySchema(injectedD1);
+    }
+    return injectedD1;
+  }
+  if (process.env.SKIP_OPENNEXT_DEV === "1") {
+    return null;
+  }
   try {
     const context = await getCloudflareContext({ async: true });
     if (!context.env.DB) {
       return null;
     }
-    if (!schemaReady) {
-      await context.env.DB.exec(SCHEMA_SQL);
-      schemaReady = true;
-    }
+    await applySchema(context.env.DB);
     return context.env.DB;
   } catch {
     return null;
@@ -211,6 +241,15 @@ export async function createBusiness(input: CreateBusinessRequest): Promise<Busi
     throw new Error("Failed to load created business");
   }
   return created;
+}
+
+export async function persistDiscoveredBusiness(input: {
+  name: string;
+  category: CategoryId;
+  profiles: DiscoveredProfile[];
+  address?: string;
+}): Promise<Business> {
+  return createBusiness(businessInputFromDiscovery(input.name, input.category, input.profiles, input.address));
 }
 
 export async function updateBusiness(id: string, input: UpdateBusinessRequest): Promise<Business> {

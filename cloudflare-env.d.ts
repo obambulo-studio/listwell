@@ -1,14 +1,15 @@
 interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
-  first<T = unknown>(): Promise<T | null>;
-  run<T = unknown>(): Promise<T>;
-  all<T = unknown>(): Promise<{ results: T[] }>;
+  first(): Promise<unknown>;
+  run(): Promise<unknown>;
+  all(): Promise<{ results: unknown[] }>;
+  raw(): Promise<unknown[]>;
 }
 
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
   dump(): Promise<ArrayBuffer>;
-  batch<T = unknown>(statements: D1PreparedStatement[]): Promise<T[]>;
+  batch(statements: D1PreparedStatement[]): Promise<unknown[]>;
   exec(query: string): Promise<unknown>;
 }
 
@@ -37,7 +38,7 @@ interface AiBinding {
 }
 
 interface CloudflareEnv {
-  DB: D1Database;
+  DB?: D1Database;
   AUDIT_KV?: KVNamespace;
   AUDIT_QUEUE?: Queue;
   BROWSER?: Fetcher;
