@@ -27,7 +27,7 @@ bun run preview
 
 `bun run preview` builds the Worker with OpenNext and serves it through Wrangler. `bun run deploy` deploys that Worker. `bun run upload` uploads a new version for gradual or preview deploys.
 
-Workers Builds defaults to `npm run build` then `npx wrangler deploy` on the production branch (`npx wrangler versions upload` on other branches). Wrangler 4 detects OpenNext from `open-next.config.ts` and delegates those commands to `opennextjs-cloudflare`, so `wrangler.jsonc` must point at `.open-next/worker.js`. `postbuild` packages that Worker after `next build`. You can also set the dashboard commands to `npx opennextjs-cloudflare build` and `npm run deploy` / `npm run upload`.
+Workers Builds defaults to `npm run build` then `npx wrangler deploy` on the production branch (`npx wrangler versions upload` on other branches). Wrangler 4 detects OpenNext from `open-next.config.ts` and delegates `wrangler deploy` to `opennextjs-cloudflare deploy`, so `wrangler.jsonc` must point at `.open-next/worker.js`. `postbuild` packages that Worker after `next build` (and runs a standalone OpenNext build when `next build` was not already standalone). Prefer dashboard build `npx opennextjs-cloudflare build` when you can set it.
 
 Discover still persists through Drizzle `businesses` / `business_locations` when `env.DB` is bound. Preview Workers and local `next dev` keep the chosen listing in memory when D1 is absent, so a refresh in that process does not lose it.
 
