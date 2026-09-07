@@ -2,9 +2,6 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-if (process.env.WORKERS_CI !== "1") {
-  process.exit(0);
-}
 if (process.env.LISTWELL_OPENNEXT_PACKAGING === "1") {
   process.exit(0);
 }
