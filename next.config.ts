@@ -1,5 +1,46 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import type { NextConfig } from "next";
+import { z } from "zod";
+
+const wranglerPublicEnvSchema = z.object({
+  vars: z
+    .object({
+      NEXT_PUBLIC_CONVEX_SITE_URL: z.string().min(1).optional(),
+      NEXT_PUBLIC_CONVEX_URL: z.string().min(1).optional(),
+      NEXT_PUBLIC_SITE_URL: z.string().min(1).optional(),
+    })
+    .passthrough(),
+});
+
+const applyWranglerPublicEnv = (): void => {
+  const wranglerPath = fileURLToPath(
+    new URL("wrangler.open-next.jsonc", import.meta.url)
+  );
+  const wranglerFile = wranglerPublicEnvSchema.safeParse(
+    JSON.parse(readFileSync(wranglerPath, "utf-8"))
+  );
+  if (!wranglerFile.success) {
+    return;
+  }
+
+  const publicEnv = {
+    NEXT_PUBLIC_CONVEX_SITE_URL:
+      wranglerFile.data.vars.NEXT_PUBLIC_CONVEX_SITE_URL,
+    NEXT_PUBLIC_CONVEX_URL: wranglerFile.data.vars.NEXT_PUBLIC_CONVEX_URL,
+    NEXT_PUBLIC_SITE_URL: wranglerFile.data.vars.NEXT_PUBLIC_SITE_URL,
+  };
+
+  for (const [key, value] of Object.entries(publicEnv)) {
+    if (value && !process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+};
+
+applyWranglerPublicEnv();
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["listwell.localhost", "*.listwell.localhost"],
@@ -9,6 +50,9 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
-if (process.env.NODE_ENV !== "production" && process.env.SKIP_OPENNEXT_DEV !== "1") {
+if (
+  process.env.NODE_ENV !== "production" &&
+  process.env.SKIP_OPENNEXT_DEV !== "1"
+) {
   void initOpenNextCloudflareForDev();
 }

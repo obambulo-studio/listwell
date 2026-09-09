@@ -35,7 +35,7 @@ export const fetchPlain = async (
 ): Promise<SerializedHttpResponse> => {
   const response = await fetchImpl(url, {
     headers: {
-      "user-agent": "ListwellAuditBot/1.0 (+https://listwell.au)",
+      "user-agent": "ListwellAuditBot/1.0 (+https://listwell.dev)",
     },
     redirect: "follow",
   });
@@ -163,7 +163,7 @@ export const fetchText = async (
 ): Promise<{ ok: boolean; status: number; body: string }> => {
   try {
     const response = await fetchImpl(url, {
-      headers: { "user-agent": "ListwellAuditBot/1.0 (+https://listwell.au)" },
+      headers: { "user-agent": "ListwellAuditBot/1.0 (+https://listwell.dev)" },
     });
     return {
       body: await response.text(),

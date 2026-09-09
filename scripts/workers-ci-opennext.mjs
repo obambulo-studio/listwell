@@ -11,15 +11,21 @@ if (process.env.LISTWELL_OPENNEXT_PACKAGING === "1") {
 
 const workerPath = ".open-next/worker.js";
 const workerIsPlaceholder =
-  existsSync(workerPath) && readFileSync(workerPath, "utf8").includes('new Response("Listwell"');
+  existsSync(workerPath) &&
+  readFileSync(workerPath, "utf-8").includes('new Response("Listwell"');
 if (existsSync(workerPath) && !workerIsPlaceholder) {
   process.exit(0);
 }
 
-const cli = fileURLToPath(new URL("../node_modules/@opennextjs/cloudflare/dist/cli/index.js", import.meta.url));
+const cli = fileURLToPath(
+  new URL(
+    "../node_modules/@opennextjs/cloudflare/dist/cli/index.js",
+    import.meta.url
+  )
+);
 const result = spawnSync(process.execPath, [cli, "build", "--skipNextBuild"], {
-  stdio: "inherit",
   env: { ...process.env, LISTWELL_OPENNEXT_PACKAGING: "1" },
+  stdio: "inherit",
 });
 
 process.exit(result.status ?? 1);

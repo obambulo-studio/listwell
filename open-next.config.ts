@@ -3,7 +3,7 @@ import r2IncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cac
 import doQueue from "@opennextjs/cloudflare/overrides/queue/do-queue";
 
 export default defineCloudflareConfig({
+  enableCacheInterception: true,
   incrementalCache: r2IncrementalCache,
   queue: doQueue,
-  enableCacheInterception: true,
 });

@@ -1,29 +1,21 @@
 # Listwell
 
-Listwell audits local listings and websites for search engine optimization (SEO).
-You create an audit. You run the checks. Then you read a report with fix steps.
+Listwell audits local listings and websites for search engine optimization (SEO). You create an audit. You run the checks. Then you read a report with fix steps.
 
-Obambulo Studio owns Listwell. The software is proprietary. It is not open source.
-See `LICENSE`.
+Obambulo Studio owns Listwell. The software is proprietary. It is not open source. See `LICENSE`.
 
 ## What Listwell does
 
-You start on the home page with a chat. You type a business name.
-The app finds listings, a website, and social profiles.
-A free preview shows basic results.
-A full report with fix steps costs $5 one time (`report_once`).
+You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. A full report with fix steps costs $5 one time (`report_once`).
 Monthly scans cost $9 per month (`report_monthly`).
 
-Sign-in uses a one-time code by email. There is no password.
-The `/account` page lists businesses for the signed-in user.
+Sign-in uses a one-time code by email. There is no password. The `/account` page lists businesses for the signed-in user.
 
 ## Architecture
 
-Convex stores users, businesses, entitlements, scans, and jobs.
-Better Auth on Convex handles sessions and email one-time codes.
+Convex stores users, businesses, entitlements, scans, and jobs. Better Auth on Convex handles sessions and email one-time codes.
 
-Cloudflare Workers run the Next.js app through OpenNext.
-The Worker also runs the audit engine. Convex stores app data. The Worker does not.
+Cloudflare Workers run the Next.js app through OpenNext. The Worker also runs the audit engine. Convex stores app data. The Worker does not.
 
 Worker bindings:
 
@@ -31,11 +23,9 @@ Worker bindings:
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI for report briefs, or cited check text if AI is off
 
-The project does not use D1 or Drizzle.
-If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
+The project does not use D1 or Drizzle. If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
 
-A Convex cron runs due monthly scans each hour (`internal.scans.runDue`).
-The Worker entry is `worker.ts`. OpenNext config is `open-next.config.ts`.
+A Convex cron runs due monthly scans each hour (`internal.scans.runDue`). The Worker entry is `worker.ts`. OpenNext config is `open-next.config.ts`.
 
 ## Stack
 
@@ -86,17 +76,13 @@ Use `bun dev:localhost` if you want `http://localhost:3000` without Portless.
 
 If you do audit work without remote Worker bindings, set `SKIP_OPENNEXT_DEV=1` in `.env.local`.
 
-Do not run `npx convex deploy` during local work. Use `npx convex dev`.
-Use `bun run convex:deploy` only for production.
+Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun run convex:deploy` only for production.
 
-`wrangler.jsonc` is the uploaded preview config. It has no product bindings.
-`wrangler.open-next.jsonc` is for local preview and deploy.
+`wrangler.jsonc` is the uploaded preview config. It has no product bindings. `wrangler.open-next.jsonc` is for local preview and deploy.
 
-Workers Builds can upload `workers/preview.js` without `.open-next` or KV ids.
-`postbuild` packages the real OpenNext worker when `WORKERS_CI=1` after `next build`.
+Workers Builds can upload `workers/preview.js` without `.open-next` or KV ids. `postbuild` packages the real OpenNext worker when `WORKERS_CI=1` after `next build`.
 
-On the production branch, deploy with `npx opennextjs-cloudflare deploy --config wrangler.open-next.jsonc`.
-On other branches, upload with `npx opennextjs-cloudflare upload --config wrangler.open-next.jsonc`.
+On the production branch, deploy with `npx opennextjs-cloudflare deploy --config wrangler.open-next.jsonc`. On other branches, upload with `npx opennextjs-cloudflare upload --config wrangler.open-next.jsonc`.
 
 ## Scripts
 
@@ -159,13 +145,11 @@ Local:
 
 `USESEND_FROM` must use a domain that UseSend already verified.
 
-Apple Maps keys, Browser Rendering REST, and Polar values are optional for local UI work.
-Without Polar, checkout does not complete. Without UseSend, sign-in emails do not send.
+Apple Maps keys, Browser Rendering REST, and Polar values are optional for local UI work. Without Polar, checkout does not complete. Without UseSend, sign-in emails do not send.
 
 ### Convex deployment
 
-Set the same shared values on the Convex deployment (dev and production).
-If the project is not linked, run `npx convex dev` first.
+Set the same shared values on the Convex deployment (dev and production). If the project is not linked, run `npx convex dev` first.
 
 ```bash
 bun run convex:sync-env
@@ -183,8 +167,7 @@ npx convex env set USESEND_FROM "Listwell <noreply@yourdomain.com>"
 # npx convex env set USESEND_BASE_URL https://app.usesend.com
 ```
 
-`SITE_URL` must match the origin that users hit. Do not add a trailing slash.
-`INTERNAL_API_SECRET` must match the Next.js value. Scheduled scans call the Worker with this secret.
+`SITE_URL` must match the origin that users hit. Do not add a trailing slash. `INTERNAL_API_SECRET` must match the Next.js value. Scheduled scans call the Worker with this secret.
 
 Production `SITE_URL` must be the live domain.
 
@@ -194,9 +177,9 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 `wrangler.open-next.jsonc` is the production OpenNext config. It enables Workers logs, traces, smart placement, and Worker caching, and wires R2 incremental cache (`listwell-next-cache`), the OpenNext DO queue, `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
 
-Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. After `.env.local` is set, run:
+Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` live in `wrangler.open-next.jsonc` `vars` so `next build` can inline them without a local `.env`. After `.env.local` is set, run:
 
-- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2` and `NEXT_PUBLIC_*` build variables (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write, or set `BUN_VERSION=1.4.2` in the dashboard)
+- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, and those public build variables (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
 - `bun run cf:sync-env` — pushes runtime secrets from `.env.local`
 
 Bindings:
@@ -217,11 +200,9 @@ Set remaining Worker secrets with `wrangler secret put` or `bun run cf:sync-env`
 
 You can use `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` instead of the `LISTWELL_BROWSER_RENDERING_*` pair for Browser Rendering REST.
 
-Full Google Business Profile quality needs `GOOGLE_API_KEY`.
-That key gives official reviews, photos, Places category, claimed listing, and Places autocomplete.
+Full Google Business Profile quality needs `GOOGLE_API_KEY`. That key gives official reviews, photos, Places category, claimed listing, and Places autocomplete.
 
-Without the key, create-audit and listing checks use Nominatim, pasted URLs, website markup, and a synthetic browser LCP.
-That path does not give official reviews, a photo gallery, Places category, or claimed-listing facts.
+Without the key, create-audit and listing checks use Nominatim, pasted URLs, website markup, and a synthetic browser LCP. That path does not give official reviews, a photo gallery, Places category, or claimed-listing facts.
 
 The product does not scrape Google Maps HTML. It does not bypass bot walls.
 
@@ -267,8 +248,7 @@ All 32 check IDs in `content/checks` run in the Next.js Worker.
 - `website-performance` uses Chrome User Experience Report (CrUX) then PageSpeed when `GOOGLE_API_KEY` is present.
 - If that key is absent, it uses a synthetic Browser Rendering Largest Contentful Paint (LCP).
 
-Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery test stored fields.
-Programmable Search can also find social profiles when configured.
+Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery test stored fields. Programmable Search can also find social profiles when configured.
 
 After you edit `content/checks`, run `bun run catalog` so `lib/checks/catalog.ts` stays in sync.
 

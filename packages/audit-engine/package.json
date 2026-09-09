@@ -2,8 +2,8 @@
   "name": "@listwell/audit-engine",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
   "description": "Workers-friendly website and local SEO check engine for Listwell. The Next.js Worker imports this package; check IDs match content/checks.",
+  "license": "UNLICENSED",
   "type": "module",
   "exports": {
     ".": {

@@ -3,30 +3,27 @@
   "main": "workers/preview.js",
   "name": "listwell",
   "compatibility_date": "2026-09-09",
-  "compatibility_flags": [
-    "nodejs_compat",
-    "global_fetch_strictly_public"
-  ],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "placement": {
-    "mode": "smart"
+    "mode": "smart",
   },
   "observability": {
     "enabled": true,
     "logs": {
       "enabled": true,
-      "invocation_logs": true
+      "invocation_logs": true,
     },
     "traces": {
-      "enabled": true
-    }
+      "enabled": true,
+    },
   },
   "cache": {
-    "enabled": true
+    "enabled": true,
   },
   "kv_namespaces": [
     {
       "binding": "AUDIT_KV",
-      "id": "5d948b6a96a3411a980fa8bcd7f988c6"
-    }
-  ]
+      "id": "5d948b6a96a3411a980fa8bcd7f988c6",
+    },
+  ],
 }

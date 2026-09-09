@@ -13,7 +13,7 @@ export const NOMINATIM_SEARCH_URL =
 export const NOMINATIM_REVERSE_URL =
   "https://nominatim.openstreetmap.org/reverse";
 export const NOMINATIM_USER_AGENT =
-  "Listwell/1.0 (https://listwell.au; local business audit)";
+  "Listwell/1.0 (https://listwell.dev; local business audit)";
 export const NOMINATIM_MIN_INTERVAL_MS = 1100;
 
 export const BUSINESS_OSM_CLASSES = new Set([

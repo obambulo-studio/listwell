@@ -52,7 +52,8 @@ const goToConfirm = async (
   const profiles = candidate
     ? filterProfilesForCandidate(discovery.profiles, candidate)
     : discovery.profiles;
-  const nextAddress = discovery.address ?? candidate?.address ?? fallbackAddress;
+  const nextAddress =
+    discovery.address ?? candidate?.address ?? fallbackAddress;
   const persisted = await persistDiscovery(
     name,
     discovery.categoryId,

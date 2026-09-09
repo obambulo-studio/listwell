@@ -78,7 +78,10 @@ interface AiBinding {
 }
 
 interface ImagesBinding {
-  input: (stream: ReadableStream, options: Record<string, unknown>) => Promise<Response>;
+  input: (
+    stream: ReadableStream,
+    options: Record<string, unknown>
+  ) => Promise<Response>;
 }
 
 interface CloudflareEnv {
@@ -100,6 +103,9 @@ interface CloudflareEnv {
   LISTWELL_BROWSER_RENDERING_API_TOKEN?: string;
   NEXT_CACHE_DO_QUEUE?: DurableObjectNamespace;
   NEXT_INC_CACHE_R2_BUCKET?: R2Bucket;
+  NEXT_PUBLIC_CONVEX_SITE_URL?: string;
+  NEXT_PUBLIC_CONVEX_URL?: string;
+  NEXT_PUBLIC_SITE_URL?: string;
   POLAR_ACCESS_TOKEN?: string;
   POLAR_PRODUCT_REPORT_MONTHLY?: string;
   POLAR_PRODUCT_REPORT_ONCE?: string;
