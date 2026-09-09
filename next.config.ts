@@ -1,54 +1,24 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import type { NextConfig } from "next";
 import { z } from "zod";
 
-const wranglerPublicEnvSchema = z.object({
-  vars: z
-    .object({
-      NEXT_PUBLIC_CONVEX_SITE_URL: z.string().min(1).optional(),
-      NEXT_PUBLIC_CONVEX_URL: z.string().min(1).optional(),
-      NEXT_PUBLIC_SITE_URL: z.string().min(1).optional(),
-    })
-    .passthrough(),
+const productionPublicEnvSchema = z.object({
+  NEXT_PUBLIC_CONVEX_SITE_URL: z.string().min(1),
+  NEXT_PUBLIC_CONVEX_URL: z.string().min(1),
+  NEXT_PUBLIC_SITE_URL: z.string().min(1),
 });
 
-const parseJsonc = (text: string): unknown =>
-  JSON.parse(
-    text
-      .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
-      .replaceAll(/(?<prefix>^|[^:\\])\/\/.*$/gmu, "$<prefix>")
-      .replaceAll(/,(?=\s*[}\]])/gu, "")
-  );
+const productionPublicEnv = productionPublicEnvSchema.parse({
+  NEXT_PUBLIC_CONVEX_SITE_URL: "https://hallowed-mallard-135.convex.site",
+  NEXT_PUBLIC_CONVEX_URL: "https://hallowed-mallard-135.convex.cloud",
+  NEXT_PUBLIC_SITE_URL: "https://listwell.dev",
+});
 
-const applyWranglerPublicEnv = (): void => {
-  const wranglerPath = fileURLToPath(
-    new URL("wrangler.open-next.jsonc", import.meta.url)
-  );
-  const wranglerFile = wranglerPublicEnvSchema.safeParse(
-    parseJsonc(readFileSync(wranglerPath, "utf-8"))
-  );
-  if (!wranglerFile.success) {
-    return;
+for (const [key, value] of Object.entries(productionPublicEnv)) {
+  if (!process.env[key]) {
+    process.env[key] = value;
   }
-
-  const publicEnv = {
-    NEXT_PUBLIC_CONVEX_SITE_URL:
-      wranglerFile.data.vars.NEXT_PUBLIC_CONVEX_SITE_URL,
-    NEXT_PUBLIC_CONVEX_URL: wranglerFile.data.vars.NEXT_PUBLIC_CONVEX_URL,
-    NEXT_PUBLIC_SITE_URL: wranglerFile.data.vars.NEXT_PUBLIC_SITE_URL,
-  };
-
-  for (const [key, value] of Object.entries(publicEnv)) {
-    if (value && !process.env[key]) {
-      process.env[key] = value;
-    }
-  }
-};
-
-applyWranglerPublicEnv();
+}
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["listwell.localhost", "*.listwell.localhost"],

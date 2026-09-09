@@ -177,7 +177,7 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 `wrangler.open-next.jsonc` is the production OpenNext config. It enables Workers logs, traces, smart placement, and Worker caching, and wires R2 incremental cache (`listwell-next-cache`), the OpenNext DO queue, `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
 
-Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` live in `wrangler.open-next.jsonc` `vars` so `next build` can inline them without a local `.env`. After `.env.local` is set, run:
+Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so `next build` can inline them without a local `.env`. The same values live in `wrangler.open-next.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
 
 - `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, and those public build variables (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
 - `bun run cf:sync-env` — pushes runtime secrets from `.env.local`

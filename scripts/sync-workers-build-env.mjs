@@ -91,17 +91,11 @@ const cloudflareRequest = async (
   return payload.result;
 };
 
-const parseJsonc = (text) =>
-  JSON.parse(
-    text
-      .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
-      .replaceAll(/(?<prefix>^|[^:\\])\/\/.*$/gmu, "$<prefix>")
-      .replaceAll(/,(?=\s*[}\]])/gu, "")
-  );
-
 const readWranglerPublicVars = () => {
   const wranglerPath = path.join(root, "wrangler.open-next.jsonc");
-  const wranglerFile = parseJsonc(readFileSync(wranglerPath, "utf-8"));
+  const wranglerFile = JSON.parse(
+    readFileSync(wranglerPath, "utf-8").replaceAll(/,(?=\s*[}\]])/gu, "")
+  );
   if (
     !wranglerFile ||
     typeof wranglerFile !== "object" ||
