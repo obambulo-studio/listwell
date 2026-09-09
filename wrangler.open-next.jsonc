@@ -7,6 +7,22 @@
     "nodejs_compat",
     "global_fetch_strictly_public"
   ],
+  "placement": {
+    "mode": "smart"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": true
+    }
+  },
+  "cache": {
+    "enabled": true
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -22,5 +38,54 @@
   },
   "ai": {
     "binding": "AI"
+  },
+  "images": {
+    "binding": "IMAGES"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AUDIT_KV",
+      "id": "5d948b6a96a3411a980fa8bcd7f988c6"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "listwell-next-cache"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NEXT_CACHE_DO_QUEUE",
+        "class_name": "DOQueueHandler"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DOQueueHandler"]
+    }
+  ],
+  "vars": {
+    "POLAR_SERVER": "sandbox"
+  },
+  "secrets": {
+    "required": [
+      "GOOGLE_API_KEY",
+      "GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID",
+      "APPLE_MAPKIT_TEAM_ID",
+      "APPLE_MAPKIT_KEY_ID",
+      "APPLE_MAPKIT_PRIVATE_KEY",
+      "LISTWELL_BROWSER_RENDERING_ACCOUNT_ID",
+      "LISTWELL_BROWSER_RENDERING_API_TOKEN",
+      "POLAR_ACCESS_TOKEN",
+      "POLAR_WEBHOOK_SECRET",
+      "POLAR_PRODUCT_REPORT_ONCE",
+      "POLAR_PRODUCT_REPORT_MONTHLY",
+      "INTERNAL_API_SECRET",
+      "SITE_URL"
+    ]
   }
 }

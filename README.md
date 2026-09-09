@@ -192,15 +192,23 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 ## Cloudflare Worker bindings and secrets
 
-Before you deploy, replace placeholder KV ids in `wrangler.jsonc`.
+`wrangler.open-next.jsonc` is the production OpenNext config. It enables Workers logs, traces, smart placement, and Worker caching, and wires R2 incremental cache (`listwell-next-cache`), the OpenNext DO queue, `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
+
+Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. After `.env.local` is set, run:
+
+- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2` and `NEXT_PUBLIC_*` build variables (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write, or set `BUN_VERSION=1.4.2` in the dashboard)
+- `bun run cf:sync-env` — pushes runtime secrets from `.env.local`
 
 Bindings:
 
-- `AUDIT_KV` - KV namespace for audit jobs (placeholder id `0000…`)
+- `AUDIT_KV` - KV namespace for audit jobs
+- `NEXT_INC_CACHE_R2_BUCKET` - OpenNext incremental cache (`listwell-next-cache`)
+- `NEXT_CACHE_DO_QUEUE` - OpenNext ISR revalidation queue
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI
+- `IMAGES` - Cloudflare Images for Next.js image optimization
 
-Set Worker secrets with `wrangler secret put`. See `.env.example`.
+Set remaining Worker secrets with `wrangler secret put` or `bun run cf:sync-env`. See `.env.example`.
 
 - `GOOGLE_API_KEY` - required for full Google Business Profile quality
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - social and website discovery

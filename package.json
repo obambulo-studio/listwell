@@ -2,6 +2,7 @@
   "name": "listwell",
   "private": true,
   "license": "UNLICENSED",
+  "packageManager": "bun@1.4.2",
   "workspaces": [
     "packages/*"
   ],
@@ -15,6 +16,8 @@
     "convex:dev": "npx convex dev",
     "convex:deploy": "npx convex deploy",
     "convex:sync-env": "bash scripts/sync-convex-env.sh",
+    "cf:sync-env": "bash scripts/sync-worker-env.sh",
+    "cf:sync-build-env": "node scripts/sync-workers-build-env.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview --config wrangler.open-next.jsonc",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy --config wrangler.open-next.jsonc",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload --config wrangler.open-next.jsonc",
