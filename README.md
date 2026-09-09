@@ -78,11 +78,9 @@ If you do audit work without remote Worker bindings, set `SKIP_OPENNEXT_DEV=1` i
 
 Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun run convex:deploy` only for production.
 
-`wrangler.jsonc` is the uploaded preview config. It has no product bindings. `wrangler.open-next.jsonc` is for local preview and deploy.
+`wrangler.jsonc` is the OpenNext Worker config. Local `bun run build` still runs `next build`. In Workers CI (`WORKERS_CI=1`) it runs `opennextjs-cloudflare build`, then `npx wrangler deploy` uploads that Worker. Run `bun run cf:sync-build-env` to set the dashboard commands to `bun run cf:build` and `npx wrangler deploy --keep-vars`.
 
-Workers Builds can upload `workers/preview.js` without `.open-next` or KV ids. `postbuild` packages the real OpenNext worker when `WORKERS_CI=1` after `next build`.
-
-On the production branch, deploy with `npx opennextjs-cloudflare deploy --config wrangler.open-next.jsonc`. On other branches, upload with `npx opennextjs-cloudflare upload --config wrangler.open-next.jsonc`.
+On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`. On other branches, upload with `npx opennextjs-cloudflare upload -- --keep-vars`.
 
 ## Scripts
 
@@ -90,7 +88,7 @@ Development:
 
 - `bun dev` - Next.js with Portless
 - `bun dev:localhost` - Next.js on port 3000
-- `bun run build` - Next.js production build (OpenNext runs this)
+- `bun run build` - Next.js production build locally; OpenNext package in Workers CI
 
 - `bun run convex:dev` - Convex development
 - `bun run convex:sync-env` - copy env from `.env.local` to Convex
@@ -175,11 +173,11 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 ## Cloudflare Worker bindings and secrets
 
-`wrangler.open-next.jsonc` is the production OpenNext config. It enables Workers logs, traces, smart placement, and Worker caching, and wires R2 incremental cache (`listwell-next-cache`), the OpenNext DO queue, `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
+`wrangler.jsonc` is the production OpenNext config. It enables Workers logs, traces, smart placement, and Worker caching, and wires R2 incremental cache (`listwell-next-cache`), the OpenNext DO queue, `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
 
-Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so `next build` can inline them without a local `.env`. The same values live in `wrangler.open-next.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
+Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so `next build` can inline them without a local `.env`. The same values live in `wrangler.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
 
-- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, and those public build variables (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
+- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, public build variables, and the OpenNext build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
 - `bun run cf:sync-env` — pushes runtime secrets from `.env.local`
 
 Bindings:

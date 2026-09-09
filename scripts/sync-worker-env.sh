@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Sync Worker secrets from .env.local to the listwell Worker (wrangler.open-next.jsonc).
+# Sync Worker secrets from .env.local to the listwell Worker (wrangler.jsonc).
 # Requires: wrangler logged in and the Worker deployed at least once.
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 env_file="$root/.env.local"
-config="$root/wrangler.open-next.jsonc"
+config="$root/wrangler.jsonc"
 secrets_file="$(mktemp)"
 trap 'rm -f "$secrets_file"' EXIT
 

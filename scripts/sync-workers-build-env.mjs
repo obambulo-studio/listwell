@@ -92,7 +92,7 @@ const cloudflareRequest = async (
 };
 
 const readWranglerPublicVars = () => {
-  const wranglerPath = path.join(root, "wrangler.open-next.jsonc");
+  const wranglerPath = path.join(root, "wrangler.jsonc");
   const wranglerFile = JSON.parse(
     readFileSync(wranglerPath, "utf-8").replaceAll(/,(?=\s*[}\]])/gu, "")
   );
@@ -136,11 +136,38 @@ const listTriggers = () =>
     `/accounts/${ACCOUNT_ID}/builds/workers/${WORKER_SCRIPT_ID}/triggers`
   );
 
+const BUILD_COMMAND = "bun run cf:build";
+const PRODUCTION_DEPLOY_COMMAND = "npx wrangler deploy --keep-vars";
+const PREVIEW_DEPLOY_COMMAND = "npx wrangler versions upload --keep-vars";
+
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
     `/accounts/${ACCOUNT_ID}/builds/triggers/${triggerUuid}/environment_variables`,
     { body: variables, method: "PATCH" }
   );
+
+const isPreviewTrigger = (trigger) => {
+  const name = String(trigger.trigger_name ?? "").toLowerCase();
+  if (name.includes("preview") || name.includes("non-production")) {
+    return true;
+  }
+  const branches = Array.isArray(trigger.branch_includes)
+    ? trigger.branch_includes
+    : [];
+  if (branches.includes("main")) {
+    return false;
+  }
+  return branches.some((branch) => String(branch).includes("*"));
+};
+
+const updateTriggerCommands = (triggerUuid, deployCommand) =>
+  cloudflareRequest(`/accounts/${ACCOUNT_ID}/builds/triggers/${triggerUuid}`, {
+    body: {
+      build_command: BUILD_COMMAND,
+      deploy_command: deployCommand,
+    },
+    method: "PATCH",
+  });
 
 const variables = buildVariables();
 const triggers = await listTriggers();
@@ -155,12 +182,18 @@ const syncTrigger = async (trigger) => {
   if (!triggerUuid) {
     return;
   }
+  const deployCommand = isPreviewTrigger(trigger)
+    ? PREVIEW_DEPLOY_COMMAND
+    : PRODUCTION_DEPLOY_COMMAND;
+  await updateTriggerCommands(triggerUuid, deployCommand);
   await upsertBuildEnv(triggerUuid, variables);
-  console.log(`Build env synced for trigger: ${triggerName}`);
+  console.log(
+    `Build env synced for trigger: ${triggerName} (${BUILD_COMMAND} → ${deployCommand})`
+  );
 };
 
 await Promise.all(triggers.map((trigger) => syncTrigger(trigger)));
 
 console.log(
-  `BUN_VERSION=${BUN_VERSION} and Next public vars are set on Workers Builds.`
+  `BUN_VERSION=${BUN_VERSION}, Next public vars, and OpenNext build/deploy commands are set on Workers Builds.`
 );
