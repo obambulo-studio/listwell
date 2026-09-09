@@ -9,6 +9,7 @@
   "routes": [
     {
       "pattern": "listwell.dev",
+      "zone_name": "listwell.dev",
       "custom_domain": true,
     },
   ],
@@ -79,22 +80,5 @@
     "NEXT_PUBLIC_CONVEX_URL": "https://hallowed-mallard-135.convex.cloud",
     "NEXT_PUBLIC_SITE_URL": "https://listwell.dev",
     "POLAR_SERVER": "sandbox",
-  },
-  "secrets": {
-    "required": [
-      "GOOGLE_API_KEY",
-      "GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID",
-      "APPLE_MAPKIT_TEAM_ID",
-      "APPLE_MAPKIT_KEY_ID",
-      "APPLE_MAPKIT_PRIVATE_KEY",
-      "LISTWELL_BROWSER_RENDERING_ACCOUNT_ID",
-      "LISTWELL_BROWSER_RENDERING_API_TOKEN",
-      "POLAR_ACCESS_TOKEN",
-      "POLAR_WEBHOOK_SECRET",
-      "POLAR_PRODUCT_REPORT_ONCE",
-      "POLAR_PRODUCT_REPORT_MONTHLY",
-      "INTERNAL_API_SECRET",
-      "SITE_URL",
-    ],
   },
 }
