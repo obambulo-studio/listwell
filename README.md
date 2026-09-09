@@ -25,7 +25,7 @@ Worker bindings:
 
 The project does not use D1 or Drizzle. If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
 
-A Convex cron runs due monthly scans each hour (`internal.scans.runDue`). The Worker entry is `worker.ts`. OpenNext config is `open-next.config.ts`.
+A Convex cron runs due monthly scans each hour (`internal.scans.runDue`). OpenNext config is `open-next.config.ts`.
 
 ## Stack
 

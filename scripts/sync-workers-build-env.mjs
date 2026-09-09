@@ -1,17 +1,30 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 
 const ACCOUNT_ID = "2d1b0d0b11e44b3cf9177cd6fb703646";
 const WORKER_SCRIPT_ID = "81106cf5a23946e28051caa2ac22b335";
 const BUN_VERSION = "1.4.2";
 
-const root = join(import.meta.dirname, "..");
-const envFile = join(root, ".env.local");
+const root = path.join(import.meta.dirname, "..");
+const envFile = path.join(root, ".env.local");
 
-function wranglerConfigPath() {
+const readEnvValue = (key) => {
+  if (!existsSync(envFile)) {
+    return "";
+  }
+  const line = readFileSync(envFile, "utf-8")
+    .split("\n")
+    .find((entry) => entry.startsWith(`${key}=`));
+  if (!line) {
+    return "";
+  }
+  return line.slice(key.length + 1);
+};
+
+const wranglerConfigPath = () => {
   if (platform() === "darwin") {
-    return join(
+    return path.join(
       homedir(),
       "Library",
       "Preferences",
@@ -20,10 +33,10 @@ function wranglerConfigPath() {
       "default.toml"
     );
   }
-  return join(homedir(), ".wrangler", "config", "default.toml");
-}
+  return path.join(homedir(), ".wrangler", "config", "default.toml");
+};
 
-function readAuthToken() {
+const readAuthToken = () => {
   const apiToken = readEnvValue("CLOUDFLARE_API_TOKEN");
   if (apiToken) {
     return apiToken;
@@ -36,39 +49,33 @@ function readAuthToken() {
     );
   }
   const match = readFileSync(configPath, "utf-8").match(
-    /^oauth_token\s*=\s*"([^"]+)"/m
+    /^oauth_token\s*=\s*"(?<token>[^"]+)"/mu
   );
-  if (!match) {
+  const token = match?.groups?.token;
+  if (!token) {
     throw new Error(
       "Set CLOUDFLARE_API_TOKEN in .env.local or run wrangler login (Workers CI Write scope required)."
     );
   }
-  return match[1];
-}
+  return token;
+};
 
-function readEnvValue(key) {
-  if (!existsSync(envFile)) {
-    return "";
-  }
-  const line = readFileSync(envFile, "utf-8")
-    .split("\n")
-    .find((entry) => entry.startsWith(`${key}=`));
-  if (!line) {
-    return "";
-  }
-  return line.slice(key.length + 1);
-}
-
-async function cloudflareRequest(path, { method = "GET", body } = {}) {
+const cloudflareRequest = async (
+  requestPath,
+  { method = "GET", body } = {}
+) => {
   const token = readAuthToken();
-  const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
-    body: body ? JSON.stringify(body) : undefined,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    method,
-  });
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4${requestPath}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      method,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }
+  );
   const payload = await response.json();
   if (!response.ok || !payload.success) {
     const message =
@@ -82,11 +89,19 @@ async function cloudflareRequest(path, { method = "GET", body } = {}) {
     throw new Error(message);
   }
   return payload.result;
-}
+};
 
-function readWranglerPublicVars() {
-  const wranglerPath = join(root, "wrangler.open-next.jsonc");
-  const wranglerFile = JSON.parse(readFileSync(wranglerPath, "utf-8"));
+const parseJsonc = (text) =>
+  JSON.parse(
+    text
+      .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+      .replaceAll(/(?<prefix>^|[^:\\])\/\/.*$/gmu, "$<prefix>")
+      .replaceAll(/,(?=\s*[}\]])/gu, "")
+  );
+
+const readWranglerPublicVars = () => {
+  const wranglerPath = path.join(root, "wrangler.open-next.jsonc");
+  const wranglerFile = parseJsonc(readFileSync(wranglerPath, "utf-8"));
   if (
     !wranglerFile ||
     typeof wranglerFile !== "object" ||
@@ -99,9 +114,9 @@ function readWranglerPublicVars() {
     return {};
   }
   return vars;
-}
+};
 
-function buildVariables() {
+const buildVariables = () => {
   const wranglerVars = readWranglerPublicVars();
   const variables = {
     BUN_VERSION: { is_secret: false, value: BUN_VERSION },
@@ -120,20 +135,18 @@ function buildVariables() {
   }
 
   return variables;
-}
+};
 
-async function listTriggers() {
-  return cloudflareRequest(
+const listTriggers = () =>
+  cloudflareRequest(
     `/accounts/${ACCOUNT_ID}/builds/workers/${WORKER_SCRIPT_ID}/triggers`
   );
-}
 
-async function upsertBuildEnv(triggerUuid, variables) {
-  return cloudflareRequest(
+const upsertBuildEnv = (triggerUuid, variables) =>
+  cloudflareRequest(
     `/accounts/${ACCOUNT_ID}/builds/triggers/${triggerUuid}/environment_variables`,
     { body: variables, method: "PATCH" }
   );
-}
 
 const variables = buildVariables();
 const triggers = await listTriggers();
@@ -142,15 +155,17 @@ if (!Array.isArray(triggers) || triggers.length === 0) {
   throw new Error("No Workers Builds triggers found for listwell.");
 }
 
-for (const trigger of triggers) {
+const syncTrigger = async (trigger) => {
   const triggerUuid = trigger.trigger_uuid;
   const triggerName = trigger.trigger_name ?? triggerUuid;
   if (!triggerUuid) {
-    continue;
+    return;
   }
   await upsertBuildEnv(triggerUuid, variables);
   console.log(`Build env synced for trigger: ${triggerName}`);
-}
+};
+
+await Promise.all(triggers.map((trigger) => syncTrigger(trigger)));
 
 console.log(
   `BUN_VERSION=${BUN_VERSION} and Next public vars are set on Workers Builds.`

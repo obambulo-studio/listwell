@@ -15,12 +15,20 @@ const wranglerPublicEnvSchema = z.object({
     .passthrough(),
 });
 
+const parseJsonc = (text: string): unknown =>
+  JSON.parse(
+    text
+      .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+      .replaceAll(/(?<prefix>^|[^:\\])\/\/.*$/gmu, "$<prefix>")
+      .replaceAll(/,(?=\s*[}\]])/gu, "")
+  );
+
 const applyWranglerPublicEnv = (): void => {
   const wranglerPath = fileURLToPath(
     new URL("wrangler.open-next.jsonc", import.meta.url)
   );
   const wranglerFile = wranglerPublicEnvSchema.safeParse(
-    JSON.parse(readFileSync(wranglerPath, "utf-8"))
+    parseJsonc(readFileSync(wranglerPath, "utf-8"))
   );
   if (!wranglerFile.success) {
     return;

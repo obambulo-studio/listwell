@@ -1,6 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": [
+  "ignore": [
+    "open-next.config.ts",
+    "worker.ts",
+    "components/atoms/entity-chip.tsx",
+    "components/atoms/value-pill.tsx",
     "components/chat-composer.tsx",
     "components/home-form.tsx",
     "components/primitives/prompt-bar.tsx",
@@ -8,7 +12,7 @@
     "components/primitives/streaming-text.tsx",
     "components/primitives/tool-chips.tsx"
   ],
-  "ignore": ["open-next.config.ts"],
+  "ignoreDependencies": ["glimm"],
   "exclude": [
     "duplicates",
     "enumMembers",
