@@ -2,15 +2,53 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ListingChoices } from "@/components/place-search";
-import { CATEGORY_CONFIG, categoryIdSchema, type CategoryId } from "@/lib/category";
-import { lookupResponseSchema, type PlaceCandidate } from "@/lib/discover";
 
-export function HomeForm() {
-  const router = useRouter();
+import { ListingChoices } from "@/components/place-search";
+import { CATEGORY_CONFIG, categoryIdSchema } from "@/lib/category";
+import type { CategoryId } from "@/lib/category";
+import { lookupResponseSchema } from "@/lib/discover";
+import type { PlaceCandidate } from "@/lib/discover";
+
+const initialLocationStatus = (): string => {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return "Type your suburb or city";
+  }
+  return "Finding your suburb";
+};
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof DOMException && error.name === "AbortError";
+
+const appendCandidateParams = (
+  params: URLSearchParams,
+  candidate: PlaceCandidate | null,
+  extras?: { websiteUrl?: string; listingUrl?: string; address?: string }
+) => {
+  const website = extras?.websiteUrl ?? candidate?.websiteUrl ?? undefined;
+  if (website) {
+    params.set("websiteUrl", website);
+  }
+  if (candidate?.source === "google") {
+    params.set("googlePlaceId", candidate.id);
+  }
+  if (candidate?.source === "apple") {
+    params.set("appleMapsId", candidate.id);
+  }
+  const listing = extras?.listingUrl ?? undefined;
+  if (listing) {
+    params.set("listingUrl", listing);
+  }
+  const nextAddress = extras?.address ?? candidate?.address ?? undefined;
+  if (nextAddress) {
+    params.set("address", nextAddress);
+  }
+};
+
+export const HomeForm = () => {
+  const { push } = useRouter();
   const [businessName, setBusinessName] = useState("");
   const [location, setLocation] = useState("");
-  const [locationStatus, setLocationStatus] = useState("Finding your suburb");
+  const [locationStatus, setLocationStatus] = useState(initialLocationStatus);
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [listingUrl, setListingUrl] = useState("");
   const [address, setAddress] = useState("");
@@ -26,35 +64,43 @@ export function HomeForm() {
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationStatus("Type your suburb or city");
       return;
     }
 
     const controller = new AbortController();
+
+    const loadLocality = async (latitude: number, longitude: number) => {
+      try {
+        const response = await fetch(
+          `/api/lookups?source=nominatim-reverse&lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          setLocationStatus("Type your suburb or city");
+          return;
+        }
+        const parsed = lookupResponseSchema.parse(await response.json());
+        if (parsed.locality) {
+          setLocation(parsed.locality);
+          setLocationStatus("Change this if the suburb is wrong");
+          return;
+        }
+        setLocationStatus("Type your suburb or city");
+      } catch (lookupError: unknown) {
+        if (isAbortError(lookupError)) {
+          return;
+        }
+        setLocationStatus("Type your suburb or city");
+      }
+    };
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void fetch(
-          `/api/lookups?source=nominatim-reverse&lat=${encodeURIComponent(String(position.coords.latitude))}&lon=${encodeURIComponent(String(position.coords.longitude))}`,
-          { signal: controller.signal },
-        )
-          .then(async (response) => {
-            if (!response.ok) throw new Error("Reverse lookup failed");
-            const parsed = lookupResponseSchema.parse(await response.json());
-            if (parsed.locality) {
-              setLocation(parsed.locality);
-              setLocationStatus("Change this if the suburb is wrong");
-            } else {
-              setLocationStatus("Type your suburb or city");
-            }
-          })
-          .catch((lookupError: unknown) => {
-            if (lookupError instanceof DOMException && lookupError.name === "AbortError") return;
-            setLocationStatus("Type your suburb or city");
-          });
+        loadLocality(position.coords.latitude, position.coords.longitude);
       },
       () => {
         setLocationStatus("Location blocked. Type your suburb or city.");
-      },
+      }
     );
 
     return () => controller.abort();
@@ -63,25 +109,30 @@ export function HomeForm() {
   useEffect(() => {
     const trimmed = businessName.trim();
     if (trimmed.length < 2 || rejected) {
-      if (!rejected) {
-        setCandidates([]);
-        setStrongMatchId(null);
-        setSearchStatus(null);
-      }
       return;
     }
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      setSearchStatus("Looking up nearby businesses");
-      const params = new URLSearchParams({
-        source: "places",
-        q: trimmed,
-      });
-      if (location.trim()) params.set("near", location.trim());
-      void fetch(`/api/lookups?${params}`, { signal: controller.signal })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("Search failed");
+      const searchBusinesses = async () => {
+        setSearchStatus("Looking up nearby businesses");
+        const params = new URLSearchParams({
+          q: trimmed,
+          source: "places",
+        });
+        if (location.trim()) {
+          params.set("near", location.trim());
+        }
+        try {
+          const response = await fetch(`/api/lookups?${params}`, {
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            setCandidates([]);
+            setStrongMatchId(null);
+            setSearchStatus("Lookup skipped. Add the details you have.");
+            return;
+          }
           const parsed = lookupResponseSchema.parse(await response.json());
           setCandidates(parsed.candidates);
           setStrongMatchId(parsed.strongMatchId ?? null);
@@ -92,13 +143,16 @@ export function HomeForm() {
           } else {
             setSearchStatus("Choose the listing that is yours");
           }
-        })
-        .catch((searchError: unknown) => {
-          if (searchError instanceof DOMException && searchError.name === "AbortError") return;
+        } catch (searchError: unknown) {
+          if (isAbortError(searchError)) {
+            return;
+          }
           setCandidates([]);
           setStrongMatchId(null);
           setSearchStatus("Lookup skipped. Add the details you have.");
-        });
+        }
+      };
+      searchBusinesses();
     }, 400);
 
     return () => {
@@ -107,12 +161,27 @@ export function HomeForm() {
     };
   }, [businessName, location, rejected]);
 
-  const showDetails = rejected || (businessName.trim().length >= 2 && searchStatus !== null && candidates.length === 0);
-  const strongMatch = strongMatchId ? candidates.find((candidate) => candidate.id === strongMatchId) ?? null : null;
+  const resetLookupState = () => {
+    setCandidates([]);
+    setStrongMatchId(null);
+    setSearchStatus(null);
+  };
+
+  const showDetails =
+    rejected ||
+    (businessName.trim().length >= 2 &&
+      searchStatus !== null &&
+      candidates.length === 0);
+  const strongMatch = strongMatchId
+    ? (candidates.find((candidate) => candidate.id === strongMatchId) ?? null)
+    : null;
   const showPicker = !rejected && !strongMatch && candidates.length > 1;
   const showSingle = !rejected && Boolean(strongMatch);
 
-  function continueWith(candidate: PlaceCandidate | null, extras?: { websiteUrl?: string; listingUrl?: string; address?: string }) {
+  const continueWith = (
+    candidate: PlaceCandidate | null,
+    extras?: { websiteUrl?: string; listingUrl?: string; address?: string }
+  ) => {
     const typedName = businessName.trim();
     const name = typedName || (candidate?.name ?? "").trim();
     if (!name) {
@@ -123,19 +192,31 @@ export function HomeForm() {
       businessName: name,
       categoryId: candidate?.categoryId ?? category,
     });
-    const website = extras?.websiteUrl ?? candidate?.websiteUrl ?? websiteUrl.trim();
-    if (website) params.set("websiteUrl", website);
-    if (candidate?.source === "google") params.set("googlePlaceId", candidate.id);
-    if (candidate?.source === "apple") params.set("appleMapsId", candidate.id);
-    const listing = extras?.listingUrl ?? listingUrl.trim();
-    if (listing) params.set("listingUrl", listing);
-    const nextAddress = extras?.address ?? candidate?.address ?? address.trim();
-    if (nextAddress) params.set("address", nextAddress);
-    if (location.trim()) params.set("near", location.trim());
-    if (facebookUrl.trim()) params.set("facebookUrl", facebookUrl.trim());
-    if (instagramUsername.trim()) params.set("instagramUsername", instagramUsername.trim());
-    router.push(`/discover?${params.toString()}`);
-  }
+    appendCandidateParams(params, candidate, extras);
+    if (location.trim()) {
+      params.set("near", location.trim());
+    }
+    if (facebookUrl.trim()) {
+      params.set("facebookUrl", facebookUrl.trim());
+    }
+    if (instagramUsername.trim()) {
+      params.set("instagramUsername", instagramUsername.trim());
+    }
+    push(`/discover?${params.toString()}`);
+  };
+
+  const applyCandidateSelection = (candidate: PlaceCandidate) => {
+    setSelected(candidate);
+    if (candidate.websiteUrl && !websiteUrl.trim()) {
+      setWebsiteUrl(candidate.websiteUrl);
+    }
+    if (candidate.address && !address.trim()) {
+      setAddress(candidate.address);
+    }
+    if (candidate.categoryId) {
+      setCategory(candidate.categoryId);
+    }
+  };
 
   return (
     <form
@@ -151,9 +232,9 @@ export function HomeForm() {
           return;
         }
         continueWith(null, {
-          websiteUrl: websiteUrl.trim() || undefined,
-          listingUrl: listingUrl.trim() || undefined,
           address: address.trim() || undefined,
+          listingUrl: listingUrl.trim() || undefined,
+          websiteUrl: websiteUrl.trim() || undefined,
         });
       }}
     >
@@ -166,9 +247,13 @@ export function HomeForm() {
           name="businessName"
           value={businessName}
           onChange={(event) => {
-            setBusinessName(event.target.value);
+            const next = event.target.value;
+            setBusinessName(next);
             setSelected(null);
             setRejected(false);
+            if (next.trim().length < 2) {
+              resetLookupState();
+            }
           }}
           autoComplete="organization"
           required
@@ -203,15 +288,14 @@ export function HomeForm() {
           <ListingChoices
             candidates={[strongMatch]}
             selected={selected ?? strongMatch}
-            onSelect={(candidate) => {
-              setSelected(candidate);
-              if (candidate.websiteUrl && !websiteUrl.trim()) setWebsiteUrl(candidate.websiteUrl);
-              if (candidate.address && !address.trim()) setAddress(candidate.address);
-              if (candidate.categoryId) setCategory(candidate.categoryId);
-            }}
+            onSelect={applyCandidateSelection}
           />
           <div className="vbg-custom-actions">
-            <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setRejected(true)}>
+            <button
+              className="vbg-button vbg-button-quiet"
+              type="button"
+              onClick={() => setRejected(true)}
+            >
               Not this
             </button>
           </div>
@@ -223,14 +307,13 @@ export function HomeForm() {
           <ListingChoices
             candidates={candidates}
             selected={selected}
-            onSelect={(candidate) => {
-              setSelected(candidate);
-              if (candidate.websiteUrl && !websiteUrl.trim()) setWebsiteUrl(candidate.websiteUrl);
-              if (candidate.address && !address.trim()) setAddress(candidate.address);
-              if (candidate.categoryId) setCategory(candidate.categoryId);
-            }}
+            onSelect={applyCandidateSelection}
           />
-          <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setRejected(true)}>
+          <button
+            className="vbg-button vbg-button-quiet"
+            type="button"
+            onClick={() => setRejected(true)}
+          >
             None of these
           </button>
         </>
@@ -238,7 +321,9 @@ export function HomeForm() {
 
       {showDetails ? (
         <>
-          <p className="vbg-helper">Add the details you have. We will not invent a business listing.</p>
+          <p className="vbg-helper">
+            Add the details you have. We will not invent a business listing.
+          </p>
           <div className="vbg-field">
             <label className="vbg-label" htmlFor="websiteUrl">
               Website URL
@@ -264,7 +349,9 @@ export function HomeForm() {
               onChange={(event) => setListingUrl(event.target.value)}
               placeholder="https://maps.google.com/..."
             />
-            <p className="vbg-helper">Optional. Paste the public listing page if you have it.</p>
+            <p className="vbg-helper">
+              Optional. Paste the public listing page if you have it.
+            </p>
           </div>
           <div className="vbg-field">
             <label className="vbg-label" htmlFor="address">
@@ -310,7 +397,9 @@ export function HomeForm() {
               id="categoryId"
               name="categoryId"
               value={category}
-              onChange={(event) => setCategory(categoryIdSchema.parse(event.target.value))}
+              onChange={(event) =>
+                setCategory(categoryIdSchema.parse(event.target.value))
+              }
             >
               {Object.values(CATEGORY_CONFIG).map((item) => (
                 <option key={item.id} value={item.id}>
@@ -325,9 +414,9 @@ export function HomeForm() {
       {error ? <p className="vbg-error">{error}</p> : null}
       <div className="vbg-custom-actions">
         <button className="vbg-button" type="submit">
-          Continue
+          Find this business
         </button>
       </div>
     </form>
   );
-}
+};

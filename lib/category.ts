@@ -1,36 +1,37 @@
 import { z } from "zod";
-import { channelIdSchema } from "./channel";
+
+import type { channelIdSchema } from "./channel";
 
 export const categoryIdSchema = z.enum(["food", "retail", "services", "other"]);
 export type CategoryId = z.infer<typeof categoryIdSchema>;
 
 export const categorySchema = z.object({
+  description: z.string(),
   id: categoryIdSchema,
   label: z.string(),
-  description: z.string(),
 });
 export type Category = z.infer<typeof categorySchema>;
 
 export const CATEGORY_CONFIG: Record<CategoryId, Category> = {
   food: {
+    description: "Restaurants, cafés, bars",
     id: "food",
     label: "Food and drink",
-    description: "Restaurants, cafés, bars",
-  },
-  retail: {
-    id: "retail",
-    label: "Retail",
-    description: "Clothing, electronics, home goods",
-  },
-  services: {
-    id: "services",
-    label: "Services",
-    description: "Plumbers, electricians, and similar trades",
   },
   other: {
+    description: "Anything else",
     id: "other",
     label: "Other",
-    description: "Anything else",
+  },
+  retail: {
+    description: "Clothing, electronics, home goods",
+    id: "retail",
+    label: "Retail",
+  },
+  services: {
+    description: "Plumbers, electricians, and similar trades",
+    id: "services",
+    label: "Services",
   },
 };
 
@@ -69,9 +70,11 @@ const serviceTypes = new Set([
   "spa",
 ]);
 
-export function getCategoryIdFromGooglePlaceTypes(data: string[]): CategoryId {
+export const getCategoryIdFromGooglePlaceTypes = (
+  data: string[]
+): CategoryId => {
   for (const type of data) {
-    if (foodTypes.has(type) || type.includes("restaurant")) {
+    if (foodTypes.has(type) || /restaurant/u.test(type)) {
       return "food";
     }
   }
@@ -86,11 +89,14 @@ export function getCategoryIdFromGooglePlaceTypes(data: string[]): CategoryId {
     }
   }
   return "other";
-}
+};
 
-export const recommendedSocialMedia: Record<CategoryId, z.infer<typeof channelIdSchema>[]> = {
+export const recommendedSocialMedia: Record<
+  CategoryId,
+  z.infer<typeof channelIdSchema>[]
+> = {
   food: ["facebook", "instagram", "tiktok"],
+  other: ["facebook", "instagram"],
   retail: ["facebook", "instagram", "tiktok", "youtube"],
   services: ["facebook"],
-  other: ["facebook", "instagram"],
 };

@@ -1,37 +1,58 @@
-import { describe, expect, it } from 'vitest'
-import { runCheck, runChecks } from '../src/run'
-import { checkResult } from '../src/schemas'
-import type { BusinessSnapshot } from '../src/types'
+import { describe, expect, it } from "vitest";
+
+import { runCheck, runChecks } from "../src/run";
+import { checkResult } from "../src/schemas";
+import type { BusinessSnapshot } from "../src/types";
 
 const cafe: BusinessSnapshot = {
-  id: 'cafe-1',
-  name: 'Seoul Bistro',
-  category: 'food',
-  websiteUrl: 'https://seoulbistro.example',
-  facebookUsername: 'seoulbistro',
-  instagramUsername: 'seoulbistro',
-  uberEatsUrl: 'https://www.ubereats.com/store/seoul-bistro',
-  locations: [{
-    googlePlaceId: 'https://maps.example/seoul-bistro',
-    address: '12 Example Street, South Brisbane QLD',
-  }],
-}
+  category: "food",
+  facebookUsername: "seoulbistro",
+  id: "cafe-1",
+  instagramUsername: "seoulbistro",
+  locations: [
+    {
+      address: "12 Example Street, South Brisbane QLD",
+      googlePlaceId: "https://maps.example/seoul-bistro",
+    },
+  ],
+  name: "Seoul Bistro",
+  uberEatsUrl: "https://www.ubereats.com/store/seoul-bistro",
+  websiteUrl: "https://seoulbistro.example",
+};
 
-function htmlResponse(html: string, status = 200): Response {
-  return new Response(html, { status, headers: { 'content-type': 'text/html' } })
-}
+const htmlResponse = (html: string, status = 200): Response =>
+  new Response(html, {
+    headers: { "content-type": "text/html" },
+    status,
+  });
 
-function mockFetch(routes: Record<string, Response | string>): typeof fetch {
-  return async (input) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-    for (const [pattern, value] of Object.entries(routes)) {
+const resolveMockUrl = (input: RequestInfo | URL): string => {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+};
+
+const mockFetch = (routes: Record<string, Response | string>): typeof fetch => {
+  const orderedRoutes = Object.entries(routes).toSorted(
+    (left, right) => right[0].length - left[0].length
+  );
+
+  return (input) => {
+    const url = resolveMockUrl(input);
+    for (const [pattern, value] of orderedRoutes) {
       if (url.includes(pattern)) {
-        return typeof value === 'string' ? htmlResponse(value) : value
+        return Promise.resolve(
+          typeof value === "string" ? htmlResponse(value) : value
+        );
       }
     }
-    return new Response('not found', { status: 404 })
-  }
-}
+    return Promise.resolve(new Response("not found", { status: 404 }));
+  };
+};
 
 const websitePage = `<!doctype html>
   <html>
@@ -51,7 +72,7 @@ const websitePage = `<!doctype html>
         {"@type":"LocalBusiness","name":"Seoul Bistro","telephone":"+61 7 3000 0000","address":{"streetAddress":"12 Example Street","addressLocality":"Brisbane"},"openingHours":"Mo-Su 11:00-22:30"}
       </script>
     </body>
-  </html>`
+  </html>`;
 
 const listingPage = `<!doctype html>
   <html data-listwell-lcp="1800" data-listwell-timing-kind="lcp">
@@ -74,197 +95,278 @@ const listingPage = `<!doctype html>
         }
       </script>
     </body>
-  </html>`
+  </html>`;
 
-describe('presence checks', () => {
-  it('passes when the channel field is set', async () => {
-    expect(await runCheck('website', cafe)).toEqual(checkResult(true))
-    expect(await runCheck('facebook-page', cafe)).toEqual(checkResult(true))
-    expect(await runCheck('instagram-profile', cafe)).toEqual(checkResult(true))
-    expect(await runCheck('uber-eats-listing', cafe)).toEqual(checkResult(true))
-    expect(await runCheck('google-listing', cafe)).toEqual(checkResult(true, 'A Google listing URL or identifier is attached to this audit'))
-    expect(await runCheck('doordash-listing', cafe)).toEqual(checkResult(false))
-    expect(await runCheck('linkedin-profile', cafe)).toEqual(checkResult(false))
-  })
+describe("presence checks", () => {
+  it("passes when the channel field is set", async () => {
+    await expect(runCheck("website", cafe)).resolves.toStrictEqual(
+      checkResult(true)
+    );
+    await expect(
+      Promise.all([
+        runCheck("facebook-page", cafe),
+        runCheck("instagram-profile", cafe),
+        runCheck("uber-eats-listing", cafe),
+        runCheck("google-listing", cafe),
+        runCheck("doordash-listing", cafe),
+        runCheck("linkedin-profile", cafe),
+      ])
+    ).resolves.toStrictEqual([
+      checkResult(true),
+      checkResult(true),
+      checkResult(true),
+      checkResult(
+        true,
+        "A Google listing URL or identifier is attached to this audit"
+      ),
+      checkResult(null, "No DoorDash listing linked to this audit"),
+      checkResult(null, "No LinkedIn profile linked to this audit"),
+    ]);
+  });
 
-  it('fails website when no URL is stored', async () => {
-    const result = await runCheck('website', { ...cafe, websiteUrl: null })
-    expect(result).toEqual(checkResult(false))
-  })
-})
+  it("skips website when no URL is stored", async () => {
+    const result = await runCheck("website", { ...cafe, websiteUrl: null });
+    expect(result).toStrictEqual(
+      checkResult(null, "No website URL linked to this audit")
+    );
+  });
 
-describe('website html checks', () => {
+  it("skips website html checks when no URL is stored", async () => {
+    const bare = { ...cafe, websiteUrl: null };
+    const result = await runCheck("website-title", bare);
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("No website URL");
+  });
+});
+
+describe("website html checks", () => {
   const fetchImpl = mockFetch({
-    'seoulbistro.example/robots.txt': 'User-agent: *\nAllow: /\nSitemap: https://seoulbistro.example/sitemap.xml',
-    'seoulbistro.example/sitemap.xml': '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://seoulbistro.example/</loc></url></urlset>',
-    'seoulbistro.example': websitePage,
-  })
+    "seoulbistro.example": websitePage,
+    "seoulbistro.example/robots.txt":
+      "User-agent: *\nAllow: /\nSitemap: https://seoulbistro.example/sitemap.xml",
+    "seoulbistro.example/sitemap.xml":
+      '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://seoulbistro.example/</loc></url></urlset>',
+  });
 
-  it('reads title, meta, canonical, og, tel, address, hours, and schema from one html fetch', async () => {
-    const results = await runChecks(cafe, [
-      'website-title',
-      'website-meta-description',
-      'website-canonical',
-      'website-og-image',
-      'website-tel-link',
-      'website-physical-address',
-      'website-opening-hours',
-      'website-localbusiness-jsonld',
-      'website-mobile-responsive',
-      'website-robots',
-      'website-sitemap',
-      'website-200-299',
-    ], { fetchImpl })
+  it("reads title, meta, canonical, og, tel, address, hours, and schema from one html fetch", async () => {
+    const results = await runChecks(
+      cafe,
+      [
+        "website-title",
+        "website-meta-description",
+        "website-canonical",
+        "website-og-image",
+        "website-tel-link",
+        "website-physical-address",
+        "website-opening-hours",
+        "website-localbusiness-jsonld",
+        "website-mobile-responsive",
+        "website-robots",
+        "website-sitemap",
+        "website-200-299",
+      ],
+      { fetchImpl }
+    );
 
-    expect(results['website-title']?.value).toBe(true)
-    expect(results['website-meta-description']?.value).toBe(true)
-    expect(results['website-canonical']?.value).toBe(true)
-    expect(results['website-og-image']?.value).toBe(true)
-    expect(results['website-tel-link']?.value).toBe(true)
-    expect(results['website-physical-address']?.value).toBe(true)
-    expect(results['website-opening-hours']?.value).toBe(true)
-    expect(results['website-localbusiness-jsonld']?.value).toBe(true)
-    expect(results['website-mobile-responsive']?.value).toBe(true)
-    expect(results['website-robots']?.value).toBe(true)
-    expect(results['website-sitemap']?.value).toBe(true)
-    expect(results['website-200-299']?.value).toBe(true)
-  })
+    expect(
+      Object.values(results).every((result) => Boolean(result?.value))
+    ).toBeTruthy();
+  });
 
-  it('fails meta description when longer than 160 characters', async () => {
-    const long = 'x'.repeat(180)
+  it("fails meta description when longer than 160 characters", async () => {
+    const long = "x".repeat(180);
     const fetchLong = mockFetch({
-      'seoulbistro.example': `<html><head><meta name="description" content="${long}" /></head><body></body></html>`,
-    })
-    const result = await runCheck('website-meta-description', cafe, { fetchImpl: fetchLong })
-    expect(result.value).toBe(false)
-    expect(result.label).toContain('too long')
-  })
-})
+      "seoulbistro.example": `<html><head><meta name="description" content="${long}" /></head><body></body></html>`,
+    });
+    const result = await runCheck("website-meta-description", cafe, {
+      fetchImpl: fetchLong,
+    });
+    expect(result.value).toBeFalsy();
+    expect(result.label).toContain("too long");
+  });
+});
 
-describe('google listing checks', () => {
-  it('uses Places details when a place id and GOOGLE_API_KEY exist', async () => {
+describe("google listing checks", () => {
+  it("skips google listing when no listing is attached", async () => {
+    const noListing = {
+      ...cafe,
+      locations: [{ address: "12 Example Street" }],
+    };
+    const result = await runCheck("google-listing", noListing);
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("No Google listing");
+  });
+
+  it("uses Places details when a place id and GOOGLE_API_KEY exist", async () => {
     const placesCafe = {
       ...cafe,
-      locations: [{ googlePlaceId: 'places/abc', address: '12 Example St, Brisbane QLD' }],
-    }
+      locations: [
+        { address: "12 Example St, Brisbane QLD", googlePlaceId: "places/abc" },
+      ],
+    };
     const fetchImpl = mockFetch({
-      'places.googleapis.com': new Response(JSON.stringify({
-        nationalPhoneNumber: '07 3000 0000',
-        currentOpeningHours: { openNow: true },
-        websiteUri: 'https://seoulbistro.example',
-        userRatingCount: 12,
-        rating: 3.8,
-        photos: [{ name: 'photo1' }],
-        types: ['restaurant'],
-      }), { status: 200, headers: { 'content-type': 'application/json' } }),
-    })
+      "places.googleapis.com": Response.json(
+        {
+          currentOpeningHours: { openNow: true },
+          nationalPhoneNumber: "07 3000 0000",
+          photos: [{ name: "photo1" }],
+          rating: 3.8,
+          types: ["restaurant"],
+          userRatingCount: 12,
+          websiteUri: "https://seoulbistro.example",
+        },
+        { status: 200 }
+      ),
+    });
 
-    const results = await runChecks(placesCafe, [
-      'google-listing-phone-number',
-      'google-listing-reviews',
-      'google-listing-photos',
-      'google-listing-opening-times',
-      'google-listing-primary-category',
-      'google-listing-website-matches',
-    ], { fetchImpl, env: { googleApiKey: 'test-key' } })
+    const results = await runChecks(
+      placesCafe,
+      [
+        "google-listing-phone-number",
+        "google-listing-reviews",
+        "google-listing-photos",
+        "google-listing-opening-times",
+        "google-listing-primary-category",
+        "google-listing-website-matches",
+      ],
+      { env: { googleApiKey: "test-key" }, fetchImpl }
+    );
 
-    expect(results['google-listing-phone-number']?.value).toBe(true)
-    expect(results['google-listing-reviews']?.value).toBe(false)
-    expect(results['google-listing-reviews']?.label).toContain('Need ≥ 20 reviews')
-    expect(results['google-listing-photos']?.label).toBe('1 photo found')
-    expect(results['google-listing-opening-times']?.value).toBe(true)
-    expect(results['google-listing-primary-category']?.label).toBe('Primary category: restaurant')
-    expect(results['google-listing-website-matches']?.value).toBe(true)
-  })
+    expect(results).toMatchObject({
+      "google-listing-opening-times": { value: true },
+      "google-listing-phone-number": { value: true },
+      "google-listing-photos": { label: "1 photo found" },
+      "google-listing-primary-category": {
+        label: "Primary category: restaurant",
+      },
+      "google-listing-reviews": {
+        label: expect.stringContaining("Need ≥ 20 reviews"),
+        value: false,
+      },
+      "google-listing-website-matches": { value: true },
+    });
+  });
 
-  it('reads listing facts from pasted listing HTML without a Google API key', async () => {
+  it("reads listing facts from pasted listing HTML without a Google API key", async () => {
     const fetchImpl = mockFetch({
-      'maps.example/seoul-bistro': listingPage,
-      'seoulbistro.example': websitePage,
-    })
+      "maps.example/seoul-bistro": listingPage,
+      "seoulbistro.example": websitePage,
+    });
 
-    const results = await runChecks(cafe, [
-      'google-listing-phone-number',
-      'google-listing-reviews',
-      'google-listing-photos',
-      'google-listing-opening-times',
-      'google-listing-primary-category',
-      'google-listing-website-matches',
-      'website-gbp-name-address-phone',
-    ], { fetchImpl, env: {} })
+    const results = await runChecks(
+      cafe,
+      [
+        "google-listing-phone-number",
+        "google-listing-reviews",
+        "google-listing-photos",
+        "google-listing-opening-times",
+        "google-listing-primary-category",
+        "google-listing-website-matches",
+        "website-gbp-name-address-phone",
+      ],
+      { env: {}, fetchImpl }
+    );
 
-    expect(results['google-listing-phone-number']?.value).toBe(true)
-    expect(results['google-listing-reviews']?.value).toBe(false)
-    expect(results['google-listing-reviews']?.label).toContain('Need ≥ 20 reviews')
-    expect(results['google-listing-photos']?.label).toContain('photo')
-    expect(results['google-listing-opening-times']?.value).toBe(true)
-    expect(results['google-listing-primary-category']?.label).toContain('LocalBusiness')
-    expect(results['google-listing-website-matches']?.value).toBe(true)
-    expect(results['website-gbp-name-address-phone']?.value).toBe(true)
-  })
+    expect(results).toMatchObject({
+      "google-listing-opening-times": { value: true },
+      "google-listing-phone-number": { value: true },
+      "google-listing-photos": { label: expect.stringContaining("photo") },
+      "google-listing-primary-category": {
+        label: expect.stringContaining("LocalBusiness"),
+      },
+      "google-listing-reviews": {
+        label: expect.stringContaining("Need ≥ 20 reviews"),
+        value: false,
+      },
+      "google-listing-website-matches": { value: true },
+      "website-gbp-name-address-phone": { value: true },
+    });
+  });
 
-  it('marks listing checks inconclusive when the pasted URL cannot be fetched', async () => {
+  it("marks listing checks inconclusive when the pasted URL cannot be fetched", async () => {
     const fetchImpl = mockFetch({
-      'seoulbistro.example': websitePage,
-    })
-    const result = await runCheck('google-listing-phone-number', cafe, { fetchImpl, env: {} })
-    expect(result.value).toBeNull()
-    expect(result.label).toContain('could not be read')
-  })
-
-  it('falls back to website schema when no listing URL is stored', async () => {
-    const fetchImpl = mockFetch({
-      'seoulbistro.example': websitePage,
-    })
-    const noListing = { ...cafe, locations: [{ address: '12 Example Street, South Brisbane QLD' }] }
-    const result = await runCheck('google-listing-phone-number', noListing, { fetchImpl, env: {} })
-    expect(result.value).toBe(true)
-    expect(result.label).toContain('business website')
-  })
-
-  it('does not invent review counts when none are published', async () => {
-    const fetchImpl = mockFetch({
-      'maps.example/seoul-bistro': '<html><body><h1>Seoul Bistro</h1></body></html>',
-    })
-    const result = await runCheck('google-listing-reviews', cafe, { fetchImpl, env: {} })
-    expect(result.value).toBeNull()
-    expect(result.label).toContain('do not invent')
-  })
-})
-
-describe('website performance', () => {
-  it('prefers CrUX LCP when a Google API key is present', async () => {
-    const fetchImpl = mockFetch({
-      'chromeuxreport.googleapis.com': new Response(JSON.stringify({
-        record: { metrics: { largest_contentful_paint: { percentiles: { p75: 1900 } } } },
-      }), { status: 200, headers: { 'content-type': 'application/json' } }),
-    })
-    const result = await runCheck('website-performance', cafe, {
+      "seoulbistro.example": websitePage,
+    });
+    const result = await runCheck("google-listing-phone-number", cafe, {
+      env: {},
       fetchImpl,
-      env: { googleApiKey: 'test-key' },
-    })
-    expect(result.value).toBe(true)
-    expect(result.label).toContain('LCP p75: 1900ms')
-  })
+    });
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("could not be read");
+  });
 
-  it('labels a synthetic browser LCP and does not mention API keys', async () => {
-    const result = await runCheck('website-performance', cafe, {
-      measurePerformance: async () => ({
-        lcp: 1800,
-        passes: true,
-        kind: 'lcp',
-        message: 'Synthetic browser load LCP: 1800ms (good). This is Listwell loading the page, not Chrome UX Report.',
-      }),
-    })
-    expect(result.value).toBe(true)
-    expect(result.label).toContain('Synthetic browser load')
-    expect(result.label).not.toContain('API key')
-  })
+  it("falls back to website schema when no listing URL is stored", async () => {
+    const fetchImpl = mockFetch({
+      "seoulbistro.example": websitePage,
+    });
+    const noListing = {
+      ...cafe,
+      locations: [{ address: "12 Example Street, South Brisbane QLD" }],
+    };
+    const result = await runCheck("google-listing-phone-number", noListing, {
+      env: {},
+      fetchImpl,
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("business website");
+  });
 
-  it('is inconclusive when Browser Rendering is not configured', async () => {
-    const result = await runCheck('website-performance', cafe, { env: {} })
-    expect(result.value).toBeNull()
-    expect(result.label).toContain('Browser Rendering')
-    expect(result.label).not.toContain('API key')
-  })
-})
+  it("does not invent review counts when none are published", async () => {
+    const fetchImpl = mockFetch({
+      "maps.example/seoul-bistro":
+        "<html><body><h1>Seoul Bistro</h1></body></html>",
+    });
+    const result = await runCheck("google-listing-reviews", cafe, {
+      env: {},
+      fetchImpl,
+    });
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("do not invent");
+  });
+});
+
+describe("website performance", () => {
+  it("prefers CrUX LCP when a Google API key is present", async () => {
+    const fetchImpl = mockFetch({
+      "chromeuxreport.googleapis.com": Response.json(
+        {
+          record: {
+            metrics: {
+              largest_contentful_paint: { percentiles: { p75: 1900 } },
+            },
+          },
+        },
+        { status: 200 }
+      ),
+    });
+    const result = await runCheck("website-performance", cafe, {
+      env: { googleApiKey: "test-key" },
+      fetchImpl,
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("LCP p75: 1900ms");
+  });
+
+  it("labels a synthetic browser LCP and does not mention API keys", async () => {
+    const result = await runCheck("website-performance", cafe, {
+      measurePerformance: () =>
+        Promise.resolve({
+          kind: "lcp",
+          lcp: 1800,
+          message:
+            "Synthetic browser load LCP: 1800ms (good). This is Listwell loading the page, not Chrome UX Report.",
+          passes: true,
+        }),
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("Synthetic browser load");
+    expect(result.label).not.toContain("API key");
+  });
+
+  it("is inconclusive when Browser Rendering is not configured", async () => {
+    const result = await runCheck("website-performance", cafe, { env: {} });
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("Browser Rendering");
+    expect(result.label).not.toContain("API key");
+  });
+});

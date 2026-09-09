@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+
 import { getAuditEngineEnv, getFetchWebsiteOptions } from "@/lib/audit-env";
 import { discoverBusiness, discoverRequestSchema } from "@/lib/discover";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   try {
     const body: unknown = await request.json();
     const parsed = discoverRequestSchema.parse(body);
@@ -15,8 +16,14 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: "Invalid discover request" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid discover request" },
+        { status: 400 }
+      );
     }
-    return NextResponse.json({ error: "Could not search listings" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Could not search listings" },
+      { status: 500 }
+    );
   }
-}
+};

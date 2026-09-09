@@ -1,216 +1,250 @@
 import { z } from "zod";
-import { CHANNEL_CONFIG, channelIdSchema, type ChannelId, type DiscoveredProfile } from "./channel";
+
+import { CHANNEL_CONFIG, channelIdSchema } from "./channel";
+import type { ChannelId, DiscoveredProfile } from "./channel";
 import type { Business, CreateBusinessRequest } from "./schema";
 
 export const profileValueSchema = z.string().min(1);
 
-export function channelLabel(channelId: ChannelId): string {
+export const channelLabel = (channelId: ChannelId): string => {
   const labels: Record<ChannelId, string> = {
-    website: "Website URL",
-    facebook: "Facebook page URL",
-    instagram: "Instagram username",
-    tiktok: "TikTok username",
-    youtube: "YouTube channel URL",
-    "uber-eats": "Uber Eats URL",
+    "apple-maps": "Apple Maps listing URL",
     deliveroo: "Deliveroo URL",
     doordash: "DoorDash URL",
-    menulog: "Menulog URL",
-    "apple-maps": "Apple Maps listing URL",
+    facebook: "Facebook page URL",
     "google-maps": "Google listing URL",
+    instagram: "Instagram username",
     linkedin: "LinkedIn profile URL",
+    menulog: "Menulog URL",
+    tiktok: "TikTok username",
+    "uber-eats": "Uber Eats URL",
+    website: "Website URL",
     x: "X username",
+    youtube: "YouTube channel URL",
   };
   return labels[channelId];
-}
+};
 
-export function channelPlaceholder(channelId: ChannelId): string {
+export const channelPlaceholder = (channelId: ChannelId): string => {
   const placeholders: Record<ChannelId, string> = {
-    website: "https://yourwebsite.com",
-    facebook: "https://facebook.com/yourpage",
-    instagram: "username",
-    tiktok: "username",
-    youtube: "https://youtube.com/channel/...",
-    "uber-eats": "https://ubereats.com/...",
+    "apple-maps": "https://maps.apple.com/...",
     deliveroo: "https://deliveroo.com/...",
     doordash: "https://doordash.com/...",
-    menulog: "https://menulog.com/...",
-    "apple-maps": "https://maps.apple.com/...",
+    facebook: "https://facebook.com/yourpage",
     "google-maps": "https://maps.google.com/...",
+    instagram: "username",
     linkedin: "https://linkedin.com/company/...",
+    menulog: "https://menulog.com/...",
+    tiktok: "username",
+    "uber-eats": "https://ubereats.com/...",
+    website: "https://yourwebsite.com",
     x: "username",
+    youtube: "https://youtube.com/channel/...",
   };
   return placeholders[channelId];
-}
+};
 
-export function usernameFromUrl(value: string, host: string): string {
+export const usernameFromUrl = (value: string, host: string): string => {
   if (!value.includes(host)) {
-    return value.replace(/^@/, "");
+    return value.replace(/^@/u, "");
   }
   try {
     const url = new URL(value);
-    const parts = url.pathname.split("/").filter(Boolean);
-    const first = parts[0]?.replace(/^@/, "");
+    const first = url.pathname
+      .split("/")
+      .filter(Boolean)
+      .find((part) => part.length > 0)
+      ?.replace(/^@/u, "");
     return first ?? value;
   } catch {
     return value;
   }
-}
+};
 
-export function mapProfilesToBusinessData(
+export const mapProfilesToBusinessData = (
   name: string,
   category: CreateBusinessRequest["category"],
-  profiles: DiscoveredProfile[],
-): CreateBusinessRequest {
+  profiles: DiscoveredProfile[]
+): CreateBusinessRequest => {
   const data: CreateBusinessRequest = {
-    name,
     category,
     locations: [],
+    name,
+  };
+  const locationByAddress = new Map<
+    string,
+    CreateBusinessRequest["locations"][number]
+  >();
+  const rememberLocation = (
+    location: CreateBusinessRequest["locations"][number]
+  ) => {
+    data.locations.push(location);
+    if (location.address) {
+      locationByAddress.set(location.address, location);
+    }
   };
 
   for (const profile of profiles) {
     switch (profile.type) {
-      case "website":
+      case "website": {
         data.websiteUrl = profile.title;
         break;
-      case "google-maps":
-        data.locations.push({
+      }
+      case "google-maps": {
+        rememberLocation({
+          address: profile.subtitle,
           googlePlaceId: profile.googlePlaceId,
           name: profile.title,
-          address: profile.subtitle,
         });
         break;
+      }
       case "apple-maps": {
-        const existing = data.locations.find((location) => location.address === profile.subtitle);
+        const existing = profile.subtitle
+          ? locationByAddress.get(profile.subtitle)
+          : undefined;
         if (existing) {
           existing.appleMapsId = profile.appleMapsId;
         } else {
-          data.locations.push({
+          rememberLocation({
+            address: profile.subtitle,
             appleMapsId: profile.appleMapsId,
             name: profile.title,
-            address: profile.subtitle,
           });
         }
         break;
       }
-      case "facebook":
+      case "facebook": {
         data.facebookUsername = profile.title;
         break;
-      case "instagram":
-        data.instagramUsername = usernameFromUrl(profile.title, "instagram.com");
+      }
+      case "instagram": {
+        data.instagramUsername = usernameFromUrl(
+          profile.title,
+          "instagram.com"
+        );
         break;
-      case "tiktok":
+      }
+      case "tiktok": {
         data.tiktokUsername = usernameFromUrl(profile.title, "tiktok.com");
         break;
-      case "x":
+      }
+      case "x": {
         data.xUsername = usernameFromUrl(profile.title, "x.com");
         break;
-      case "linkedin":
+      }
+      case "linkedin": {
         data.linkedinUrl = profile.title;
         break;
-      case "youtube":
+      }
+      case "youtube": {
         data.youtubeUrl = profile.title;
         break;
-      case "uber-eats":
+      }
+      case "uber-eats": {
         data.uberEatsUrl = profile.title;
         break;
-      case "deliveroo":
+      }
+      case "deliveroo": {
         data.deliverooUrl = profile.title;
         break;
-      case "doordash":
+      }
+      case "doordash": {
         data.doorDashUrl = profile.title;
         break;
-      case "menulog":
+      }
+      case "menulog": {
         data.menulogUrl = profile.title;
         break;
+      }
+      default: {
+        break;
+      }
     }
   }
 
   return data;
-}
+};
 
-export function businessInputFromDiscovery(
+export const businessInputFromDiscovery = (
   name: string,
   category: CreateBusinessRequest["category"],
   profiles: DiscoveredProfile[],
-  address?: string,
-): CreateBusinessRequest {
+  address?: string
+): CreateBusinessRequest => {
   const payload = mapProfilesToBusinessData(name, category, profiles);
   const trimmed = address?.trim();
   if (!trimmed) {
     return payload;
   }
   if (payload.locations.length === 0) {
-    payload.locations.push({ name, address: trimmed });
+    payload.locations.push({ address: trimmed, name });
     return payload;
   }
-  const first = payload.locations[0];
-  if (first && !first.address) {
-    first.address = trimmed;
+  const [firstLocation] = payload.locations;
+  if (firstLocation && !firstLocation.address) {
+    firstLocation.address = trimmed;
   }
   return payload;
-}
+};
 
-export function businessToProfiles(business: Business): DiscoveredProfile[] {
-  const profiles: DiscoveredProfile[] = [];
-  if (business.websiteUrl) {
-    profiles.push({ type: "website", title: business.websiteUrl });
+const addUrlProfile = (
+  profiles: DiscoveredProfile[],
+  title: string | null | undefined,
+  type: DiscoveredProfile["type"]
+): void => {
+  if (title) {
+    profiles.push({ title, type });
   }
-  if (business.facebookUsername) {
-    profiles.push({ type: "facebook", title: business.facebookUsername });
-  }
-  if (business.instagramUsername) {
-    profiles.push({ type: "instagram", title: business.instagramUsername });
-  }
-  if (business.tiktokUsername) {
-    profiles.push({ type: "tiktok", title: business.tiktokUsername });
-  }
-  if (business.xUsername) {
-    profiles.push({ type: "x", title: business.xUsername });
-  }
-  if (business.linkedinUrl) {
-    profiles.push({ type: "linkedin", title: business.linkedinUrl });
-  }
-  if (business.youtubeUrl) {
-    profiles.push({ type: "youtube", title: business.youtubeUrl });
-  }
-  if (business.uberEatsUrl) {
-    profiles.push({ type: "uber-eats", title: business.uberEatsUrl });
-  }
-  if (business.deliverooUrl) {
-    profiles.push({ type: "deliveroo", title: business.deliverooUrl });
-  }
-  if (business.doorDashUrl) {
-    profiles.push({ type: "doordash", title: business.doorDashUrl });
-  }
-  if (business.menulogUrl) {
-    profiles.push({ type: "menulog", title: business.menulogUrl });
-  }
+};
+
+const addLocationProfiles = (
+  business: Business,
+  profiles: DiscoveredProfile[]
+): void => {
   for (const location of business.locations) {
     if (location.googlePlaceId || (location.address && !location.appleMapsId)) {
       profiles.push({
-        type: "google-maps",
-        title: location.googlePlaceId ?? location.name ?? location.address ?? "Listing",
-        subtitle: location.address ?? undefined,
         googlePlaceId: location.googlePlaceId ?? undefined,
+        subtitle: location.address ?? undefined,
+        title:
+          location.googlePlaceId ??
+          location.name ??
+          location.address ??
+          "Listing",
+        type: "google-maps",
       });
     }
     if (location.appleMapsId) {
       profiles.push({
-        type: "apple-maps",
-        title: location.name ?? location.appleMapsId,
-        subtitle: location.address ?? undefined,
         appleMapsId: location.appleMapsId,
+        subtitle: location.address ?? undefined,
+        title: location.name ?? location.appleMapsId,
+        type: "apple-maps",
       });
     }
   }
-  return profiles;
-}
+};
 
-export function unusedChannels(profiles: DiscoveredProfile[]): ChannelId[] {
+export const businessToProfiles = (business: Business): DiscoveredProfile[] => {
+  const profiles: DiscoveredProfile[] = [];
+  addUrlProfile(profiles, business.websiteUrl, "website");
+  addUrlProfile(profiles, business.facebookUsername, "facebook");
+  addUrlProfile(profiles, business.instagramUsername, "instagram");
+  addUrlProfile(profiles, business.tiktokUsername, "tiktok");
+  addUrlProfile(profiles, business.xUsername, "x");
+  addUrlProfile(profiles, business.linkedinUrl, "linkedin");
+  addUrlProfile(profiles, business.youtubeUrl, "youtube");
+  addUrlProfile(profiles, business.uberEatsUrl, "uber-eats");
+  addUrlProfile(profiles, business.deliverooUrl, "deliveroo");
+  addUrlProfile(profiles, business.doorDashUrl, "doordash");
+  addUrlProfile(profiles, business.menulogUrl, "menulog");
+  addLocationProfiles(business, profiles);
+  return profiles;
+};
+
+export const unusedChannels = (profiles: DiscoveredProfile[]): ChannelId[] => {
   const used = new Set(profiles.map((profile) => profile.type));
   return channelIdSchema.options.filter((id) => !used.has(id));
-}
+};
 
-export function channelName(id: ChannelId): string {
-  return CHANNEL_CONFIG[id].name;
-}
+export const channelName = (id: ChannelId): string => CHANNEL_CONFIG[id].name;

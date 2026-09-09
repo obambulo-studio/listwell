@@ -1,3 +1,31 @@
+Copyright (c) 2026 Obambulo Studio
+
+All rights reserved.
+
+This software and associated documentation (the "Software") are proprietary
+and confidential to Obambulo Studio. The Software is not open source and is
+offered as a commercial product.
+
+You may not copy, modify, merge, publish, distribute, sublicense, sell, or
+use the Software, in whole or in part, except as expressly authorised in writing
+by Obambulo Studio.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+OBAMBULO STUDIO BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+Third-party notice
+
+Portions of this Software originated from visimate
+(https://github.com/drevantonder/visimate), Copyright (c) 2025 Andre van Tonder,
+licensed under the MIT License. Those portions remain subject to the following
+terms. This notice does not license the Software as a whole.
+
 MIT License
 
 Copyright (c) 2025 Andre van Tonder

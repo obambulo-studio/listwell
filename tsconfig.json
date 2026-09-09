@@ -11,7 +11,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
@@ -19,12 +19,31 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
       "@/*": ["./*"],
       "@listwell/audit-engine": ["./packages/audit-engine/src/index.ts"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "cloudflare-env.d.ts"],
-  "exclude": ["node_modules", ".open-next", ".wrangler", "packages/audit-engine"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "cloudflare-env.d.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".open-next",
+    ".wrangler",
+    "packages/audit-engine",
+    "components/primitives",
+    "components/atoms",
+    "worker.ts"
+  ]
 }

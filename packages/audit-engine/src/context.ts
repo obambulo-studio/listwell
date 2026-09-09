@@ -1,171 +1,208 @@
-import { fetchText, fetchWebsiteHtml, fetchWebsiteResponse, type FetchWebsiteOptions } from './browser'
-import { parseDocument, type HtmlDocument } from './html'
-import { fetchApplePlace, searchAppleMaps } from './lookups/appleMaps'
-import { fetchGooglePlace } from './lookups/googlePlaces'
-import { googleSearch } from './lookups/googleSearch'
+import { fetchText, fetchWebsiteHtml, fetchWebsiteResponse } from "./browser";
+import type { FetchWebsiteOptions } from "./browser";
+import { parseDocument } from "./html";
+import type { HtmlDocument } from "./html";
+import { fetchApplePlace, searchAppleMaps } from "./lookups/apple-maps";
+import { fetchGooglePlace } from "./lookups/google-places";
+import { googleSearch } from "./lookups/google-search";
 import {
   emptyEvidence,
   evidenceFromHtml,
   firstListingUrl,
   isHttpUrl,
-  type ListingEvidence,
-} from './lookups/listingEvidence'
+} from "./lookups/listing-evidence";
+import type { ListingEvidence } from "./lookups/listing-evidence";
 import {
   fetchCruxPerformance,
   fetchPageSpeedPerformance,
   measureSyntheticPerformance,
-  type PerformanceData,
-} from './lookups/performance'
-import { checkResult } from './schemas'
+} from "./lookups/performance";
+import type { PerformanceData } from "./lookups/performance";
+import { checkResult } from "./schemas";
 import type {
   AuditEngineEnv,
   BusinessSnapshot,
   GooglePlace,
   GoogleSearchResult,
   SerializedHttpResponse,
-} from './types'
+} from "./types";
 
 export interface CheckContext {
+  business: BusinessSnapshot;
+  env: AuditEngineEnv;
+  fetchImpl: typeof fetch;
+  getWebsiteHtml: () => Promise<string>;
+  getWebsiteDocument: () => Promise<HtmlDocument>;
+  getWebsiteResponse: () => Promise<SerializedHttpResponse>;
+  getWebsiteEvidence: () => Promise<ListingEvidence>;
+  getListingEvidence: () => Promise<ListingEvidence>;
+  getGooglePlace: () => Promise<GooglePlace | null>;
+  googleSearch: (query: string) => Promise<GoogleSearchResult[]>;
+  fetchText: (
+    url: string
+  ) => Promise<{ ok: boolean; status: number; body: string }>;
+  fetchCrux: (url: string) => Promise<PerformanceData>;
+  fetchPageSpeed: (url: string) => Promise<PerformanceData>;
+  measurePerformance: (url: string) => Promise<PerformanceData>;
+  searchAppleMaps: (
+    query: string,
+    userLocation?: string
+  ) => ReturnType<typeof searchAppleMaps>;
+  getApplePlace: (id: string) => ReturnType<typeof fetchApplePlace>;
+}
+
+export const firstGooglePlaceId = (
   business: BusinessSnapshot
-  env: AuditEngineEnv
-  fetchImpl: typeof fetch
-  getWebsiteHtml: () => Promise<string>
-  getWebsiteDocument: () => Promise<HtmlDocument>
-  getWebsiteResponse: () => Promise<SerializedHttpResponse>
-  getWebsiteEvidence: () => Promise<ListingEvidence>
-  getListingEvidence: () => Promise<ListingEvidence>
-  getGooglePlace: () => Promise<GooglePlace | null>
-  googleSearch: (query: string) => Promise<GoogleSearchResult[]>
-  fetchText: (url: string) => Promise<{ ok: boolean; status: number; body: string }>
-  fetchCrux: (url: string) => Promise<PerformanceData>
-  fetchPageSpeed: (url: string) => Promise<PerformanceData>
-  measurePerformance: (url: string) => Promise<PerformanceData>
-  searchAppleMaps: (query: string, userLocation?: string) => ReturnType<typeof searchAppleMaps>
-  getApplePlace: (id: string) => ReturnType<typeof fetchApplePlace>
-}
-
-export function firstGooglePlaceId(business: BusinessSnapshot): string | null {
+): string | null => {
   for (const location of business.locations) {
-    if (location.googlePlaceId) return location.googlePlaceId
+    if (location.googlePlaceId) {
+      return location.googlePlaceId;
+    }
   }
-  return null
-}
+  return null;
+};
 
-function placesApiId(business: BusinessSnapshot): string | null {
-  const placeId = firstGooglePlaceId(business)
-  if (!placeId || isHttpUrl(placeId)) return null
-  return placeId
-}
+const placesApiId = (business: BusinessSnapshot): string | null => {
+  const placeId = firstGooglePlaceId(business);
+  if (!placeId || isHttpUrl(placeId)) {
+    return null;
+  }
+  return placeId;
+};
 
-export function createCheckContext(
+export const createCheckContext = (
   business: BusinessSnapshot,
   env: AuditEngineEnv,
-  options: FetchWebsiteOptions = {},
-): CheckContext {
-  const fetchImpl = options.fetchImpl ?? fetch
+  options: FetchWebsiteOptions = {}
+): CheckContext => {
+  const fetchImpl = options.fetchImpl ?? fetch;
   const browserOptions: FetchWebsiteOptions = {
     ...options,
-    fetchImpl,
     browserRendering: options.browserRendering ?? {
       accountId: env.cloudflareAccountId,
       apiToken: env.cloudflareApiToken,
     },
-  }
+    fetchImpl,
+  };
 
-  let htmlPromise: Promise<string> | undefined
-  let documentPromise: Promise<HtmlDocument> | undefined
-  let responsePromise: Promise<SerializedHttpResponse> | undefined
-  let websiteEvidencePromise: Promise<ListingEvidence> | undefined
-  let listingEvidencePromise: Promise<ListingEvidence> | undefined
-  let placePromise: Promise<GooglePlace | null> | undefined
+  let htmlPromise: Promise<string> | undefined;
+  let documentPromise: Promise<HtmlDocument> | undefined;
+  let responsePromise: Promise<SerializedHttpResponse> | undefined;
+  let websiteEvidencePromise: Promise<ListingEvidence> | undefined;
+  let listingEvidencePromise: Promise<ListingEvidence> | undefined;
+  let placePromise: Promise<GooglePlace | null> | undefined;
 
   return {
     business,
     env,
+    fetchCrux: (url: string) =>
+      fetchCruxPerformance(url, env.googleApiKey, fetchImpl),
     fetchImpl,
-    getWebsiteHtml: () => {
-      if (!business.websiteUrl) {
-        return Promise.reject(new Error('No website URL provided'))
-      }
-      htmlPromise ??= fetchWebsiteHtml(business.websiteUrl, browserOptions)
-      return htmlPromise
+    fetchPageSpeed: (url: string) =>
+      fetchPageSpeedPerformance(url, env.googleApiKey, fetchImpl),
+    fetchText: (url: string) => fetchText(url, fetchImpl),
+    getApplePlace: (id: string) => fetchApplePlace(id, env, fetchImpl),
+    getGooglePlace: () => {
+      placePromise ??= (async () => {
+        const placeId = placesApiId(business);
+        if (!placeId || !env.googleApiKey) {
+          return null;
+        }
+        return await fetchGooglePlace(placeId, env.googleApiKey, fetchImpl);
+      })();
+      return placePromise;
+    },
+    getListingEvidence: () => {
+      listingEvidencePromise ??= (async () => {
+        const listingUrl = firstListingUrl(business.locations);
+        if (!listingUrl) {
+          return emptyEvidence("", "No Google listing URL provided");
+        }
+        try {
+          const html = await fetchWebsiteHtml(listingUrl, browserOptions);
+          return evidenceFromHtml(html, listingUrl);
+        } catch (error) {
+          return emptyEvidence(
+            listingUrl,
+            error instanceof Error
+              ? error.message
+              : "Could not fetch the listing URL"
+          );
+        }
+      })();
+      return listingEvidencePromise;
     },
     getWebsiteDocument: () => {
-      documentPromise ??= (async () => parseDocument(await (htmlPromise ??= fetchWebsiteHtml(business.websiteUrl ?? '', browserOptions))))()
-      return documentPromise
-    },
-    getWebsiteResponse: () => {
-      if (!business.websiteUrl) {
-        return Promise.reject(new Error('No website URL provided'))
-      }
-      responsePromise ??= fetchWebsiteResponse(business.websiteUrl, browserOptions)
-      return responsePromise
+      documentPromise ??= (async () =>
+        parseDocument(
+          await (htmlPromise ??= fetchWebsiteHtml(
+            business.websiteUrl ?? "",
+            browserOptions
+          ))
+        ))();
+      return documentPromise;
     },
     getWebsiteEvidence: () => {
       websiteEvidencePromise ??= (async () => {
         if (!business.websiteUrl) {
-          return emptyEvidence('', 'No website URL provided')
+          return emptyEvidence("", "No website URL provided");
         }
         try {
-          const html = await (htmlPromise ??= fetchWebsiteHtml(business.websiteUrl, browserOptions))
-          return evidenceFromHtml(html, business.websiteUrl)
+          const html = await (htmlPromise ??= fetchWebsiteHtml(
+            business.websiteUrl,
+            browserOptions
+          ));
+          return evidenceFromHtml(html, business.websiteUrl);
         } catch (error) {
           return emptyEvidence(
             business.websiteUrl,
-            error instanceof Error ? error.message : 'Could not fetch the website',
-          )
+            error instanceof Error
+              ? error.message
+              : "Could not fetch the website"
+          );
         }
-      })()
-      return websiteEvidencePromise
+      })();
+      return websiteEvidencePromise;
     },
-    getListingEvidence: () => {
-      listingEvidencePromise ??= (async () => {
-        const listingUrl = firstListingUrl(business.locations)
-        if (!listingUrl) {
-          return emptyEvidence('', 'No Google listing URL provided')
-        }
-        try {
-          const html = await fetchWebsiteHtml(listingUrl, browserOptions)
-          return evidenceFromHtml(html, listingUrl)
-        } catch (error) {
-          return emptyEvidence(
-            listingUrl,
-            error instanceof Error ? error.message : 'Could not fetch the listing URL',
-          )
-        }
-      })()
-      return listingEvidencePromise
+    getWebsiteHtml: () => {
+      if (!business.websiteUrl) {
+        return Promise.reject(new Error("No website URL provided"));
+      }
+      htmlPromise ??= fetchWebsiteHtml(business.websiteUrl, browserOptions);
+      return htmlPromise;
     },
-    getGooglePlace: () => {
-      placePromise ??= (async () => {
-        const placeId = placesApiId(business)
-        if (!placeId || !env.googleApiKey) return null
-        return fetchGooglePlace(placeId, env.googleApiKey, fetchImpl)
-      })()
-      return placePromise
+    getWebsiteResponse: () => {
+      if (!business.websiteUrl) {
+        return Promise.reject(new Error("No website URL provided"));
+      }
+      responsePromise ??= fetchWebsiteResponse(
+        business.websiteUrl,
+        browserOptions
+      );
+      return responsePromise;
     },
     googleSearch: (query: string) => googleSearch(query, env, fetchImpl),
-    fetchText: (url: string) => fetchText(url, fetchImpl),
-    fetchCrux: (url: string) => fetchCruxPerformance(url, env.googleApiKey, fetchImpl),
-    fetchPageSpeed: (url: string) => fetchPageSpeedPerformance(url, env.googleApiKey, fetchImpl),
-    measurePerformance: (url: string) => measureSyntheticPerformance(url, browserOptions),
-    searchAppleMaps: (query: string, userLocation?: string) => searchAppleMaps(query, env, fetchImpl, userLocation),
-    getApplePlace: (id: string) => fetchApplePlace(id, env, fetchImpl),
-  }
-}
+    measurePerformance: (url: string) =>
+      measureSyntheticPerformance(url, browserOptions),
+    searchAppleMaps: (query: string, userLocation?: string) =>
+      searchAppleMaps(query, env, fetchImpl, userLocation),
+  };
+};
 
-export function noWebsiteResult(label = 'No website URL provided') {
-  return checkResult(false, label)
-}
+export const noWebsiteResult = (
+  label = "No website URL linked to this audit"
+) => checkResult(null, label);
 
-export function noListingResult(label = 'No Google listing URL provided') {
-  return checkResult(false, label)
-}
+export const noListingResult = (
+  label = "No Google listing URL linked to this audit"
+) => checkResult(null, label);
 
-export function noPlaceResult(label = 'No Google Place ID found for this business location') {
-  return checkResult(false, label)
-}
+export const noPlaceResult = (
+  label = "No Google Place ID linked to this audit"
+) => checkResult(null, label);
 
-export function fetchErrorResult(error: unknown, prefix: string) {
-  return checkResult(false, `${prefix}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-}
+export const fetchErrorResult = (error: unknown, prefix: string) =>
+  checkResult(
+    null,
+    `${prefix}: ${error instanceof Error ? error.message : "Unknown error"}`
+  );

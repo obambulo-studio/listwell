@@ -36,11 +36,14 @@ Only when the host is stock v0 or a generic Next.js, Tailwind, and shadcn projec
 For standalone HTML that copies the foundation into `assets/`, use:
 
 ```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet" referrerpolicy="no-referrer">
-<link href="assets/vercel-brand.css" rel="stylesheet">
-
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Geist:wght@400..600&family=Geist+Mono:wght@400..600&display=swap"
+  rel="stylesheet"
+  referrerpolicy="no-referrer"
+/>
+<link href="assets/vercel-brand.css" rel="stylesheet" />
 ```
 
 In an existing Vercel product project, use its installed Geist, GeistCN, semantic tokens, controls, and theme APIs instead of adding a parallel `vbg-*` layer. Otherwise use the published CSS unchanged for typography, colors, controls, themes, and report primitives. Page-owned CSS may create page-specific topology, density, evidence geometry, and semantic compositions from public tokens when the stock primitives would distort the material. Every page-authored selector names only the page-specific custom namespace; never target a published `.vbg-*` class. A custom class sharing a foundation primitive must not change its layout, typography, surface, border, overflow, or control styling.
@@ -134,7 +137,9 @@ When using the standalone CSS, preserve this direct-child order:
     <a class="vbg-skip-link" href="#main">Skip to content</a>
     <header class="vbg-header">
       <div class="vbg-masthead">
-        <span class="vbg-identity"><span class="vbg-wordmark" role="img" aria-label="Vercel"></span></span>
+        <span class="vbg-identity"
+          ><span class="vbg-wordmark" role="img" aria-label="Vercel"></span
+        ></span>
         <div class="vbg-document-meta">...</div>
       </div>
     </header>
@@ -145,7 +150,6 @@ When using the standalone CSS, preserve this direct-child order:
     </footer>
   </div>
 </body>
-
 ```
 
 The CSS supplies the masks and theme behavior. Do not substitute text, inline art, a decorative triangle, or a different logo treatment.
@@ -234,7 +238,6 @@ Tables are evidence, not decoration:
 <!-- ... -->
 <th scope="row">Homepage</th>
 <td class="vbg-numeric">12,757</td>
-
 ```
 
 Use a qualitative comparison for concise differences; use a comparison table when exact row-by-row scanning matters. Peer columns must have matching type roles and aligned row starts. If one peer needs a different structure, it is not a peer grid.
@@ -255,12 +258,11 @@ With the standalone foundation, `.vbg-calculator` directly owns `.vbg-calculator
 <div class="vbg-field">
   <label class="vbg-label" for="rate">Flex commitment rate</label>
   <div class="vbg-unit-field">
-    <input id="rate" type="number" value="8">
+    <input id="rate" type="number" value="8" />
     <span class="vbg-unit-suffix">%</span>
   </div>
   <p class="vbg-helper">From 4% to 12%.</p>
 </div>
-
 ```
 
 #### Motion and delight
@@ -342,7 +344,6 @@ Use the exact public child names. Do not invent synonyms such as `vbg-stat-note`
     <p class="vbg-stat-detail">June 17 to August 3</p>
   </div>
 </div>
-
 ```
 
 Treat only the listed names and visualization names below as the public API. If none fits, use semantic HTML plus a page-owned `vbg-custom-*` or `vbg-viz-*` hook; never inspect the CSS for internal selectors, guess a `vbg-*` class, or extrapolate a name from another primitive.

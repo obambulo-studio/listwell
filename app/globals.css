@@ -56,39 +56,46 @@
   --vbg-leading-section: 1.25;
   --vbg-leading-subsection: 1.3;
   --vbg-leading-lede: 1.45;
-  --font-sans: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --vbg-surface-primary: #0a0a0a;
-    --vbg-surface-secondary: #111;
-    --vbg-surface-contrast: #fafafa;
-    --vbg-text-primary: #fafafa;
-    --vbg-text-secondary: #a1a1a1;
-    --vbg-text-on-contrast: #0a0a0a;
-    --vbg-text-on-contrast-secondary: #525252;
-    --vbg-border-subtle: #1f1f1f;
-    --vbg-border-default: #2e2e2e;
-    --vbg-border-strong: #fafafa;
-    --vbg-border-on-contrast: #d4d4d4;
-    --vbg-focus: #fafafa;
-    --vbg-color-error: #f87171;
-    --vbg-color-warning: #fbbf24;
-  }
+  --listwell-column: 30rem;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+  --vbg-surface-primary: var(--page);
+  --vbg-surface-secondary: var(--canvas);
+  --vbg-surface-contrast: var(--ink);
+  --vbg-text-primary: var(--ink);
+  --vbg-text-secondary: var(--ink-2);
+  --vbg-text-on-contrast: var(--page);
+  --vbg-text-on-contrast-secondary: var(--ink-2);
+  --vbg-border-subtle: var(--line);
+  --vbg-border-default: var(--line-strong);
+  --vbg-border-strong: var(--ink);
+  --vbg-border-on-contrast: var(--line-strong);
+  --vbg-focus: var(--ink);
+  --vbg-color-error: var(--red);
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--vbg-surface-primary);
-  color: var(--vbg-text-primary);
+  min-height: 100%;
+  overflow-x: clip;
+  background-color: var(--page) !important;
+  background-image: none !important;
+  color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--vbg-type-body);
   font-weight: var(--vbg-weight-regular);
@@ -106,12 +113,1234 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--vbg-focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Composer owns focus — never outline the nested field. */
+.listwell-chat__input:focus,
+.listwell-chat__input:focus-visible {
+  outline: none;
+  border: none;
+  box-shadow: none;
 }
 
 .vbg-report {
   min-height: 100vh;
+}
+
+/* Home chat: one light canvas, content centered */
+.listwell-chat-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100dvh;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--page);
+  color: var(--ink);
+}
+
+.listwell-chat-shell__main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.listwell-chat-shell__main--page {
+  overflow: auto;
+  padding: 72px 24px 96px;
+  box-sizing: border-box;
+}
+
+.listwell-chat-shell__main--page > * {
+  width: 100%;
+  max-width: min(var(--listwell-column), 100%);
+  margin-inline: auto;
+}
+
+.listwell-app-page .vbg-title + .vbg-lede,
+.listwell-app-page .vbg-title + .vbg-table-wrap {
+  margin-top: var(--vbg-space-4);
+}
+
+.listwell-page-controls {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  overflow: visible;
+}
+
+.listwell-page-controls--account {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 4;
+}
+
+.listwell-page-controls--dock {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  right: max(16px, env(safe-area-inset-right));
+  z-index: 4;
+}
+
+.listwell-page-controls__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  overflow: visible;
+  transition:
+    color 150ms ease,
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.listwell-page-controls__btn[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.listwell-page-controls__btn:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .listwell-page-controls__btn:hover {
+    color: var(--ink);
+  }
+}
+
+.listwell-page-controls__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.listwell-page-controls__popover-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.listwell-page-controls__popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  left: auto;
+  z-index: 2;
+  display: block;
+  min-width: max-content;
+  max-width: min(220px, calc(100vw - 32px));
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
+  box-shadow: var(--shadow-hairline);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: translateY(4px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    visibility 150ms ease;
+}
+
+.listwell-page-controls--dock .listwell-page-controls__popover {
+  left: auto;
+  right: 0;
+}
+
+.listwell-page-controls__popover-label {
+  display: block;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.listwell-page-controls__btn:focus-visible .listwell-page-controls__popover {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .listwell-page-controls__btn:hover .listwell-page-controls__popover {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.listwell-account-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 6;
+  min-width: 188px;
+  max-width: min(240px, calc(100vw - 32px));
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  transform-origin: top right;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@starting-style {
+  .listwell-account-menu {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.listwell-account-menu__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.listwell-account-menu__item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.listwell-account-menu__item:focus-visible {
+  color: var(--ink);
+  outline: none;
+}
+
+.listwell-account-menu__item:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .listwell-account-menu__item:hover {
+    color: var(--ink);
+  }
+}
+
+.listwell-account-menu__meta {
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.listwell-account-menu__rule {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+.listwell-account-menu__item--logout {
+  color: var(--ink-3);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .listwell-account-menu__item--logout:hover {
+    color: var(--red);
+  }
+}
+
+.listwell-account-menu__item--logout:focus-visible {
+  color: var(--red);
+}
+
+.listwell-account-menu--form {
+  min-width: 228px;
+  max-width: min(280px, calc(100vw - 32px));
+}
+
+.listwell-account-menu__identity {
+  padding: 7px 10px 5px;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.listwell-account-menu__form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px 6px;
+}
+
+.listwell-account-menu__label {
+  padding: 2px 8px 0;
+  color: var(--ink-3);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.listwell-account-menu__hint {
+  margin: 0;
+  padding: 2px 8px 4px;
+  color: var(--ink-3);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.listwell-account-menu__field {
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.listwell-account-menu__field::placeholder {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.listwell-account-menu__field:disabled {
+  opacity: 0.6;
+}
+
+.listwell-account-menu__field--code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.12em;
+}
+
+.listwell-account-menu__error {
+  margin: 0 6px 4px;
+  color: var(--red);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.listwell-account-menu__item:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.listwell-account-menu__item--quiet {
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listwell-account-menu {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
+
+  @starting-style {
+    .listwell-account-menu {
+      transform: none;
+    }
+  }
+
+  .listwell-page-controls__btn:active,
+  .listwell-account-menu__item:active {
+    transform: none;
+  }
+
+  .listwell-page-controls__popover {
+    transition:
+      opacity 120ms ease,
+      visibility 120ms ease;
+    transform: none;
+  }
+
+  .listwell-page-controls__btn:focus-visible .listwell-page-controls__popover {
+    transform: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .listwell-page-controls__btn:hover .listwell-page-controls__popover {
+      transform: none;
+    }
+  }
+}
+
+.listwell-chat__layout {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.listwell-chat__layout--pending-restore .listwell-chat__viewport,
+.listwell-chat__layout--pending-restore .listwell-chat__composer-dock {
+  visibility: hidden;
+}
+
+.listwell-chat__viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.listwell-chat__viewport:hover {
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.listwell-chat__viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.listwell-chat__viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.listwell-chat__viewport::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 999px;
+  transition: background-color 160ms ease;
+}
+
+.listwell-chat__viewport:hover::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+}
+
+.listwell-chat__viewport:hover::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-3);
+}
+
+.listwell-chat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  max-width: min(var(--listwell-column), 100%);
+  margin: 0 auto;
+  padding: 20px 16px 16px;
+  gap: 0;
+  overflow-x: clip;
+}
+
+.listwell-chat:not(.listwell-chat--thread) {
+  min-height: 100%;
+  justify-content: center;
+}
+
+.listwell-chat__starter-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 12px;
+  text-align: center;
+}
+
+.listwell-chat__prompt-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-width: 92%;
+  align-self: flex-start;
+  animation: fade-up 360ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.listwell-chat__prompt-card--starter {
+  max-width: 100%;
+  align-self: stretch;
+  animation: none;
+}
+
+.listwell-chat__starter {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 86%;
+  min-width: 0;
+  max-width: 86%;
+  align-self: center;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  overflow: hidden;
+  animation: fade-up 360ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.listwell-chat__starter-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 12px 5px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+
+.listwell-chat__starter-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.listwell-chat__starter-about {
+  appearance: none;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.listwell-chat__starter-about:hover {
+  color: var(--ink);
+}
+
+.listwell-chat__starter-about:active {
+  transform: scale(0.98);
+}
+
+.listwell-about {
+  width: min(22rem, calc(100% - 32px));
+  margin: auto;
+  padding: 16px 16px 14px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-overlay);
+}
+
+.listwell-about::backdrop {
+  background: color-mix(in srgb, var(--page) 42%, oklch(0 0 0 / 0.32));
+}
+
+.listwell-about__title {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.listwell-about__body {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.listwell-about__close {
+  appearance: none;
+  display: block;
+  margin: 14px 0 0 auto;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--field);
+  box-shadow: var(--shadow-hairline);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.listwell-about__close:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.listwell-about__close:active {
+  transform: scale(0.98);
+}
+
+.listwell-chat__prompt-card-surface {
+  width: 100%;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  overflow: hidden;
+}
+
+.listwell-chat__starter .listwell-chat__prompt-card-surface {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.listwell-chat__prompt-card-question {
+  margin: 0;
+  padding: 11px 13px 10px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.listwell-chat__prompt-card-question--starter {
+  padding: 14px 14px 10px;
+  text-align: left;
+}
+
+.listwell-chat__starter-pricing {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--ink-3);
+}
+
+.listwell-chat__prompt-card-answer {
+  padding: 10px 13px 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.listwell-chat__prompt-card-answer-text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.listwell-chat__prompt-card-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.listwell-chat__prompt-card-option {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink-2);
+  background: var(--field);
+  box-shadow: var(--shadow-hairline);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.listwell-chat__prompt-card-option:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.listwell-chat__prompt-card-option:active {
+  transform: scale(0.98);
+}
+
+.listwell-chat--thread {
+  justify-content: flex-start;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+/* Thread mode: one consistent column width for every block in the transcript. */
+.listwell-chat--thread .listwell-chat__thread {
+  align-items: stretch;
+}
+
+.listwell-chat--thread .listwell-chat__prompt-card,
+.listwell-chat--thread .listwell-chat__message,
+.listwell-chat--thread .listwell-chat__stage,
+.listwell-chat--thread .listwell-chat__typing {
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+}
+
+.listwell-chat--thread .listwell-chat__stage--attached {
+  padding-inline: 0;
+}
+
+.listwell-chat__composer-dock {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  width: min(var(--listwell-column), 100%);
+  max-width: min(var(--listwell-column), 100%);
+  margin: 0 auto;
+  padding: 8px 16px max(16px, env(safe-area-inset-bottom));
+  background: transparent;
+}
+
+@media (max-width: 36rem) {
+  .listwell-chat__composer-dock {
+    padding-right: max(96px, calc(16px + env(safe-area-inset-right)));
+  }
+}
+
+.listwell-chat__layout:not(.listwell-chat__layout--docked-composer)
+  .listwell-chat {
+  padding-bottom: max(72px, calc(24px + env(safe-area-inset-bottom)));
+}
+
+.listwell-chat__prompt {
+  margin: 0;
+  text-align: left;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.listwell-chat__prompt-aside {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.listwell-chat__hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.listwell-chat__composer {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 4px 4px 12px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  transition: box-shadow 180ms ease;
+}
+
+.listwell-chat__composer:focus-within {
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.listwell-chat__composer--embedded {
+  border-radius: 0;
+  box-shadow: none;
+  border-top: 1px solid var(--line-soft);
+  padding: 8px 8px 8px 12px;
+  background: transparent;
+  transition: background 180ms ease;
+}
+
+.listwell-chat__composer--embedded:focus-within {
+  box-shadow: none;
+  background: var(--inset);
+}
+
+.listwell-chat__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+  height: 32px;
+  padding: 0;
+  outline: none;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.listwell-chat__input::placeholder {
+  color: var(--ink-3);
+}
+
+.listwell-chat__send:focus,
+.listwell-chat__send:focus-visible {
+  outline: none;
+}
+
+.listwell-chat__composer:focus-within .listwell-chat__send:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.listwell-chat__send {
+  flex-shrink: 0;
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--surface);
+  cursor: pointer;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.listwell-chat__send:not([aria-disabled="true"]):hover {
+  transform: translateY(-1px);
+}
+
+.listwell-chat__send:not([aria-disabled="true"]):active {
+  transform: translateY(0);
+}
+
+.listwell-chat__send:disabled,
+.listwell-chat__send[aria-disabled="true"] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.listwell-chat__thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  padding: 0 2px 16px;
+  background: transparent;
+}
+
+/* Embedded Beautiful UI widgets can exceed the chat column width. */
+.listwell-chat__viewport .max-w-110,
+.listwell-chat__viewport .max-w-95,
+.listwell-chat__viewport .max-w-80 {
+  max-width: 100%;
+}
+
+.listwell-chat__message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  animation: fade-up 360ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.listwell-chat__message--user {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: 88%;
+}
+
+.listwell-chat__message--assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+  max-width: 92%;
+}
+
+.listwell-chat__message-label {
+  padding: 0 4px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  line-height: 1.2;
+}
+
+.listwell-chat__message--user .listwell-chat__message-label {
+  color: var(--ink-2);
+}
+
+.listwell-chat__bubble {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.listwell-chat__bubble--user {
+  padding: 9px 13px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.listwell-chat__bubble--assistant {
+  padding: 9px 13px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-hairline);
+}
+
+.listwell-chat__bubble--typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 1.5rem;
+  padding: 11px 14px;
+}
+
+.listwell-chat__typing {
+  animation: fade-in 240ms ease-out both;
+}
+
+.listwell-chat__typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ink-3);
+  animation: chat-typing-bounce 1.1s ease-in-out infinite;
+}
+
+.listwell-chat__typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.listwell-chat__typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.listwell-chat__stage {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  padding-top: 4px;
+  animation: fade-up 400ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.listwell-chat__stage > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.listwell-chat__stage--attached {
+  max-width: 92%;
+  align-self: flex-start;
+  padding: 0 4px;
+  margin-top: 6px;
+}
+
+.listwell-chat__stage--report {
+  margin-top: var(--vbg-space-4);
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--vbg-space-6);
+}
+
+.listwell-chat__report {
+  width: 100%;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-hairline);
+  padding: 14px 14px 12px;
+}
+
+.listwell-chat__report-header {
+  margin-bottom: 12px;
+}
+
+.listwell-chat__report-business {
+  margin: 0 0 2px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.listwell-chat__report-score {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.listwell-chat__report-score-value {
+  font-weight: 600;
+}
+
+.listwell-chat__report-score-label {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.listwell-chat__report-meta {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.listwell-chat__report-bar {
+  display: flex;
+  height: 8px;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--field);
+}
+
+.listwell-chat__report-bar-segment {
+  min-width: 2px;
+  border-radius: 999px;
+}
+
+.listwell-chat__report-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listwell-chat__report-legend-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.listwell-chat__report-legend-label {
+  font-weight: 500;
+}
+
+.listwell-chat__report-legend-pct {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.listwell-chat__report-issues {
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--line-soft);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.listwell-chat__report-issues li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.listwell-chat__report-issue-mark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.listwell-chat__report-issue-mark--pass {
+  background: var(--green);
+}
+
+.listwell-chat__report-issue-mark--fail {
+  background: var(--red);
+}
+
+.listwell-chat__report-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.listwell-chat__report-cta {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--page);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.listwell-chat__report-cta:not(:disabled) {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.listwell-chat__report-cta:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.listwell-chat__report-link {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.listwell-chat__report-link:hover {
+  color: var(--ink);
+}
+
+.listwell-chat__report-note {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.listwell-chat__layout--restored .listwell-chat__message,
+.listwell-chat__layout--restored .listwell-chat__prompt-card,
+.listwell-chat__layout--restored .listwell-chat__starter,
+.listwell-chat__layout--restored .listwell-chat__stage,
+.listwell-chat__layout--restored .listwell-chat__typing {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listwell-chat__message,
+  .listwell-chat__prompt-card,
+  .listwell-chat__starter,
+  .listwell-chat__stage,
+  .listwell-chat__typing {
+    animation: none;
+  }
+
+  .listwell-chat__typing-dot {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .listwell-chat__composer,
+  .listwell-chat__send {
+    transition: none;
+  }
 }
 
 .vbg-shell {
@@ -157,9 +1386,11 @@ textarea:focus-visible {
 .vbg-custom-form,
 .vbg-custom-progress,
 .vbg-custom-profiles,
-.vbg-custom-report {
+.vbg-custom-report,
+.vbg-shell > main {
   grid-column: 1 / -1;
   min-width: 0;
+  width: 100%;
 }
 
 .vbg-header {
@@ -170,8 +1401,20 @@ textarea:focus-visible {
 .vbg-masthead {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: var(--vbg-space-6);
+}
+
+.vbg-masthead-end {
+  display: flex;
+  align-items: center;
+  gap: var(--vbg-space-4);
+}
+
+.vbg-masthead .listwell-page-controls--account {
+  position: relative;
+  top: auto;
+  right: auto;
 }
 
 .vbg-identity {
@@ -358,15 +1601,9 @@ textarea:focus-visible {
 
 .vbg-stat-strip {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   gap: var(--vbg-space-8) var(--vbg-space-6);
   margin-top: var(--vbg-space-8);
-}
-
-@media (min-width: 720px) {
-  .vbg-stat-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 .vbg-stat-label,
@@ -554,6 +1791,14 @@ textarea:focus-visible {
   font-size: 0.9em;
 }
 
+.vbg-custom-status-pass,
+.vbg-custom-status-fail,
+.vbg-custom-status-error,
+.vbg-custom-status-pending,
+.vbg-custom-status-queued {
+  white-space: nowrap;
+}
+
 .vbg-custom-status-pass {
   color: var(--vbg-text-primary);
 }
@@ -589,9 +1834,48 @@ textarea:focus-visible {
   margin-top: var(--vbg-space-1);
 }
 
+.vbg-custom-score {
+  display: grid;
+  gap: var(--vbg-space-2);
+  margin-top: var(--vbg-space-6);
+}
+
+.vbg-custom-score > * {
+  margin: 0;
+}
+
+.vbg-custom-brief,
+.vbg-custom-next-slot,
+.vbg-custom-unlock {
+  display: grid;
+  gap: var(--vbg-space-4);
+  max-width: 42rem;
+}
+
+.vbg-custom-brief > *,
+.vbg-custom-next-slot > *,
+.vbg-custom-unlock > * {
+  margin: 0;
+}
+
+.vbg-custom-checks-table {
+  min-width: 0;
+}
+
+.vbg-custom-channel-group th {
+  padding-top: var(--vbg-space-6);
+  font-size: var(--vbg-type-metadata);
+  font-weight: var(--vbg-weight-medium);
+  color: var(--vbg-text-secondary);
+}
+
+tbody:first-of-type .vbg-custom-channel-group th {
+  padding-top: 0;
+}
+
 .vbg-custom-next-actions {
   list-style: none;
-  margin: var(--vbg-space-6) 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: var(--vbg-space-4);
@@ -608,7 +1892,323 @@ textarea:focus-visible {
   margin: 0;
 }
 
-.vbg-reading + .vbg-caption,
-.vbg-custom-next-actions + .vbg-caption {
+.listwell-report {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.listwell-report__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--vbg-space-8);
+  align-items: baseline;
+  padding-bottom: var(--vbg-space-8);
+}
+
+.listwell-report__hero .vbg-title {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.listwell-report__score-value {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  text-align: right;
+}
+
+.listwell-report__score-caption {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  text-align: right;
+}
+
+.listwell-report__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--vbg-space-6);
+  margin: 0;
+  padding: var(--vbg-space-6) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.listwell-report__stat {
+  min-width: 0;
+}
+
+.listwell-report__stat dt,
+.listwell-report__stat dd {
+  margin: 0;
+}
+
+.listwell-report__chapter {
+  padding-top: var(--vbg-space-12);
+}
+
+.listwell-report__chapter > .vbg-heading-24 + .vbg-lede,
+.listwell-report__chapter > .vbg-heading-24 + .listwell-report__brief,
+.listwell-report__chapter > .vbg-heading-24 + .listwell-report__actions,
+.listwell-report__chapter > .vbg-heading-24 + .vbg-caption {
   margin-top: var(--vbg-space-4);
+}
+
+.listwell-report__brief,
+.listwell-report__unlock,
+.listwell-report__actions {
+  max-width: 100%;
+}
+
+.listwell-report__brief {
+  display: grid;
+  gap: var(--vbg-space-6);
+}
+
+.listwell-report__claim > p {
+  margin: 0;
+  max-width: 100%;
+  font-size: var(--vbg-type-lede);
+  line-height: var(--vbg-leading-lede);
+  color: var(--ink);
+}
+
+.listwell-report__source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: var(--vbg-space-2) 0 0;
+  color: var(--ink-3);
+  font-size: var(--vbg-type-metadata);
+  line-height: var(--vbg-leading-caption);
+}
+
+.listwell-report__citations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+.listwell-report__citation {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.listwell-report__citation:active {
+  transform: scale(0.97);
+}
+
+.listwell-report__citation-rest {
+  color: var(--ink-3);
+}
+
+.listwell-report__actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.listwell-report__actions li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  column-gap: var(--vbg-space-4);
+  padding: var(--vbg-space-5) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.listwell-report__actions li:first-child {
+  padding-top: 0;
+}
+
+.listwell-report__actions li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.listwell-report__actions p {
+  margin: 0;
+}
+
+.listwell-report__action-n {
+  color: var(--ink-3);
+  font-size: var(--vbg-type-metadata);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--vbg-leading-lede);
+}
+
+.listwell-report__unlock {
+  display: grid;
+  gap: var(--vbg-space-4);
+}
+
+.listwell-report__unlock > * {
+  margin: 0;
+}
+
+.listwell-report__unlock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vbg-space-4);
+}
+
+.listwell-report__button {
+  appearance: none;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--page);
+  border-radius: var(--vbg-radius-small);
+  font: inherit;
+  font-weight: var(--vbg-weight-medium);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition:
+    opacity 150ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.listwell-report__button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.listwell-report__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.listwell-report__button--quiet {
+  background: transparent;
+  color: var(--ink);
+  border-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.listwell-report__ledger-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vbg-space-4) var(--vbg-space-6);
+}
+
+.listwell-report__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vbg-space-4);
+}
+
+.listwell-report__filter {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--vbg-type-label);
+  font-weight: var(--vbg-weight-medium);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.listwell-report__filter[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.listwell-report__filter:active {
+  transform: scale(0.97);
+}
+
+.listwell-report__detail-meta {
+  margin-top: var(--vbg-space-3);
+}
+
+.listwell-report .vbg-table-wrap button {
+  transition:
+    color 150ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.listwell-report .vbg-table-wrap button:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .listwell-report__citation:hover,
+  .listwell-report__filter:hover,
+  .listwell-report .vbg-table-wrap button:hover {
+    color: var(--ink);
+  }
+
+  .listwell-report__button:hover:not(:disabled) {
+    opacity: 0.92;
+  }
+}
+
+@media (max-width: 720px) {
+  .listwell-report__hero {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    row-gap: var(--vbg-space-4);
+  }
+
+  .listwell-report__score-value,
+  .listwell-report__score-caption {
+    grid-column: 1;
+    justify-self: start;
+    text-align: left;
+  }
+
+  .listwell-report__score-value {
+    grid-row: 2;
+  }
+
+  .listwell-report__score-caption {
+    grid-row: 3;
+  }
+
+  .listwell-report__stats {
+    column-gap: var(--vbg-space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listwell-report__citation,
+  .listwell-report__button,
+  .listwell-report__filter,
+  .listwell-report .vbg-table-wrap button {
+    transition:
+      color 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .listwell-report__citation:active,
+  .listwell-report__button:active:not(:disabled),
+  .listwell-report__filter:active,
+  .listwell-report .vbg-table-wrap button:active {
+    transform: none;
+  }
 }

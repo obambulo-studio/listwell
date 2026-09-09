@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
 import { getCloudflareEnv } from "@/lib/audit-env";
-import { getBusiness } from "@/lib/db";
+import { getBusiness } from "@/lib/data";
 import {
   auditSummaryResultSchema,
   completedCheckSchema,
@@ -19,7 +20,10 @@ const summaryRequestSchema = z.object({
   checks: z.array(completedCheckSchema),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export const POST = async (
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) => {
   const { id } = paramsSchema.parse(await context.params);
   const business = await getBusiness(id);
   if (!business) {
@@ -30,10 +34,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const parsed = summaryRequestSchema.parse(body);
   const env = await getCloudflareEnv();
   const summary = await summarizeReport({
+    ai: resolveWorkersAiBinding(env?.AI),
     businessName: business.name,
     checks: parsed.checks,
-    ai: resolveWorkersAiBinding(env?.AI),
   });
 
   return NextResponse.json(auditSummaryResultSchema.parse(summary));
-}
+};

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "components/chat-composer.tsx",
+    "components/home-form.tsx",
+    "components/primitives/prompt-bar.tsx",
+    "components/primitives/recommendation-card.tsx",
+    "components/primitives/streaming-text.tsx",
+    "components/primitives/tool-chips.tsx"
+  ],
+  "ignore": ["open-next.config.ts"],
+  "exclude": [
+    "duplicates",
+    "enumMembers",
+    "exports",
+    "nsExports",
+    "nsTypes",
+    "types"
+  ]
+}

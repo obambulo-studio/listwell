@@ -1,43 +1,96 @@
-import type { LocationParts } from '../types'
+import type { LocationParts } from "../types";
 
-const STATE_CODES = new Set(['QLD', 'NSW', 'VIC', 'ACT', 'SA', 'TAS', 'WA', 'NT'])
+const STATE_CODES = new Set([
+  "QLD",
+  "NSW",
+  "VIC",
+  "ACT",
+  "SA",
+  "TAS",
+  "WA",
+  "NT",
+]);
 
-export function locationPartsFromAddress(address: string | null | undefined): LocationParts {
-  if (!address || address.trim().length === 0) {
-    return { suburb: null, city: null, state: null, country: null, locationParts: [] }
+const stateCodeFromPart = (part: string): string | null => {
+  const tokenUppers = new Set(
+    part.split(/\s+/u).map((token) => token.toUpperCase())
+  );
+  for (const code of STATE_CODES) {
+    if (tokenUppers.has(code)) {
+      return code;
+    }
   }
+  return null;
+};
 
-  const parts = address
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-
-  let suburb: string | null = null
-  let city: string | null = null
-  let state: string | null = null
-  let country: string | null = null
-
+const letterParts = (parts: string[]): string[] => {
+  const locationParts: string[] = [];
   for (const part of parts) {
-    const tokens = part.split(/\s+/)
-    const code = tokens.find((token) => STATE_CODES.has(token.toUpperCase()))
-    if (code && !state) state = code.toUpperCase()
+    const cleaned = part.replaceAll(/\d+/gu, "").trim();
+    if (cleaned.length > 1 && /[a-zA-Z]/u.test(cleaned)) {
+      locationParts.push(cleaned);
+    }
+  }
+  return locationParts;
+};
 
-    const withoutPostcode = part.replace(/\b\d{4}\b/g, '').replace(/\bAustralia\b/i, '').trim()
-    if (/australia/i.test(part)) country = 'Australia'
-    if (!withoutPostcode) continue
-
-    if (!suburb && parts.indexOf(part) >= 1) suburb = withoutPostcode.replace(/\b(?:QLD|NSW|VIC|ACT|SA|TAS|WA|NT)\b/i, '').trim() || withoutPostcode
-    else if (!city && suburb && withoutPostcode !== suburb) city = withoutPostcode
+export const locationPartsFromAddress = (
+  address: string | null | undefined
+): LocationParts => {
+  if (!address || address.trim().length === 0) {
+    return {
+      city: null,
+      country: null,
+      locationParts: [],
+      state: null,
+      suburb: null,
+    };
   }
 
-  if (suburb && /^(QLD|NSW|VIC|ACT|SA|TAS|WA|NT)$/i.test(suburb)) {
-    state = suburb.toUpperCase()
-    suburb = null
+  const parts: string[] = [];
+  for (const part of address.split(",")) {
+    const trimmed = part.trim();
+    if (trimmed.length > 0) {
+      parts.push(trimmed);
+    }
   }
 
-  const locationParts = parts
-    .map((part) => part.replace(/\d+/g, '').trim())
-    .filter((part) => part.length > 1 && /[a-zA-Z]/.test(part))
+  let suburb: string | null = null;
+  let city: string | null = null;
+  let state: string | null = null;
+  let country: string | null = null;
 
-  return { suburb, city, state, country, locationParts }
-}
+  for (const [index, part] of parts.entries()) {
+    const code = stateCodeFromPart(part);
+    if (code && !state) {
+      state = code;
+    }
+
+    const withoutPostcode = part
+      .replaceAll(/\b\d{4}\b/gu, "")
+      .replace(/\bAustralia\b/iu, "")
+      .trim();
+    if (/australia/iu.test(part)) {
+      country = "Australia";
+    }
+    if (!withoutPostcode) {
+      continue;
+    }
+
+    if (!suburb && index >= 1) {
+      suburb =
+        withoutPostcode
+          .replace(/\b(?<state>QLD|NSW|VIC|ACT|SA|TAS|WA|NT)\b/iu, "")
+          .trim() || withoutPostcode;
+    } else if (!city && suburb && withoutPostcode !== suburb) {
+      city = withoutPostcode;
+    }
+  }
+
+  if (suburb && /^(?<state>QLD|NSW|VIC|ACT|SA|TAS|WA|NT)$/iu.test(suburb)) {
+    state = suburb.toUpperCase();
+    suburb = null;
+  }
+
+  return { city, country, locationParts: letterParts(parts), state, suburb };
+};

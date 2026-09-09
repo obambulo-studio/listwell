@@ -1,33 +1,29 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 
-export function Shell({
+import { AccountControl, PageControls } from "@/components/page-controls";
+
+export const Shell = ({
   children,
-  meta,
+  scrollable = false,
 }: {
   children: ReactNode;
-  meta?: string;
-}) {
-  return (
-    <div className="vbg-report">
-      <div className="vbg-shell">
-        <a className="vbg-skip-link" href="#main">
-          Skip to content
-        </a>
-        <header className="vbg-header">
-          <div className="vbg-masthead">
-            <span className="vbg-identity">
-              <Link href="/">Listwell</Link>
-            </span>
-            <div className="vbg-document-meta">{meta ?? "Local and website SEO audit"}</div>
-          </div>
-        </header>
-        <main id="main">{children}</main>
-        <footer className="vbg-footer">
-          <span>Listwell</span>
-          <span>© {new Date().getFullYear()}</span>
-        </footer>
-      </div>
-    </div>
-  );
-}
+  scrollable?: boolean;
+}) => (
+  <div className="listwell-chat-shell bg-page text-ink">
+    <a className="vbg-skip-link" href="#main">
+      Skip to content
+    </a>
+    <AccountControl />
+    <PageControls />
+    <main
+      id="main"
+      className={
+        scrollable
+          ? "listwell-chat-shell__main listwell-chat-shell__main--page"
+          : "listwell-chat-shell__main"
+      }
+    >
+      {children}
+    </main>
+  </div>
+);

@@ -1,13 +1,13 @@
-import { HomeForm } from "@/components/home-form";
+import type { Metadata } from "next";
 
-export default function HomePage() {
-  return (
-    <section className="vbg-opening">
-      <h1 className="vbg-display">Get seen online</h1>
-      <p className="vbg-lede">
-        Free step-by-step fixes in under two minutes. Listwell checks your website and local listings, then shows what to fix first.
-      </p>
-      <HomeForm />
-    </section>
-  );
-}
+import { ListwellChat } from "@/components/listwell-chat";
+
+export const metadata: Metadata = {
+  description:
+    "Chat-first local and website SEO audit. Answer a few questions, get a basic report, then upgrade for fixes and automation.",
+  title: "Check your listings",
+};
+
+const HomePage = () => <ListwellChat />;
+
+export default HomePage;

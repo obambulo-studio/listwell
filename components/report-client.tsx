@@ -1,107 +1,208 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { z } from "zod";
+
 import { CheckBody } from "@/components/check-body";
-import { pointsFor, type CheckDefinition } from "@/lib/checks/types";
 import { CHANNEL_CONFIG } from "@/lib/channel";
+import {
+  scorePercent,
+  statusFromResult,
+  visibilityCounts,
+} from "@/lib/chat-onboarding";
+import type { CheckStatus } from "@/lib/chat-onboarding";
+import { pointsFor } from "@/lib/checks/types";
+import type { CheckDefinition } from "@/lib/checks/types";
+import {
+  fetchEntitlement,
+  REPORT_MONTHLY_PRICE,
+  REPORT_ONCE_PRICE,
+  requestCheckoutUrl,
+  requestSignInCode,
+  verifySignInCode,
+} from "@/lib/polar";
 import { businessToProfiles } from "@/lib/profiles";
 import {
+  auditJobPollSchema,
   businessSchema,
-  checkBatchResponseSchema,
   checkResultSchema,
-  type Business,
-  type CheckResult,
+  checkoutPlanSchema,
+  entitlementStateSchema,
+  scanSummarySchema,
+} from "@/lib/schema";
+import type {
+  Business,
+  CheckResult,
+  CheckoutPlan,
+  EntitlementState,
+  ScanSummary,
 } from "@/lib/schema";
 import {
   auditSummaryResultSchema,
-  buildFallbackSummary,
   completedCheckSchema,
-  type AuditSummaryResult,
-  type CompletedCheck,
 } from "@/lib/summaries";
-import { z } from "zod";
+import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
+import { waitForMs } from "@/lib/wait";
 
-type CheckStatus = "idle" | "pending" | "queued" | "pass" | "fail" | "error";
+const initialResultsSchema = z.record(z.string(), checkResultSchema);
+const JOB_POLL_INTERVAL_MS = 2000;
+const JOB_POLL_MAX_ATTEMPTS = 30;
+const missingCheckResult = checkResultSchema.parse({
+  label: "This check could not run",
+  type: "check",
+  value: null,
+});
 
-type LiveCheck = {
+const CHANNEL_GROUP_ORDER: readonly string[] = [
+  "Website",
+  "Google Business Profile",
+  "Social Media",
+  "Food Delivery",
+];
+
+interface LiveCheck {
   definition: CheckDefinition;
   status: CheckStatus;
   result: CheckResult | null;
   duration?: number;
+}
+
+const liveChecksFromResults = (
+  checks: CheckDefinition[],
+  results: Record<string, CheckResult>
+): LiveCheck[] =>
+  checks.map((definition) => {
+    const result =
+      results[definition.id] ??
+      checkResultSchema.parse({
+        label: "This check could not run",
+        type: "check",
+        value: null,
+      });
+    return {
+      definition,
+      result,
+      status: statusFromResult(result),
+    };
+  });
+
+const statusLabel = (status: CheckStatus): string => {
+  switch (status) {
+    case "pass": {
+      return "Pass";
+    }
+    case "fail": {
+      return "Fail";
+    }
+    case "error": {
+      return "Error";
+    }
+    case "queued":
+    case "pending": {
+      return "Waiting";
+    }
+    default: {
+      return "Idle";
+    }
+  }
 };
 
-function statusFromResult(result: CheckResult): CheckStatus {
-  if (result.queued) {
-    return "queued";
-  }
-  if (result.value === true) {
-    return "pass";
-  }
-  if (result.value === false) {
-    return "fail";
-  }
-  return "error";
-}
-
-function statusLabel(status: CheckStatus): string {
-  switch (status) {
-    case "pass":
-      return "Pass";
-    case "fail":
-      return "Fail";
-    case "error":
-      return "Error";
-    case "queued":
-    case "pending":
-      return "Waiting";
-    default:
-      return "Idle";
-  }
-}
-
-function completedStatus(status: CheckStatus): CompletedCheck["status"] | null {
+const completedStatus = (
+  status: CheckStatus
+): CompletedCheck["status"] | null => {
   if (status === "pass" || status === "fail" || status === "error") {
     return status;
   }
   return null;
-}
+};
 
-function titleForCheck(checks: Array<{ id: string; title: string }>, id: string): string {
-  return checks.find((check) => check.id === id)?.title ?? id;
-}
+const titleForCheck = (
+  checks: { id: string; title: string }[],
+  id: string
+): string => checks.find((check) => check.id === id)?.title ?? id;
 
-function degradedCaption(summary: AuditSummaryResult): string | null {
+const degradedCaption = (summary: AuditSummaryResult): string | null => {
   if (summary.available) {
     return null;
   }
   return "Listwell wrote this from the completed checks.";
-}
+};
 
-function CitationLinks({
+const formatScanDate = (iso: string): string => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatScanDelta = (delta: number | null): string => {
+  if (delta === null) {
+    return "—";
+  }
+  if (delta === 0) {
+    return "No change";
+  }
+  return `${delta > 0 ? "+" : ""}${delta}%`;
+};
+
+const reportShowsFixSteps = (access: EntitlementState): boolean =>
+  !access.paymentsEnabled || (access.unlocked && !access.sessionRequired);
+
+const CITATION_PREVIEW = 2;
+
+const CitationLinks = ({
   checkIds,
   checks,
   onSelect,
 }: {
   checkIds: string[];
-  checks: Array<{ id: string; title: string }>;
+  checks: { id: string; title: string }[];
   onSelect: (id: string) => void;
-}) {
+}) => {
+  const named = checkIds.slice(0, CITATION_PREVIEW);
+  const extra = checkIds.length - named.length;
   return (
-    <>
-      {checkIds.map((checkId, index) => (
-        <span key={checkId}>
-          {index > 0 ? ", " : null}
-          <button className="vbg-custom-citation" type="button" onClick={() => onSelect(checkId)}>
-            {titleForCheck(checks, checkId)}
-          </button>
-        </span>
+    <span className="listwell-report__citations">
+      {named.map((checkId) => (
+        <button
+          key={checkId}
+          className="listwell-report__citation"
+          type="button"
+          onClick={() => onSelect(checkId)}
+        >
+          {titleForCheck(checks, checkId)}
+        </button>
       ))}
-    </>
+      {extra > 0 ? (
+        <span className="listwell-report__citation-rest">{extra} more</span>
+      ) : null}
+    </span>
   );
-}
+};
 
-function detailLabel(item: LiveCheck): string | undefined {
+const ReportSource = ({
+  checkIds,
+  checks,
+  onSelect,
+}: {
+  checkIds: string[];
+  checks: { id: string; title: string }[];
+  onSelect: (id: string) => void;
+}) => (
+  <p className="listwell-report__source">
+    <span>From</span>
+    <CitationLinks checkIds={checkIds} checks={checks} onSelect={onSelect} />
+  </p>
+);
+
+const detailLabel = (item: LiveCheck): string | undefined => {
   if (item.status === "queued" || item.status === "pending") {
     return undefined;
   }
@@ -113,147 +214,709 @@ function detailLabel(item: LiveCheck): string | undefined {
     return undefined;
   }
   return label;
-}
+};
 
-function recommendedCheckId(summary: AuditSummaryResult | null, liveChecks: LiveCheck[]): string | undefined {
+const groupVisibleByChannel = (
+  items: LiveCheck[]
+): { category: string; items: LiveCheck[] }[] => {
+  const groups = new Map<string, LiveCheck[]>();
+  for (const item of items) {
+    const category = item.definition.channelCategory;
+    const existing = groups.get(category);
+    if (existing) {
+      existing.push(item);
+    } else {
+      groups.set(category, [item]);
+    }
+  }
+
+  return [...groups.entries()]
+    .toSorted((left, right) => {
+      const leftRank = CHANNEL_GROUP_ORDER.indexOf(left[0]);
+      const rightRank = CHANNEL_GROUP_ORDER.indexOf(right[0]);
+      const leftOrder = leftRank === -1 ? CHANNEL_GROUP_ORDER.length : leftRank;
+      const rightOrder =
+        rightRank === -1 ? CHANNEL_GROUP_ORDER.length : rightRank;
+      if (leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+      return left[0].localeCompare(right[0]);
+    })
+    .map(([category, grouped]) => ({ category, items: grouped }));
+};
+
+const recommendedCheckId = (
+  summary: AuditSummaryResult | null,
+  liveChecks: LiveCheck[]
+): string | undefined => {
   const cited = summary?.nextActions[0]?.checkIds[0];
   if (cited && liveChecks.some((item) => item.definition.id === cited)) {
     return cited;
   }
   return (
-    liveChecks.find((item) => item.status === "fail" || item.status === "error")?.definition.id ??
-    liveChecks[0]?.definition.id
+    liveChecks.find((item) => item.status === "fail" || item.status === "error")
+      ?.definition.id ?? liveChecks[0]?.definition.id
   );
-}
+};
 
-export function ReportClient({
+const UnlockCodeForm = ({
+  maskedEmail,
+  checkoutReturned,
+  onUnlocked,
+}: {
+  maskedEmail: string | null;
+  checkoutReturned: boolean;
+  onUnlocked: () => void;
+}) => {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [resent, setResent] = useState(false);
+  const [busy, setBusy] = useState<"verify" | "resend" | null>(null);
+  const destination = maskedEmail ?? "the email used at checkout";
+  const lede = checkoutReturned
+    ? `We sent a code to ${destination}.`
+    : `Enter the code we sent to ${destination}.`;
+
+  const handleVerify = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setBusy("verify");
+    try {
+      await verifySignInCode(email, code);
+      onUnlocked();
+    } catch (verifyError) {
+      setBusy(null);
+      setError(
+        verifyError instanceof Error ? verifyError.message : "Invalid code"
+      );
+    }
+  };
+
+  const handleResend = async () => {
+    setError(null);
+    setResent(false);
+    setBusy("resend");
+    try {
+      await requestSignInCode(email);
+      setResent(true);
+      setBusy(null);
+    } catch (resendError) {
+      setError(
+        resendError instanceof Error
+          ? resendError.message
+          : "Could not send a code"
+      );
+      setBusy(null);
+    }
+  };
+
+  return (
+    <form className="listwell-report__unlock" onSubmit={handleVerify}>
+      <h2 className="vbg-heading-24">Full report with fix steps</h2>
+      <p className="vbg-lede">{lede}</p>
+      <div className="vbg-field">
+        <label className="vbg-label" htmlFor="unlock-email">
+          Email
+        </label>
+        <input
+          id="unlock-email"
+          type="email"
+          name="email"
+          autoComplete="email"
+          autoFocus={checkoutReturned}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
+      </div>
+      <div className="vbg-field">
+        <label className="vbg-label" htmlFor="unlock-code">
+          Code
+        </label>
+        <input
+          id="unlock-code"
+          className="vbg-mono"
+          name="code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          value={code}
+          onChange={(event) =>
+            setCode(event.target.value.replaceAll(/\D/gu, "").slice(0, 6))
+          }
+          required
+        />
+      </div>
+      <div className="listwell-report__unlock-actions">
+        <button
+          className="listwell-report__button"
+          type="submit"
+          disabled={busy !== null}
+        >
+          {busy === "verify" ? "Checking…" : "Unlock report"}
+        </button>
+        <button
+          className="listwell-report__button listwell-report__button--quiet"
+          type="button"
+          disabled={busy !== null || email.trim().length === 0}
+          onClick={() => {
+            void handleResend();
+          }}
+        >
+          {busy === "resend" ? "Sending…" : "Send a new code"}
+        </button>
+      </div>
+      {error ? <p className="vbg-error">{error}</p> : null}
+      {resent && !error ? (
+        <p className="vbg-caption">
+          If that email has a Listwell account, we sent a new code.
+        </p>
+      ) : null}
+    </form>
+  );
+};
+
+const ReportOverviewSection = ({
+  summary,
+  citationChecks,
+  briefCaption,
+  onSelectCheck,
+}: {
+  summary: AuditSummaryResult;
+  citationChecks: { id: string; title: string }[];
+  briefCaption: string | null;
+  onSelectCheck: (id: string) => void;
+}) => {
+  if (summary.overview.length === 0) {
+    return null;
+  }
+  return (
+    <section className="listwell-report__chapter">
+      <h2 className="vbg-heading-24">What the checks found</h2>
+      <div className="listwell-report__brief">
+        {summary.overview.map((claim) => (
+          <div key={claim.text} className="listwell-report__claim">
+            <p>{claim.text}</p>
+            <ReportSource
+              checkIds={claim.checkIds}
+              checks={citationChecks}
+              onSelect={onSelectCheck}
+            />
+          </div>
+        ))}
+      </div>
+      {briefCaption ? <p className="vbg-caption">{briefCaption}</p> : null}
+    </section>
+  );
+};
+
+const ReportNextActionsSection = ({
+  summary,
+  citationChecks,
+  onSelectCheck,
+}: {
+  summary: AuditSummaryResult;
+  citationChecks: { id: string; title: string }[];
+  onSelectCheck: (id: string) => void;
+}) => {
+  if (summary.nextActions.length > 0) {
+    return (
+      <section className="listwell-report__chapter">
+        <h2 className="vbg-heading-24">What to do next</h2>
+        <ol className="listwell-report__actions">
+          {summary.nextActions.map((action) => (
+            <li key={`${action.priority}-${action.text}`}>
+              <span className="listwell-report__action-n">
+                {action.priority}
+              </span>
+              <div>
+                <p>{action.text}</p>
+                <ReportSource
+                  checkIds={action.checkIds}
+                  checks={citationChecks}
+                  onSelect={onSelectCheck}
+                />
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  }
+  if (summary.overview.length > 0) {
+    return (
+      <section className="listwell-report__chapter">
+        <h2 className="vbg-heading-24">What to do next</h2>
+        <p className="vbg-caption">No failed checks to act on.</p>
+      </section>
+    );
+  }
+  return null;
+};
+
+const ReportPaywallSection = ({
+  access,
+  redirecting,
+  checkoutError,
+  onCheckout,
+}: {
+  access: EntitlementState;
+  redirecting: CheckoutPlan | null;
+  checkoutError: string | null;
+  onCheckout: (plan: CheckoutPlan) => void;
+}) => {
+  const lede = access.monthlyAvailable
+    ? "Unlock fix steps with a one-off report or monthly scans."
+    : `Pay ${REPORT_ONCE_PRICE} once to unlock the step-by-step fixes for this business.`;
+
+  return (
+    <section className="listwell-report__chapter">
+      <div className="listwell-report__unlock">
+        <h2 className="vbg-heading-24">Full report with fix steps</h2>
+        <p className="vbg-lede">{lede}</p>
+        <div className="listwell-report__unlock-actions">
+          <button
+            className="listwell-report__button"
+            type="button"
+            disabled={redirecting !== null}
+            onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
+          >
+            {redirecting === "once"
+              ? "Redirecting…"
+              : `Full report · ${REPORT_ONCE_PRICE} once`}
+          </button>
+          {access.monthlyAvailable ? (
+            <button
+              className="listwell-report__button listwell-report__button--quiet"
+              type="button"
+              disabled={redirecting !== null}
+              onClick={() => onCheckout(checkoutPlanSchema.parse("monthly"))}
+            >
+              {redirecting === "monthly"
+                ? "Redirecting…"
+                : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
+            </button>
+          ) : null}
+        </div>
+        {checkoutError ? <p className="vbg-caption">{checkoutError}</p> : null}
+      </div>
+    </section>
+  );
+};
+
+const ReportAccessSection = ({
+  access,
+  checkoutReturned,
+  summary,
+  citationChecks,
+  redirecting,
+  checkoutError,
+  onSelectCheck,
+  onCheckout,
+  onUnlocked,
+}: {
+  access: EntitlementState;
+  checkoutReturned: boolean;
+  summary: AuditSummaryResult;
+  citationChecks: { id: string; title: string }[];
+  redirecting: CheckoutPlan | null;
+  checkoutError: string | null;
+  onSelectCheck: (id: string) => void;
+  onCheckout: (plan: CheckoutPlan) => void;
+  onUnlocked: () => void;
+}) => {
+  const showFixSteps = reportShowsFixSteps(access);
+  const showCodePrompt = access.unlocked && access.sessionRequired;
+
+  if (showCodePrompt) {
+    return (
+      <section className="listwell-report__chapter">
+        <UnlockCodeForm
+          maskedEmail={access.maskedEmail}
+          checkoutReturned={checkoutReturned}
+          onUnlocked={onUnlocked}
+        />
+      </section>
+    );
+  }
+  if (showFixSteps) {
+    return (
+      <ReportNextActionsSection
+        summary={summary}
+        citationChecks={citationChecks}
+        onSelectCheck={onSelectCheck}
+      />
+    );
+  }
+  return (
+    <ReportPaywallSection
+      access={access}
+      redirecting={redirecting}
+      checkoutError={checkoutError}
+      onCheckout={onCheckout}
+    />
+  );
+};
+
+const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
+  if (scans.length === 0) {
+    return null;
+  }
+  return (
+    <section className="listwell-report__chapter">
+      <h2 className="vbg-heading-24">Scan history</h2>
+      <div className="vbg-table-wrap">
+        <table>
+          <caption className="vbg-caption">
+            Monthly visibility scores over time.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Score</th>
+              <th scope="col">Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scans.map((scan, index) => {
+              const previous = scans[index + 1];
+              const delta =
+                scan.score !== null &&
+                previous?.score !== null &&
+                previous?.score !== undefined
+                  ? scan.score - previous.score
+                  : null;
+              return (
+                <tr key={scan.id}>
+                  <th scope="row">
+                    {formatScanDate(scan.finishedAt ?? scan.startedAt)}
+                  </th>
+                  <td>{scan.score === null ? "—" : `${scan.score}%`}</td>
+                  <td>{formatScanDelta(delta)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+};
+
+const ChecksLedgerSection = ({
+  groupedChecks,
+  checksCaption,
+  filter,
+  selectedId,
+  businessCategory,
+  onFilterChange,
+  onSelectCheck,
+}: {
+  groupedChecks: { category: string; items: LiveCheck[] }[];
+  checksCaption: string;
+  filter: "failures" | "all";
+  selectedId: string | undefined;
+  businessCategory: Business["category"];
+  onFilterChange: (filter: "failures" | "all") => void;
+  onSelectCheck: (id: string) => void;
+}) => (
+  <section className="listwell-report__chapter listwell-report__ledger">
+    <div className="listwell-report__ledger-head">
+      <h2 className="vbg-heading-24">Checks</h2>
+      <fieldset className="listwell-report__filters" aria-label="Check filter">
+        <button
+          className="listwell-report__filter"
+          type="button"
+          aria-pressed={filter === "failures"}
+          onClick={() => onFilterChange("failures")}
+        >
+          Failures first
+        </button>
+        <button
+          className="listwell-report__filter"
+          type="button"
+          aria-pressed={filter === "all"}
+          onClick={() => onFilterChange("all")}
+        >
+          All checks
+        </button>
+      </fieldset>
+    </div>
+    <div className="vbg-table-wrap">
+      <table className="vbg-custom-checks-table">
+        <caption className="vbg-caption">{checksCaption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Check</th>
+            <th scope="col">Status</th>
+            <th scope="col" className="vbg-numeric">
+              Points
+            </th>
+          </tr>
+        </thead>
+        {groupedChecks.map((group) => (
+          <tbody key={group.category}>
+            <tr className="vbg-custom-channel-group">
+              <th scope="colgroup" colSpan={3}>
+                {group.category}
+              </th>
+            </tr>
+            {group.items.map((item) => (
+              <tr
+                key={item.definition.id}
+                className={
+                  item.definition.id === selectedId
+                    ? "vbg-custom-row-selected"
+                    : undefined
+                }
+              >
+                <th scope="row">
+                  <button
+                    type="button"
+                    onClick={() => onSelectCheck(item.definition.id)}
+                  >
+                    {item.definition.title}
+                  </button>
+                </th>
+                <td className={`vbg-custom-status-${item.status}`}>
+                  {statusLabel(item.status)}
+                </td>
+                <td className="vbg-numeric">
+                  {pointsFor(item.definition, businessCategory)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  </section>
+);
+
+const SelectedCheckSection = ({
+  selected,
+  selectedDetail,
+  businessCategory,
+  showFixSteps,
+}: {
+  selected: LiveCheck;
+  selectedDetail: string | undefined;
+  businessCategory: Business["category"];
+  showFixSteps: boolean;
+}) => (
+  <section className="listwell-report__chapter">
+    <h2 className="vbg-heading-24">{selected.definition.title}</h2>
+    <p className="vbg-meta listwell-report__detail-meta">
+      {selected.definition.channelCategory}
+      {" · "}
+      {pointsFor(selected.definition, businessCategory)} points
+      {" · "}
+      {statusLabel(selected.status)}
+      {selectedDetail ? ` · ${selectedDetail}` : ""}
+    </p>
+    {showFixSteps ? (
+      <CheckBody markdown={selected.definition.body} />
+    ) : (
+      <p className="vbg-caption">Unlock the full report to see fix steps.</p>
+    )}
+  </section>
+);
+
+const ListingsSection = ({
+  businessId,
+  profiles,
+  listingsCaption,
+}: {
+  businessId: string;
+  profiles: ReturnType<typeof businessToProfiles>;
+  listingsCaption: string;
+}) => (
+  <section className="listwell-report__chapter">
+    <h2 className="vbg-heading-24">Listings on this audit</h2>
+    <p className="vbg-meta listwell-report__detail-meta">
+      <Link href={`/${businessId}/edit`}>Edit listings</Link>
+    </p>
+    <div className="vbg-table-wrap">
+      <table>
+        <caption className="vbg-caption">{listingsCaption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Channel</th>
+            <th scope="col">Listing</th>
+          </tr>
+        </thead>
+        <tbody>
+          {profiles.map((profile) => (
+            <tr key={`${profile.type}-${profile.title}`}>
+              <td>{CHANNEL_CONFIG[profile.type].name}</td>
+              <td>
+                {profile.title}
+                {profile.subtitle ? (
+                  <div className="vbg-meta">{profile.subtitle}</div>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+);
+
+export const ReportClient = ({
   initialBusiness,
   checks,
+  initialResults,
+  initialSummary,
+  access: initialAccess,
+  checkoutReturned,
+  checkJobId,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
-}) {
-  const [business] = useState(businessSchema.parse(initialBusiness));
-  const [liveChecks, setLiveChecks] = useState<LiveCheck[]>(() =>
-    checks.map((definition) => ({ definition, status: "pending", result: null })),
+  initialResults: Record<string, CheckResult>;
+  initialSummary: AuditSummaryResult;
+  access: EntitlementState;
+  checkoutReturned: boolean;
+  checkJobId?: string;
+}) => {
+  const business = useMemo(
+    () => businessSchema.parse(initialBusiness),
+    [initialBusiness]
   );
-  const [pickedId, setPickedId] = useState<string | undefined>(undefined);
+  const serverAccess = useMemo(
+    () => entitlementStateSchema.parse(initialAccess),
+    [initialAccess]
+  );
+  const [clientAccess, setClientAccess] = useState<EntitlementState | null>(
+    null
+  );
+  const access = clientAccess ?? serverAccess;
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
+  const [scanHistory, setScanHistory] = useState<ScanSummary[]>([]);
+  const showFixSteps = reportShowsFixSteps(access);
+  const [results, setResults] = useState(() =>
+    initialResultsSchema.parse(initialResults)
+  );
+  const liveChecks = useMemo(
+    () => liveChecksFromResults(checks, results),
+    [checks, results]
+  );
+  const [pickedId, setPickedId] = useState<string | undefined>();
   const [filter, setFilter] = useState<"failures" | "all">("failures");
-  const [summary, setSummary] = useState<AuditSummaryResult | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summary, setSummary] = useState<AuditSummaryResult>(() =>
+    auditSummaryResultSchema.parse(initialSummary)
+  );
 
   useEffect(() => {
     let cancelled = false;
-
-    function applyResult(checkId: string, result: CheckResult, duration?: number) {
-      const status = statusFromResult(result);
-      setLiveChecks((current) =>
-        current.map((item) =>
-          item.definition.id === checkId ? { ...item, status, result, duration } : item,
-        ),
-      );
-    }
-
-    async function pollJob(jobId: string, pendingIds: string[]) {
-      const started = Date.now();
-      while (!cancelled) {
-        const response = await fetch(`/api/jobs/${jobId}`);
-        if (!response.ok) {
-          break;
-        }
-        const job: unknown = await response.json();
-        if (typeof job !== "object" || job === null || !("status" in job) || !("results" in job)) {
-          break;
-        }
-        const resultsValue = job.results;
-        if (typeof resultsValue === "object" && resultsValue !== null) {
-          for (const checkId of pendingIds) {
-            if (checkId in resultsValue) {
-              const parsed = checkResultSchema.safeParse(Reflect.get(resultsValue, checkId));
-              if (parsed.success) {
-                applyResult(checkId, parsed.data, Date.now() - started);
-              }
-            }
-          }
-        }
-        if (job.status === "error") {
-          for (const checkId of pendingIds) {
-            applyResult(checkId, { type: "check", value: null, label: "This check could not run" }, Date.now() - started);
-          }
-          break;
-        }
-        if (job.status === "complete") {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-
-    async function run() {
-      const start = Date.now();
+    const refineAccess = async () => {
       try {
-        const response = await fetch(`/api/businesses/${business.id}/checks`);
-        const batch = checkBatchResponseSchema.parse(await response.json());
-        if (cancelled) {
-          return;
-        }
-        for (const item of checks) {
-          const result = batch.results[item.id];
-          if (result) {
-            applyResult(item.id, result, Date.now() - start);
-          } else if (batch.pending.includes(item.id)) {
-            applyResult(item.id, { type: "check", value: null, queued: true, jobId: batch.jobId });
-          }
-        }
-        if (batch.jobId && batch.pending.length > 0) {
-          await pollJob(batch.jobId, batch.pending);
+        const next = await fetchEntitlement(business.id);
+        if (!cancelled) {
+          setClientAccess(next);
         }
       } catch {
-        if (cancelled) {
-          return;
-        }
-        await Promise.all(
-          checks.map(async (definition) => {
-            const checkStart = Date.now();
-            try {
-              const response = await fetch(`/api/businesses/${business.id}/checks/${definition.id}`);
-              const result = checkResultSchema.parse(await response.json());
-              if (!cancelled) {
-                applyResult(definition.id, result, Date.now() - checkStart);
-              }
-            } catch {
-              if (!cancelled) {
-                applyResult(
-                  definition.id,
-                  { type: "check", value: null, label: "This check could not run" },
-                  Date.now() - checkStart,
-                );
-              }
-            }
-          }),
-        );
+        // Keep the server-rendered entitlement.
       }
-    }
-
-    void run();
+    };
+    void refineAccess();
     return () => {
       cancelled = true;
     };
-  }, [business.id, checks]);
-
-  const checksFinished =
-    liveChecks.length > 0 && liveChecks.every((item) => completedStatus(item.status) !== null);
-  const completedSignature = liveChecks
-    .map((item) => `${item.definition.id}:${item.status}:${item.result?.label ?? ""}`)
-    .join("|");
+  }, [business.id]);
 
   useEffect(() => {
-    if (!checksFinished) {
-      setSummary(null);
-      setSummaryLoading(false);
+    if (!checkJobId) {
       return;
     }
+    let cancelled = false;
 
+    const poll = async (attempt: number): Promise<void> => {
+      if (cancelled || attempt >= JOB_POLL_MAX_ATTEMPTS) {
+        return;
+      }
+      await waitForMs(JOB_POLL_INTERVAL_MS);
+      if (cancelled) {
+        return;
+      }
+      try {
+        const response = await fetch(`/api/jobs/${checkJobId}`);
+        if (!response.ok) {
+          return;
+        }
+        const parsed = auditJobPollSchema.safeParse(await response.json());
+        if (!parsed.success) {
+          return;
+        }
+        const job = parsed.data;
+        if (cancelled) {
+          return;
+        }
+        setResults((current) => {
+          const next: Record<string, CheckResult> = { ...current };
+          for (const [id, result] of Object.entries(job.results)) {
+            if (result) {
+              next[id] = result;
+            }
+          }
+          if (job.status === "complete" || job.status === "error") {
+            for (const [id, result] of Object.entries(next)) {
+              if (result.queued) {
+                next[id] = missingCheckResult;
+              }
+            }
+          }
+          return next;
+        });
+        if (job.status === "complete" || job.status === "error") {
+          return;
+        }
+        await poll(attempt + 1);
+      } catch {
+        // Stop polling if the job endpoint is unreachable.
+      }
+    };
+
+    void poll(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [checkJobId]);
+
+  useEffect(() => {
+    if (access.kind !== "report_monthly" || !showFixSteps) {
+      return;
+    }
+    let cancelled = false;
+    const loadScans = async () => {
+      try {
+        const response = await fetch(`/api/businesses/${business.id}/scans`, {
+          credentials: "same-origin",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const payload: unknown = await response.json();
+        const parsed = z
+          .object({ scans: z.array(scanSummarySchema) })
+          .parse(payload);
+        if (!cancelled) {
+          setScanHistory(parsed.scans);
+        }
+      } catch {
+        // Keep scan history hidden when unavailable.
+      }
+    };
+    void loadScans();
+    return () => {
+      cancelled = true;
+    };
+  }, [access.kind, business.id, showFixSteps]);
+
+  useEffect(() => {
     const completedChecks = liveChecks.flatMap((item) => {
       const status = completedStatus(item.status);
       if (!status) {
@@ -261,59 +924,60 @@ export function ReportClient({
       }
       return [
         completedCheckSchema.parse({
-          id: item.definition.id,
-          title: item.definition.title,
           channelCategory: item.definition.channelCategory,
-          status,
-          points: pointsFor(item.definition, business.category),
+          id: item.definition.id,
           label: item.result?.label,
+          points: pointsFor(item.definition, business.category),
+          status,
+          title: item.definition.title,
         }),
       ];
     });
-
-    let cancelled = false;
-    setSummaryLoading(true);
-
-    async function loadSummary() {
-      try {
-        const response = await fetch(`/api/businesses/${business.id}/summary`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checks: completedChecks }),
-        });
-        const payload: unknown = await response.json();
-        if (!cancelled) {
-          setSummary(auditSummaryResultSchema.parse(payload));
-        }
-      } catch {
-        if (!cancelled) {
-          setSummary(buildFallbackSummary(z.array(completedCheckSchema).parse(completedChecks), "model_request_failed"));
-        }
-      } finally {
-        if (!cancelled) {
-          setSummaryLoading(false);
-        }
-      }
+    if (completedChecks.length === 0) {
+      return;
     }
 
-    void loadSummary();
+    let cancelled = false;
+    const refineSummary = async () => {
+      try {
+        const response = await fetch(`/api/businesses/${business.id}/summary`, {
+          body: JSON.stringify({ checks: completedChecks }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        const payload: unknown = await response.json();
+        const next = auditSummaryResultSchema.parse(payload);
+        if (!cancelled && next.available) {
+          setSummary(next);
+        }
+      } catch {
+        // Keep the server-rendered fallback brief.
+      }
+    };
+    void refineSummary();
     return () => {
       cancelled = true;
     };
-  }, [business.category, business.id, checksFinished, completedSignature, liveChecks]);
+  }, [business.category, business.id, liveChecks]);
 
   const selectedId = pickedId ?? recommendedCheckId(summary, liveChecks);
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
   const selectedDetail = selected ? detailLabel(selected) : undefined;
-  const citationChecks = liveChecks.map((item) => ({ id: item.definition.id, title: item.definition.title }));
-  const briefCaption = summary ? degradedCaption(summary) : null;
+  const citationChecks = liveChecks.map((item) => ({
+    id: item.definition.id,
+    title: item.definition.title,
+  }));
+  const briefCaption = degradedCaption(summary);
+  const counts = visibilityCounts(liveChecks);
+  const visibilityScore = scorePercent(counts);
 
   const visible = liveChecks.filter((item) => {
     if (filter === "all") {
       return true;
     }
-    return item.status === "fail" || item.status === "error" || item.status === "pending" || item.status === "queued";
+    return item.status === "fail" || item.status === "error";
   });
+  const groupedChecks = groupVisibleByChannel(visible);
 
   const profiles = businessToProfiles(business);
   const checksCaption =
@@ -325,143 +989,101 @@ export function ReportClient({
       ? "No listings yet."
       : `${profiles.length} ${profiles.length === 1 ? "listing" : "listings"} on this audit.`;
 
+  const startCheckout = async (plan: CheckoutPlan) => {
+    setCheckoutError(null);
+    setRedirecting(plan);
+    try {
+      const url = await requestCheckoutUrl(business.id, plan);
+      window.location.assign(url);
+    } catch (error) {
+      setRedirecting(null);
+      setCheckoutError(
+        error instanceof Error ? error.message : "Checkout failed"
+      );
+    }
+  };
+
   return (
-    <>
-      <section className="vbg-opening">
-        <h1 className="vbg-display">{business.name}</h1>
-        {checksFinished || summaryLoading || summary ? (
-          <>
-            <h2 className="vbg-heading-24">What the checks found</h2>
-            {summaryLoading && !summary ? (
-              <p className="vbg-lede">Listwell is writing the brief from the completed checks.</p>
-            ) : null}
-            {summary ? (
-              <>
-                {summary.overview.length > 0 ? (
-                  <div className="vbg-reading">
-                    {summary.overview.map((claim, index) => (
-                      <p key={`${claim.text}-${index}`}>
-                        {claim.text}
-                        <span className="vbg-caption vbg-custom-citation-line">
-                          From{" "}
-                          <CitationLinks checkIds={claim.checkIds} checks={citationChecks} onSelect={setPickedId} />
-                        </span>
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-                {summary.nextActions.length > 0 ? (
-                  <ol className="vbg-custom-next-actions">
-                    {summary.nextActions.map((action) => (
-                      <li key={`${action.priority}-${action.text}`}>
-                        <span className="vbg-meta">{action.priority}</span>
-                        <div>
-                          <p>{action.text}</p>
-                          <p className="vbg-caption">
-                            From{" "}
-                            <CitationLinks checkIds={action.checkIds} checks={citationChecks} onSelect={setPickedId} />
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                ) : summary.overview.length > 0 ? (
-                  <p className="vbg-caption">No failed checks to act on.</p>
-                ) : null}
-                {briefCaption ? <p className="vbg-caption">{briefCaption}</p> : null}
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </section>
-
-      <section className="vbg-section">
-        <h2 className="vbg-heading-24">Checks</h2>
-        <div className="vbg-custom-actions">
-          <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setFilter("failures")}>
-            Failures first
-          </button>
-          <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setFilter("all")}>
-            All checks
-          </button>
-        </div>
-        <div className="vbg-table-wrap">
-          <table>
-            <caption className="vbg-caption">{checksCaption}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Check</th>
-                <th scope="col">Channel</th>
-                <th scope="col">Status</th>
-                <th scope="col" className="vbg-numeric">
-                  Points
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((item) => (
-                <tr
-                  key={item.definition.id}
-                  className={item.definition.id === selectedId ? "vbg-custom-row-selected" : undefined}
-                >
-                  <th scope="row">
-                    <button type="button" onClick={() => setPickedId(item.definition.id)}>
-                      {item.definition.title}
-                    </button>
-                  </th>
-                  <td>{item.definition.channelCategory}</td>
-                  <td className={`vbg-custom-status-${item.status}`}>{statusLabel(item.status)}</td>
-                  <td className="vbg-numeric">{pointsFor(item.definition, business.category)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {selected ? (
-        <section className="vbg-section">
-          <h2 className="vbg-heading-24">{selected.definition.title}</h2>
-          <p className="vbg-meta">
-            {selected.definition.channelCategory}
-            {" · "}
-            {pointsFor(selected.definition, business.category)} points
-            {" · "}
-            {statusLabel(selected.status)}
-            {selectedDetail ? ` · ${selectedDetail}` : ""}
+    <article className="listwell-report">
+      <header className="listwell-report__hero">
+        <h1 className="vbg-title">{business.name}</h1>
+        {access.kind === "report_monthly" ? (
+          <p className="vbg-caption listwell-report__badge">
+            Monthly scans active
           </p>
-          <CheckBody markdown={selected.definition.body} />
-        </section>
+        ) : null}
+        <p className="vbg-display listwell-report__score-value">{`${visibilityScore}%`}</p>
+        <p className="vbg-caption listwell-report__score-caption">
+          of scored checks
+        </p>
+      </header>
+
+      <dl className="listwell-report__stats">
+        <div className="listwell-report__stat">
+          <dt className="vbg-stat-label">Passing</dt>
+          <dd className="vbg-stat-value">{counts.pass}</dd>
+        </div>
+        <div className="listwell-report__stat">
+          <dt className="vbg-stat-label">Need work</dt>
+          <dd className="vbg-stat-value">{counts.fail}</dd>
+        </div>
+        <div className="listwell-report__stat">
+          <dt className="vbg-stat-label">Skipped</dt>
+          <dd className="vbg-stat-value">{counts.error}</dd>
+        </div>
+      </dl>
+
+      <ReportOverviewSection
+        summary={summary}
+        citationChecks={citationChecks}
+        briefCaption={briefCaption}
+        onSelectCheck={setPickedId}
+      />
+
+      <ReportAccessSection
+        access={access}
+        checkoutReturned={checkoutReturned}
+        summary={summary}
+        citationChecks={citationChecks}
+        redirecting={redirecting}
+        checkoutError={checkoutError}
+        onSelectCheck={setPickedId}
+        onCheckout={(plan) => {
+          void startCheckout(plan);
+        }}
+        onUnlocked={() => {
+          window.location.replace(`/${business.id}`);
+        }}
+      />
+
+      {access.kind === "report_monthly" && scanHistory.length > 0 ? (
+        <ScanHistorySection scans={scanHistory} />
       ) : null}
 
-      <section className="vbg-section">
-        <h2 className="vbg-heading-24">Listings on this audit</h2>
-        <p className="vbg-meta">
-          <Link href={`/${business.id}/edit`}>Edit listings</Link>
-        </p>
-        <div className="vbg-table-wrap">
-          <table>
-            <caption className="vbg-caption">{listingsCaption}</caption>
-            <thead>
-              <tr>
-                <th scope="col">Channel</th>
-                <th scope="col">Listing</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.map((profile) => (
-                <tr key={`${profile.type}-${profile.title}`}>
-                  <td>{CHANNEL_CONFIG[profile.type].name}</td>
-                  <td>
-                    {profile.title}
-                    {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
+      <ChecksLedgerSection
+        groupedChecks={groupedChecks}
+        checksCaption={checksCaption}
+        filter={filter}
+        selectedId={selectedId}
+        businessCategory={business.category}
+        onFilterChange={setFilter}
+        onSelectCheck={setPickedId}
+      />
+
+      {selected ? (
+        <SelectedCheckSection
+          selected={selected}
+          selectedDetail={selectedDetail}
+          businessCategory={business.category}
+          showFixSteps={showFixSteps}
+        />
+      ) : null}
+
+      <ListingsSection
+        businessId={business.id}
+        profiles={profiles}
+        listingsCaption={listingsCaption}
+      />
+    </article>
   );
-}
+};

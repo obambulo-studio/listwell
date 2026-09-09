@@ -1,11 +1,19 @@
+import type { Metadata } from "next";
+
 import { DiscoverClient } from "@/components/discover-client";
 import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
 
-export default async function DiscoverPage({
+export const metadata: Metadata = {
+  description:
+    "Match a business name to map listings, a website, and social profiles.",
+  title: "Find your listing",
+};
+
+const DiscoverPage = async ({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+}) => {
   const params = await searchParams;
   const businessName = firstSearchParam(params.businessName) ?? "";
   const websiteUrl = firstSearchParam(params.websiteUrl);
@@ -34,8 +42,12 @@ export default async function DiscoverPage({
           near={near}
         />
       ) : (
-        <p className="vbg-lede">Enter a business name on the home page to start an audit.</p>
+        <p className="vbg-lede">
+          Enter a business name on the home page to start an audit.
+        </p>
       )}
     </section>
   );
-}
+};
+
+export default DiscoverPage;

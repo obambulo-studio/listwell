@@ -1,39 +1,62 @@
-import { checkResult } from '../schemas'
-import type { CheckContext } from '../context'
-import type { CheckResult } from '../types'
+import { noWebsiteResult } from "../context";
+import type { CheckContext } from "../context";
+import { checkResult } from "../schemas";
+import type { CheckResult } from "../types";
 
-export async function checkFacebookPage(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.facebookUsername))
-}
+const presenceResult = (
+  value: string | null | undefined,
+  label: string
+): CheckResult => {
+  if (!value) {
+    return checkResult(null, `No ${label} linked to this audit`);
+  }
+  return checkResult(true);
+};
 
-export async function checkInstagramProfile(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.instagramUsername))
-}
+export const checkWebsite = (ctx: CheckContext): Promise<CheckResult> => {
+  if (!ctx.business.websiteUrl) {
+    return Promise.resolve(noWebsiteResult());
+  }
+  return Promise.resolve(checkResult(true));
+};
 
-export async function checkTikTokProfile(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.tiktokUsername))
-}
+export const checkFacebookPage = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(
+    presenceResult(ctx.business.facebookUsername, "Facebook page")
+  );
 
-export async function checkLinkedInProfile(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.linkedinUrl))
-}
+export const checkInstagramProfile = (
+  ctx: CheckContext
+): Promise<CheckResult> =>
+  Promise.resolve(
+    presenceResult(ctx.business.instagramUsername, "Instagram profile")
+  );
 
-export async function checkYouTubeProfile(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.youtubeUrl))
-}
+export const checkTikTokProfile = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(
+    presenceResult(ctx.business.tiktokUsername, "TikTok profile")
+  );
 
-export async function checkUberEatsListing(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.uberEatsUrl))
-}
+export const checkLinkedInProfile = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(presenceResult(ctx.business.linkedinUrl, "LinkedIn profile"));
 
-export async function checkDoorDashListing(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.doorDashUrl))
-}
+export const checkYouTubeProfile = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(presenceResult(ctx.business.youtubeUrl, "YouTube channel"));
 
-export async function checkDeliverooListing(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.deliverooUrl))
-}
+export const checkUberEatsListing = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(
+    presenceResult(ctx.business.uberEatsUrl, "Uber Eats listing")
+  );
 
-export async function checkMenulogListing(ctx: CheckContext): Promise<CheckResult> {
-  return checkResult(Boolean(ctx.business.menulogUrl))
-}
+export const checkDoorDashListing = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(presenceResult(ctx.business.doorDashUrl, "DoorDash listing"));
+
+export const checkDeliverooListing = (
+  ctx: CheckContext
+): Promise<CheckResult> =>
+  Promise.resolve(
+    presenceResult(ctx.business.deliverooUrl, "Deliveroo listing")
+  );
+
+export const checkMenulogListing = (ctx: CheckContext): Promise<CheckResult> =>
+  Promise.resolve(presenceResult(ctx.business.menulogUrl, "Menulog listing"));

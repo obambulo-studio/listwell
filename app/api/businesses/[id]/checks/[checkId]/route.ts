@@ -1,22 +1,26 @@
 import { checkIdSchema, isQueuedCheck } from "@listwell/audit-engine";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { enqueueQueuedChecks, readLatestCheckJob } from "@/lib/audit-jobs";
+
 import { toBusinessSnapshot } from "@/lib/audit-env";
+import { enqueueQueuedChecks, readLatestCheckJob } from "@/lib/audit-jobs";
 import { getCheckDefinition } from "@/lib/checks/registry";
 import { runBusinessCheck } from "@/lib/checks/runners";
 import { appliesToCategory } from "@/lib/checks/types";
-import { getBusiness } from "@/lib/db";
+import { getBusiness } from "@/lib/data";
 import { checkResultSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
 const paramsSchema = z.object({
-  id: z.string(),
   checkId: z.string(),
+  id: z.string(),
 });
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string; checkId: string }> }) {
+export const GET = async (
+  _request: Request,
+  context: { params: Promise<{ id: string; checkId: string }> }
+) => {
   const { id, checkId } = paramsSchema.parse(await context.params);
   const business = await getBusiness(id);
   if (!business) {
@@ -25,7 +29,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   const parsedId = checkIdSchema.safeParse(checkId);
   const definition = getCheckDefinition(checkId);
-  if (!parsedId.success || !definition || !appliesToCategory(definition, business.category)) {
+  if (
+    !parsedId.success ||
+    !definition ||
+    !appliesToCategory(definition, business.category)
+  ) {
     return NextResponse.json({ error: "Check not found" }, { status: 404 });
   }
 
@@ -35,15 +43,18 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (cached) {
       return NextResponse.json(checkResultSchema.parse(cached));
     }
-    if (existing && (existing.status === "queued" || existing.status === "running")) {
+    if (
+      existing &&
+      (existing.status === "queued" || existing.status === "running")
+    ) {
       return NextResponse.json(
         checkResultSchema.parse({
-          type: "check",
-          value: null,
+          jobId: existing.id,
           label: "Queued",
           queued: true,
-          jobId: existing.id,
-        }),
+          type: "check",
+          value: null,
+        })
       );
     }
 
@@ -59,15 +70,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }
     return NextResponse.json(
       checkResultSchema.parse({
-        type: "check",
-        value: null,
+        jobId: queued.jobId,
         label: "Queued",
         queued: true,
-        jobId: queued.jobId,
-      }),
+        type: "check",
+        value: null,
+      })
     );
   }
 
-  const result = checkResultSchema.parse(await runBusinessCheck(business, parsedId.data));
+  const result = checkResultSchema.parse(
+    await runBusinessCheck(business, parsedId.data)
+  );
   return NextResponse.json(result);
-}
+};

@@ -1,22 +1,31 @@
-export function mdcToMarkdown(source: string): string {
-  const withoutFrontmatter = source.replace(/^---[\s\S]*?---\n/, "");
+export const mdcToMarkdown = (source: string): string => {
+  const withoutFrontmatter = source.replace(/^---[\s\S]*?---\n/u, "");
 
   return withoutFrontmatter
-    .replace(/::tech-detail\{summary="([^"]*)"\}([\s\S]*?)::/g, (_match, summary: string, body: string) => {
-      return `### ${summary.trim()}\n\n${body.trim()}\n`;
-    })
-    .replace(/::impact\{[^}]*\}([\s\S]*?)::/g, (_match, body: string) => {
-      return `> ${body.trim().replace(/\n+/g, "\n> ")}\n`;
-    })
-    .replace(/::fix-step\{number="(\d+)" title="([^"]*)"\}([\s\S]*?)::/g, (_match, number: string, title: string, body: string) => {
-      return `### ${number}. ${title}\n\n${body.trim()}\n`;
-    })
-    .replace(/::time-estimate\{minutes="(\d+)" difficulty="([^"]*)"\}([\s\S]*?)::/g, (_match, minutes: string, difficulty: string, body: string) => {
-      return `*About ${minutes} minutes. Difficulty: ${difficulty}.*\n\n${body.trim()}\n`;
-    })
-    .replace(/::example\{type="([^"]*)" title="([^"]*)"\}([\s\S]*?)::/g, (_match, _type: string, title: string, body: string) => {
-      return `#### ${title}\n\n${body.trim()}\n`;
-    })
-    .replace(/::\w+\{[^}]*\}/g, "")
-    .replace(/^::$/gm, "");
-}
+    .replaceAll(
+      /::tech-detail\{summary="(?<summary>[^"]*)"\}(?<body>[\s\S]*?)::/gu,
+      (_match, summary: string, body: string) =>
+        `### ${summary.trim()}\n\n${body.trim()}\n`
+    )
+    .replaceAll(
+      /::impact\{[^}]*\}(?<body>[\s\S]*?)::/gu,
+      (_match, body: string) => `> ${body.trim().replaceAll(/\n+/gu, "\n> ")}\n`
+    )
+    .replaceAll(
+      /::fix-step\{number="(?<number>\d+)" title="(?<title>[^"]*)"\}(?<body>[\s\S]*?)::/gu,
+      (_match, number: string, title: string, body: string) =>
+        `### ${number}. ${title}\n\n${body.trim()}\n`
+    )
+    .replaceAll(
+      /::time-estimate\{minutes="(?<minutes>\d+)" difficulty="(?<difficulty>[^"]*)"\}(?<body>[\s\S]*?)::/gu,
+      (_match, minutes: string, difficulty: string, body: string) =>
+        `*About ${minutes} minutes. Difficulty: ${difficulty}.*\n\n${body.trim()}\n`
+    )
+    .replaceAll(
+      /::example\{type="[^"]*" title="(?<title>[^"]*)"\}(?<body>[\s\S]*?)::/gu,
+      (_match, title: string, body: string) =>
+        `#### ${title}\n\n${body.trim()}\n`
+    )
+    .replaceAll(/::\w+\{[^}]*\}/gu, "")
+    .replaceAll(/^::$/gmu, "");
+};

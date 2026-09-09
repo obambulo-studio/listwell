@@ -2,15 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { PlaceSearch } from "@/components/place-search";
-import { CATEGORY_CONFIG, categoryIdSchema, type CategoryId } from "@/lib/category";
-import { CHANNEL_CONFIG, channelIdSchema, type ChannelId, type DiscoveredProfile } from "@/lib/channel";
-import { type PlaceCandidate } from "@/lib/discover";
-import { businessInputFromDiscovery, channelPlaceholder, unusedChannels } from "@/lib/profiles";
-import { addBusinessId } from "@/lib/storage";
-import { businessSchema } from "@/lib/schema";
 
-export function NewAuditForm({
+import { PlaceSearch } from "@/components/place-search";
+import { CATEGORY_CONFIG, categoryIdSchema } from "@/lib/category";
+import type { CategoryId } from "@/lib/category";
+import { CHANNEL_CONFIG, channelIdSchema } from "@/lib/channel";
+import type { ChannelId, DiscoveredProfile } from "@/lib/channel";
+import type { PlaceCandidate } from "@/lib/discover";
+import {
+  businessInputFromDiscovery,
+  channelPlaceholder,
+  unusedChannels,
+} from "@/lib/profiles";
+import { businessSchema } from "@/lib/schema";
+import { addBusinessId } from "@/lib/storage";
+
+export const NewAuditForm = ({
   businessName,
   categoryId,
   initialProfiles,
@@ -22,11 +29,12 @@ export function NewAuditForm({
   initialProfiles: DiscoveredProfile[];
   initialAddress?: string;
   existingId?: string;
-}) {
-  const router = useRouter();
+}) => {
+  const { push } = useRouter();
   const [name, setName] = useState(businessName);
   const [category, setCategory] = useState<CategoryId>(categoryId);
-  const [profiles, setProfiles] = useState<DiscoveredProfile[]>(initialProfiles);
+  const [profiles, setProfiles] =
+    useState<DiscoveredProfile[]>(initialProfiles);
   const [showAdd, setShowAdd] = useState(false);
   const [channelId, setChannelId] = useState<ChannelId | "">("");
   const [value, setValue] = useState("");
@@ -37,37 +45,54 @@ export function NewAuditForm({
 
   const available = useMemo(() => unusedChannels(profiles), [profiles]);
 
-  async function save() {
+  const save = async () => {
     if (saving) {
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const payload = businessInputFromDiscovery(name, category, profiles, address);
-      const response = await fetch(existingId ? `/api/businesses/${existingId}` : "/api/businesses", {
-        method: existingId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(existingId ? payload : { ...payload, id: crypto.randomUUID() }),
-      });
+      const payload = businessInputFromDiscovery(
+        name,
+        category,
+        profiles,
+        address
+      );
+      const response = await fetch(
+        existingId ? `/api/businesses/${existingId}` : "/api/businesses",
+        {
+          body: JSON.stringify(
+            existingId ? payload : { ...payload, id: crypto.randomUUID() }
+          ),
+          headers: { "Content-Type": "application/json" },
+          method: existingId ? "PUT" : "POST",
+        }
+      );
       if (!response.ok) {
-        throw new Error("Could not save this audit");
+        setError("Could not save this audit");
+        setSaving(false);
+        return;
       }
       const business = businessSchema.parse(await response.json());
       addBusinessId(business.id);
-      router.push(`/${business.id}`);
+      push(`/${business.id}`);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save this audit");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Could not save this audit"
+      );
       setSaving(false);
     }
-  }
+  };
 
   return (
     <div className="vbg-custom-profiles">
       <section className="vbg-section">
         <h1 className="vbg-title">Here is what we found</h1>
         <p className="vbg-lede">
-          Add any listing we missed and remove any that are not yours. Then run the report.
+          Add any listing we missed and remove any that are not yours. Then run
+          the report.
         </p>
       </section>
 
@@ -77,7 +102,11 @@ export function NewAuditForm({
             <label className="vbg-label" htmlFor="name">
               Business name
             </label>
-            <input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+            <input
+              id="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
           </div>
           <div className="vbg-field">
             <label className="vbg-label" htmlFor="address">
@@ -97,7 +126,9 @@ export function NewAuditForm({
             <select
               id="category"
               value={category}
-              onChange={(event) => setCategory(categoryIdSchema.parse(event.target.value))}
+              onChange={(event) =>
+                setCategory(categoryIdSchema.parse(event.target.value))
+              }
             >
               {Object.values(CATEGORY_CONFIG).map((item) => (
                 <option key={item.id} value={item.id}>
@@ -113,7 +144,9 @@ export function NewAuditForm({
         <h2 className="vbg-heading-20">Listings we found</h2>
         <div className="vbg-table-wrap">
           <table>
-            <caption className="vbg-visually-hidden">Listings attached to this audit</caption>
+            <caption className="vbg-visually-hidden">
+              Listings attached to this audit
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Channel</th>
@@ -132,7 +165,9 @@ export function NewAuditForm({
                     <td>{CHANNEL_CONFIG[profile.type].name}</td>
                     <td>
                       {profile.title}
-                      {profile.subtitle ? <div className="vbg-meta">{profile.subtitle}</div> : null}
+                      {profile.subtitle ? (
+                        <div className="vbg-meta">{profile.subtitle}</div>
+                      ) : null}
                     </td>
                     <td>
                       <button
@@ -140,7 +175,13 @@ export function NewAuditForm({
                         type="button"
                         onClick={() => {
                           setProfiles((current) =>
-                            current.filter((item) => !(item.type === profile.type && item.title === profile.title)),
+                            current.filter(
+                              (item) =>
+                                !(
+                                  item.type === profile.type &&
+                                  item.title === profile.title
+                                )
+                            )
                           );
                         }}
                       >
@@ -163,27 +204,38 @@ export function NewAuditForm({
                 return;
               }
               const parsedChannel = channelIdSchema.parse(channelId);
-              if (parsedChannel === "google-maps" || parsedChannel === "apple-maps") {
+              if (
+                parsedChannel === "google-maps" ||
+                parsedChannel === "apple-maps"
+              ) {
                 if (place) {
                   setProfiles((current) => [
                     ...current,
                     {
-                      type: parsedChannel,
-                      title: place.name,
+                      appleMapsId:
+                        parsedChannel === "apple-maps" ? place.id : undefined,
+                      googlePlaceId:
+                        parsedChannel === "google-maps" ? place.id : undefined,
                       subtitle: place.address ?? (address.trim() || undefined),
-                      googlePlaceId: parsedChannel === "google-maps" ? place.id : undefined,
-                      appleMapsId: parsedChannel === "apple-maps" ? place.id : undefined,
+                      title: place.name,
+                      type: parsedChannel,
                     },
                   ]);
                 } else if (value.trim()) {
                   setProfiles((current) => [
                     ...current,
                     {
-                      type: parsedChannel,
-                      title: value.trim(),
+                      appleMapsId:
+                        parsedChannel === "apple-maps"
+                          ? value.trim()
+                          : undefined,
+                      googlePlaceId:
+                        parsedChannel === "google-maps"
+                          ? value.trim()
+                          : undefined,
                       subtitle: address.trim() || undefined,
-                      googlePlaceId: parsedChannel === "google-maps" ? value.trim() : undefined,
-                      appleMapsId: parsedChannel === "apple-maps" ? value.trim() : undefined,
+                      title: value.trim(),
+                      type: parsedChannel,
                     },
                   ]);
                 } else {
@@ -193,8 +245,8 @@ export function NewAuditForm({
                 setProfiles((current) => [
                   ...current,
                   {
-                    type: parsedChannel,
                     title: value.trim(),
+                    type: parsedChannel,
                   },
                 ]);
               } else {
@@ -214,7 +266,11 @@ export function NewAuditForm({
                 id="channel"
                 value={channelId}
                 onChange={(event) => {
-                  setChannelId(event.target.value === "" ? "" : channelIdSchema.parse(event.target.value));
+                  setChannelId(
+                    event.target.value === ""
+                      ? ""
+                      : channelIdSchema.parse(event.target.value)
+                  );
                   setValue("");
                   setPlace(null);
                 }}
@@ -279,7 +335,9 @@ export function NewAuditForm({
                 </div>
               </>
             ) : null}
-            {channelId && channelId !== "google-maps" && channelId !== "apple-maps" ? (
+            {channelId &&
+            channelId !== "google-maps" &&
+            channelId !== "apple-maps" ? (
               <div className="vbg-field">
                 <label className="vbg-label" htmlFor="profileValue">
                   {CHANNEL_CONFIG[channelId].name}
@@ -298,12 +356,18 @@ export function NewAuditForm({
                 type="submit"
                 disabled={
                   !channelId ||
-                  (channelId === "google-maps" || channelId === "apple-maps" ? !place && !value.trim() : !value.trim())
+                  (channelId === "google-maps" || channelId === "apple-maps"
+                    ? !place && !value.trim()
+                    : !value.trim())
                 }
               >
                 Add listing
               </button>
-              <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setShowAdd(false)}>
+              <button
+                className="vbg-button vbg-button-quiet"
+                type="button"
+                onClick={() => setShowAdd(false)}
+              >
                 Cancel
               </button>
             </div>
@@ -311,7 +375,11 @@ export function NewAuditForm({
         ) : (
           <div className="vbg-custom-actions" style={{ marginTop: "24px" }}>
             {available.length > 0 ? (
-              <button className="vbg-button vbg-button-quiet" type="button" onClick={() => setShowAdd(true)}>
+              <button
+                className="vbg-button vbg-button-quiet"
+                type="button"
+                onClick={() => setShowAdd(true)}
+              >
                 Add missing
               </button>
             ) : (
@@ -324,10 +392,17 @@ export function NewAuditForm({
       {error ? <p className="vbg-error">{error}</p> : null}
 
       <div className="vbg-custom-actions">
-        <button className="vbg-button" type="button" onClick={() => void save()} disabled={saving || !name.trim()}>
+        <button
+          className="vbg-button"
+          type="button"
+          onClick={() => {
+            save();
+          }}
+          disabled={saving || !name.trim()}
+        >
           {saving ? "Saving" : "Get report"}
         </button>
       </div>
     </div>
   );
-}
+};

@@ -1,10 +1,9 @@
-import { queueAuditMessageSchema } from './schemas'
-import type { QueueAuditMessage } from './types'
+import { queueAuditMessageSchema } from "./schemas";
+import type { QueueAuditMessage } from "./types";
 
-export function parseQueueMessage(value: unknown): QueueAuditMessage {
-  return queueAuditMessageSchema.parse(value)
-}
+export const parseQueueMessage = (value: unknown): QueueAuditMessage =>
+  queueAuditMessageSchema.parse(value);
 
-export function createQueueMessage(message: QueueAuditMessage): QueueAuditMessage {
-  return queueAuditMessageSchema.parse(message)
-}
+export const createQueueMessage = (
+  message: QueueAuditMessage
+): QueueAuditMessage => queueAuditMessageSchema.parse(message);

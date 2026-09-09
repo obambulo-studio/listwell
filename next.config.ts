@@ -1,9 +1,10 @@
-import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  typedRoutes: true,
+  allowedDevOrigins: ["listwell.localhost", "*.listwell.localhost"],
   transpilePackages: ["@listwell/audit-engine"],
+  typedRoutes: true,
 };
 
 export default nextConfig;

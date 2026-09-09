@@ -13,164 +13,195 @@ import {
   searchNominatim,
   searchSocial,
   socialsFromDocument,
-  type AuditEngineEnv,
-  type FetchWebsiteOptions,
-  type GooglePlace,
-  type NominatimMatch,
-  type SocialSearchHit,
+} from "@listwell/audit-engine";
+import type {
+  AuditEngineEnv,
+  FetchWebsiteOptions,
+  GooglePlace,
+  NominatimMatch,
+  SocialSearchHit,
 } from "@listwell/audit-engine";
 import { z } from "zod";
+
+import { lookupProvidersFromEnv } from "./audit-env";
+import type { LookupProviders } from "./audit-env";
 import {
   getCategoryIdFromGooglePlaceTypes,
   recommendedSocialMedia,
-  type CategoryId,
 } from "./category";
-import { discoveredProfileSchema, type DiscoveredProfile } from "./channel";
+import type { CategoryId } from "./category";
+import { discoveredProfileSchema } from "./channel";
+import type { DiscoveredProfile } from "./channel";
 
-const socialChannelSchema = z.enum(["facebook", "instagram", "tiktok", "linkedin", "youtube", "x"]);
+const socialChannelSchema = z.enum([
+  "facebook",
+  "instagram",
+  "tiktok",
+  "linkedin",
+  "youtube",
+  "x",
+]);
 type SocialChannel = z.infer<typeof socialChannelSchema>;
 
 export const placeCandidateSchema = z.object({
-  source: z.enum(["google", "apple", "osm"]),
+  address: z.string().optional(),
+  categoryId: z.enum(["food", "retail", "services", "other"]).optional(),
   id: z.string(),
   name: z.string(),
-  address: z.string().optional(),
-  websiteUrl: z.string().optional(),
-  types: z.array(z.string()).optional(),
-  suburb: z.string().optional(),
-  categoryId: z.enum(["food", "retail", "services", "other"]).optional(),
   score: z.number().optional(),
+  source: z.enum(["google", "apple", "osm"]),
+  suburb: z.string().optional(),
+  types: z.array(z.string()).optional(),
+  websiteUrl: z.string().optional(),
 });
 export type PlaceCandidate = z.infer<typeof placeCandidateSchema>;
 
 export const discoverRequestSchema = z.object({
-  businessName: z.string().min(1),
-  websiteUrl: z.string().optional(),
-  categoryId: z.enum(["food", "retail", "services", "other"]).optional(),
-  googlePlaceId: z.string().optional(),
-  appleMapsId: z.string().optional(),
-  listingUrl: z.string().optional(),
   address: z.string().optional(),
+  appleMapsId: z.string().optional(),
+  businessName: z.string().min(1),
+  categoryId: z.enum(["food", "retail", "services", "other"]).optional(),
   facebookUrl: z.string().optional(),
+  googlePlaceId: z.string().optional(),
   instagramUsername: z.string().optional(),
-  tiktokUsername: z.string().optional(),
   linkedinUrl: z.string().optional(),
-  youtubeUrl: z.string().optional(),
+  listingUrl: z.string().optional(),
   near: z.string().optional(),
+  tiktokUsername: z.string().optional(),
+  websiteUrl: z.string().optional(),
+  youtubeUrl: z.string().optional(),
 });
 export type DiscoverRequest = z.infer<typeof discoverRequestSchema>;
 
 export const discoverResponseSchema = z.object({
-  categoryId: z.enum(["food", "retail", "services", "other"]),
-  candidates: z.array(placeCandidateSchema),
-  profiles: z.array(discoveredProfileSchema),
   address: z.string().optional(),
+  candidates: z.array(placeCandidateSchema),
+  categoryId: z.enum(["food", "retail", "services", "other"]),
+  profiles: z.array(discoveredProfileSchema),
   strongMatch: z.boolean().optional(),
 });
 export type DiscoverResponse = z.infer<typeof discoverResponseSchema>;
 
-export function normalizeName(value: string): string {
-  return value
+export const normalizeName = (value: string): string =>
+  value
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[\u0300-\u036F]/gu, "")
     .trim();
-}
 
-export function namesMatch(search: string, candidate: string): boolean {
+export const namesMatch = (search: string, candidate: string): boolean => {
   const needle = normalizeName(search);
   const haystack = normalizeName(candidate);
   if (!needle || !haystack) {
     return false;
   }
   return haystack.includes(needle);
-}
+};
 
-export function appleAddress(lines: string[] | undefined): string | undefined {
+export const appleAddress = (lines?: string[]): string | undefined => {
   if (!lines || lines.length === 0) {
     return undefined;
   }
   return lines.join(", ");
-}
+};
 
-export function candidateFromGooglePlace(place: GooglePlace): PlaceCandidate | null {
+export const candidateFromGooglePlace = (
+  place: GooglePlace
+): PlaceCandidate | null => {
   if (!place.id || !place.displayName?.text) {
     return null;
   }
   return placeCandidateSchema.parse({
-    source: "google",
+    address: place.formattedAddress,
+    categoryId: place.types
+      ? getCategoryIdFromGooglePlaceTypes(place.types)
+      : undefined,
     id: place.id,
     name: place.displayName.text,
-    address: place.formattedAddress,
-    websiteUrl: place.websiteUri,
+    source: "google",
     types: place.types,
-    categoryId: place.types ? getCategoryIdFromGooglePlaceTypes(place.types) : undefined,
+    websiteUrl: place.websiteUri,
   });
-}
+};
 
-export function candidateFromNominatim(match: NominatimMatch): PlaceCandidate {
-  return placeCandidateSchema.parse({
-    source: "osm",
+export const candidateFromNominatim = (match: NominatimMatch): PlaceCandidate =>
+  placeCandidateSchema.parse({
+    address: match.address,
+    categoryId: match.categoryId,
     id: match.id,
     name: match.name,
-    address: match.address,
-    websiteUrl: match.websiteUrl,
-    types: [match.osmType, match.osmClass].filter(Boolean),
-    suburb: match.suburb,
-    categoryId: match.categoryId,
     score: match.score,
+    source: "osm",
+    suburb: match.suburb,
+    types: [match.osmType, match.osmClass].filter(Boolean),
+    websiteUrl: match.websiteUrl,
   });
-}
 
-export function addUniqueProfile(profiles: DiscoveredProfile[], profile: DiscoveredProfile): void {
+export const addUniqueProfile = (
+  profiles: DiscoveredProfile[],
+  profile: DiscoveredProfile
+): void => {
   const exists = profiles.some((item) => {
-    if (item.type !== profile.type) return false;
-    if (item.title === profile.title) return true;
-    if (profile.googlePlaceId && item.googlePlaceId === profile.googlePlaceId) return true;
-    if (profile.appleMapsId && item.appleMapsId === profile.appleMapsId) return true;
+    if (item.type !== profile.type) {
+      return false;
+    }
+    if (item.title === profile.title) {
+      return true;
+    }
+    if (profile.googlePlaceId && item.googlePlaceId === profile.googlePlaceId) {
+      return true;
+    }
+    if (profile.appleMapsId && item.appleMapsId === profile.appleMapsId) {
+      return true;
+    }
     return false;
   });
-  if (!exists) profiles.push(profile);
-}
+  if (!exists) {
+    profiles.push(profile);
+  }
+};
 
-function addWebsiteOrSocialFromUri(profiles: DiscoveredProfile[], uri: string): void {
+const addWebsiteOrSocialFromUri = (
+  profiles: DiscoveredProfile[],
+  uri: string
+): void => {
   if (uri.includes("facebook.com")) {
-    addUniqueProfile(profiles, { type: "facebook", title: uri });
+    addUniqueProfile(profiles, { title: uri, type: "facebook" });
     return;
   }
   if (uri.includes("instagram.com")) {
-    addUniqueProfile(profiles, { type: "instagram", title: uri });
+    addUniqueProfile(profiles, { title: uri, type: "instagram" });
     return;
   }
-  addUniqueProfile(profiles, { type: "website", title: uri });
-}
+  addUniqueProfile(profiles, { title: uri, type: "website" });
+};
 
-export function profilesFromCandidates(
+export const profilesFromCandidates = (
   candidates: PlaceCandidate[],
-  websiteUrl?: string,
-): DiscoveredProfile[] {
+  websiteUrl?: string
+): DiscoveredProfile[] => {
   const profiles: DiscoveredProfile[] = [];
   if (websiteUrl) {
-    profiles.push({ type: "website", title: websiteUrl });
+    profiles.push({ title: websiteUrl, type: "website" });
   }
 
   for (const candidate of candidates) {
     if (candidate.source === "google") {
       profiles.push({
-        type: "google-maps",
-        title: candidate.name,
-        subtitle: candidate.address,
         googlePlaceId: candidate.id,
+        subtitle: candidate.address,
+        title: candidate.name,
+        type: "google-maps",
       });
       if (candidate.websiteUrl) {
         addWebsiteOrSocialFromUri(profiles, candidate.websiteUrl);
       }
     } else if (candidate.source === "apple") {
       profiles.push({
-        type: "apple-maps",
-        title: candidate.name,
-        subtitle: candidate.address,
         appleMapsId: candidate.id,
+        subtitle: candidate.address,
+        title: candidate.name,
+        type: "apple-maps",
       });
     } else if (candidate.websiteUrl) {
       addWebsiteOrSocialFromUri(profiles, candidate.websiteUrl);
@@ -178,111 +209,192 @@ export function profilesFromCandidates(
   }
 
   return profiles;
-}
+};
 
-export function profilesFromUserInput(request: DiscoverRequest): DiscoveredProfile[] {
+export const profilesFromUserInput = (
+  request: DiscoverRequest
+): DiscoveredProfile[] => {
   const profiles: DiscoveredProfile[] = [];
   if (request.websiteUrl) {
-    profiles.push({ type: "website", title: request.websiteUrl });
+    profiles.push({ title: request.websiteUrl, type: "website" });
   }
-  const listingId = request.listingUrl ?? (request.googlePlaceId && isHttpUrl(request.googlePlaceId) ? request.googlePlaceId : undefined);
+  const listingId =
+    request.listingUrl ??
+    (request.googlePlaceId && isHttpUrl(request.googlePlaceId)
+      ? request.googlePlaceId
+      : undefined);
   if (listingId && isHttpUrl(listingId)) {
     profiles.push({
-      type: "google-maps",
-      title: listingId,
-      subtitle: request.address,
       googlePlaceId: listingId,
+      subtitle: request.address,
+      title: listingId,
+      type: "google-maps",
     });
   }
   if (request.facebookUrl) {
-    profiles.push({ type: "facebook", title: request.facebookUrl });
+    profiles.push({ title: request.facebookUrl, type: "facebook" });
   }
   if (request.instagramUsername) {
-    profiles.push({ type: "instagram", title: request.instagramUsername });
+    profiles.push({ title: request.instagramUsername, type: "instagram" });
   }
   if (request.tiktokUsername) {
-    profiles.push({ type: "tiktok", title: request.tiktokUsername });
+    profiles.push({ title: request.tiktokUsername, type: "tiktok" });
   }
   if (request.linkedinUrl) {
-    profiles.push({ type: "linkedin", title: request.linkedinUrl });
+    profiles.push({ title: request.linkedinUrl, type: "linkedin" });
   }
   if (request.youtubeUrl) {
-    profiles.push({ type: "youtube", title: request.youtubeUrl });
+    profiles.push({ title: request.youtubeUrl, type: "youtube" });
   }
   return profiles;
-}
+};
 
-export async function profilesFromWebsite(
+export const profilesFromWebsite = async (
   websiteUrl: string,
-  options: FetchWebsiteOptions = {},
-): Promise<DiscoveredProfile[]> {
+  options: FetchWebsiteOptions = {}
+): Promise<DiscoveredProfile[]> => {
   const html = await fetchWebsiteHtml(websiteUrl, options);
   const socials = socialsFromDocument(parseDocument(html));
   const profiles: DiscoveredProfile[] = [];
-  if (socials.facebook) profiles.push({ type: "facebook", title: socials.facebook });
-  if (socials.instagram) profiles.push({ type: "instagram", title: socials.instagram });
-  if (socials.tiktok) profiles.push({ type: "tiktok", title: socials.tiktok });
-  if (socials.linkedin) profiles.push({ type: "linkedin", title: socials.linkedin });
-  if (socials.youtube) profiles.push({ type: "youtube", title: socials.youtube });
-  if (socials.x) profiles.push({ type: "x", title: socials.x });
-  return profiles;
-}
-
-export function pickSocialHit(hits: SocialSearchHit[]): SocialSearchHit | null {
-  const ranked = hits.filter((hit) => hit.score >= 0.7).sort((left, right) => right.score - left.score);
-  return ranked[0] ?? null;
-}
-
-export function socialProfileFromHit(channel: SocialChannel, hit: SocialSearchHit): DiscoveredProfile {
-  if (channel === "instagram" || channel === "tiktok" || channel === "x") {
-    return { type: channel, title: hit.username ?? hit.url };
+  if (socials.facebook) {
+    profiles.push({ title: socials.facebook, type: "facebook" });
   }
-  return { type: channel, title: hit.url };
-}
+  if (socials.instagram) {
+    profiles.push({ title: socials.instagram, type: "instagram" });
+  }
+  if (socials.tiktok) {
+    profiles.push({ title: socials.tiktok, type: "tiktok" });
+  }
+  if (socials.linkedin) {
+    profiles.push({ title: socials.linkedin, type: "linkedin" });
+  }
+  if (socials.youtube) {
+    profiles.push({ title: socials.youtube, type: "youtube" });
+  }
+  if (socials.x) {
+    profiles.push({ title: socials.x, type: "x" });
+  }
+  return profiles;
+};
 
-export function filterProfilesForCandidate(
+export const pickSocialHit = (
+  hits: SocialSearchHit[]
+): SocialSearchHit | null => {
+  const ranked = hits
+    .filter((hit) => hit.score >= 0.7)
+    .toSorted((left, right) => right.score - left.score);
+  const [top] = ranked;
+  return top ?? null;
+};
+
+export const socialProfileFromHit = (
+  channel: SocialChannel,
+  hit: SocialSearchHit
+): DiscoveredProfile => {
+  if (channel === "instagram" || channel === "tiktok" || channel === "x") {
+    return { title: hit.username ?? hit.url, type: channel };
+  }
+  return { title: hit.url, type: channel };
+};
+
+export const filterProfilesForCandidate = (
   profiles: DiscoveredProfile[],
-  candidate: PlaceCandidate,
-): DiscoveredProfile[] {
-  return profiles.filter((profile) => {
+  candidate: PlaceCandidate
+): DiscoveredProfile[] =>
+  profiles.filter((profile) => {
     if (profile.type === "google-maps") {
       if (candidate.source === "google") {
         return profile.googlePlaceId === candidate.id;
       }
-      return Boolean(profile.title && namesMatch(candidate.name, profile.title));
+      return Boolean(
+        profile.title && namesMatch(candidate.name, profile.title)
+      );
     }
     if (profile.type === "apple-maps") {
       if (candidate.source === "apple") {
         return profile.appleMapsId === candidate.id;
       }
-      return Boolean(profile.title && namesMatch(candidate.name, profile.title));
+      return Boolean(
+        profile.title && namesMatch(candidate.name, profile.title)
+      );
     }
     return true;
   });
-}
 
-function categoryFromCandidates(candidates: PlaceCandidate[], fallback: CategoryId): CategoryId {
-  const google = candidates.find((candidate) => candidate.source === "google" && candidate.types?.length);
+const categoryFromCandidates = (
+  candidates: PlaceCandidate[],
+  fallback: CategoryId
+): CategoryId => {
+  const google = candidates.find(
+    (candidate) => candidate.source === "google" && candidate.types?.length
+  );
   if (google?.types) {
     return getCategoryIdFromGooglePlaceTypes(google.types);
   }
-  const osm = candidates.find((candidate) => candidate.source === "osm" && candidate.categoryId);
+  const osm = candidates.find(
+    (candidate) => candidate.source === "osm" && candidate.categoryId
+  );
   return osm?.categoryId ?? fallback;
-}
+};
 
-function hasAppleConfig(env: AuditEngineEnv): boolean {
-  return Boolean(env.appleMapkitTeamId && env.appleMapkitKeyId && env.appleMapkitPrivateKey);
-}
+const hasAppleConfig = (env: AuditEngineEnv): boolean =>
+  Boolean(
+    env.appleMapkitTeamId && env.appleMapkitKeyId && env.appleMapkitPrivateKey
+  );
 
-function placesId(value: string | undefined): string | undefined {
-  if (!value || isHttpUrl(value)) return undefined;
+const placesId = (value: string | undefined): string | undefined => {
+  if (!value || isHttpUrl(value)) {
+    return undefined;
+  }
   return value;
-}
+};
 
-async function googleCandidates(
+/** Build search query variants from business name and optional suburb/city. */
+export const buildPlaceSearchQueries = (
+  search: string,
+  near?: string
+): string[] => {
+  const name = search.trim();
+  const location = near?.trim() ?? "";
+  if (!name) {
+    return [];
+  }
+  if (!location) {
+    return [name];
+  }
+  const variants = [
+    `${name}, ${location}`,
+    `${name} ${location}`,
+    `${name}, ${location}, Australia`,
+    name,
+  ];
+  const unique = new Set<string>();
+  for (const variant of variants) {
+    unique.add(variant);
+  }
+  return [...unique];
+};
+
+export const dedupePlaceCandidates = (
+  candidates: PlaceCandidate[]
+): PlaceCandidate[] => {
+  const seen = new Set<string>();
+  const unique: PlaceCandidate[] = [];
+  for (const candidate of candidates) {
+    const key = `${candidate.source}:${candidate.id}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(candidate);
+  }
+  return unique;
+};
+
+const googleCandidates = async (
   request: DiscoverRequest,
-  env: AuditEngineEnv,
-): Promise<PlaceCandidate[]> {
+  env: AuditEngineEnv
+): Promise<PlaceCandidate[]> => {
   if (!env.googleApiKey) {
     return [];
   }
@@ -294,17 +406,28 @@ async function googleCandidates(
     return candidate ? [candidate] : [];
   }
 
-  const places = await searchGooglePlaces(request.businessName, env.googleApiKey);
-  return places
-    .map(candidateFromGooglePlace)
-    .filter((candidate): candidate is PlaceCandidate => candidate !== null)
-    .filter((candidate) => namesMatch(request.businessName, candidate.name));
-}
+  const near = request.near ?? request.address ?? "";
+  const queries = buildPlaceSearchQueries(request.businessName, near);
+  const { googleApiKey } = env;
+  const searchResults = await Promise.all(
+    queries.map((query) => searchGooglePlaces(query, googleApiKey))
+  );
+  const places = searchResults.flat();
+  return dedupePlaceCandidates(
+    places.flatMap((place) => {
+      const candidate = candidateFromGooglePlace(place);
+      if (!candidate || !namesMatch(request.businessName, candidate.name)) {
+        return [];
+      }
+      return [candidate];
+    })
+  );
+};
 
-async function appleCandidates(
+const appleCandidates = async (
   request: DiscoverRequest,
-  env: AuditEngineEnv,
-): Promise<PlaceCandidate[]> {
+  env: AuditEngineEnv
+): Promise<PlaceCandidate[]> => {
   if (!hasAppleConfig(env)) {
     return [];
   }
@@ -317,51 +440,74 @@ async function appleCandidates(
       }
       return [
         placeCandidateSchema.parse({
-          source: "apple",
+          address: appleAddress(place.formattedAddressLines),
           id: place.id,
           name: place.name,
-          address: appleAddress(place.formattedAddressLines),
+          source: "apple",
         }),
       ];
     }
 
-    const search = await searchAppleMaps(request.businessName, env);
-    return search.results
-      .filter((place) => namesMatch(request.businessName, place.name))
-      .map((place) =>
-        placeCandidateSchema.parse({
-          source: "apple",
-          id: place.id,
-          name: place.name,
-          address: appleAddress(place.formattedAddressLines),
-        }),
-      );
+    const near = request.near ?? request.address ?? "";
+    const queries = buildPlaceSearchQueries(request.businessName, near);
+    const userLocation = near.trim() || undefined;
+    const searchResults = await Promise.all(
+      queries.map((query) => searchAppleMaps(query, env, fetch, userLocation))
+    );
+    const results = searchResults.flatMap((search) => search.results);
+    return dedupePlaceCandidates(
+      results.flatMap((place) => {
+        if (!namesMatch(request.businessName, place.name)) {
+          return [];
+        }
+        return [
+          placeCandidateSchema.parse({
+            address: appleAddress(place.formattedAddressLines),
+            id: place.id,
+            name: place.name,
+            source: "apple",
+          }),
+        ];
+      })
+    );
   } catch {
     return [];
   }
-}
+};
 
-async function nominatimCandidates(request: DiscoverRequest, fetchImpl?: typeof fetch): Promise<PlaceCandidate[]> {
+const nominatimCandidates = async (
+  request: DiscoverRequest,
+  fetchImpl?: typeof fetch
+): Promise<PlaceCandidate[]> => {
   const near = request.near ?? request.address ?? "";
-  const matches = await searchNominatim(request.businessName, near, fetchImpl ? { fetchImpl } : {});
+  const matches = await searchNominatim(
+    request.businessName,
+    near,
+    fetchImpl ? { fetchImpl } : {}
+  );
   return matches.map(candidateFromNominatim);
-}
+};
 
-async function websiteFromSearch(businessName: string, env: AuditEngineEnv): Promise<string | undefined> {
+const websiteFromSearch = async (
+  businessName: string,
+  env: AuditEngineEnv
+): Promise<string | undefined> => {
   try {
     const results = await googleSearch(businessName, env);
-    const match = results.find((result) => namesMatch(businessName, result.title) && result.link);
+    const match = results.find(
+      (result) => namesMatch(businessName, result.title) && result.link
+    );
     return match?.link;
   } catch {
     return undefined;
   }
-}
+};
 
-async function socialProfiles(
+const socialProfiles = async (
   businessName: string,
   categoryId: CategoryId,
-  env: AuditEngineEnv,
-): Promise<DiscoveredProfile[]> {
+  env: AuditEngineEnv
+): Promise<DiscoveredProfile[]> => {
   const platforms = recommendedSocialMedia[categoryId].flatMap((channel) => {
     const parsed = socialChannelSchema.safeParse(channel);
     return parsed.success ? [parsed.data] : [];
@@ -370,31 +516,41 @@ async function socialProfiles(
   const results = await Promise.all(
     platforms.map(async (platform) => {
       try {
-        const hits = await searchSocial(platform, businessName, (query) => googleSearch(query, env));
+        const hits = await searchSocial(platform, businessName, (query) =>
+          googleSearch(query, env)
+        );
         const hit = pickSocialHit(hits);
         return hit ? socialProfileFromHit(platform, hit) : null;
       } catch {
         return null;
       }
-    }),
+    })
   );
 
-  return results.filter((profile): profile is DiscoveredProfile => profile !== null);
-}
+  return results.filter(
+    (profile): profile is DiscoveredProfile => profile !== null
+  );
+};
 
-export async function discoverBusiness(
+export const discoverBusiness = async (
   input: DiscoverRequest,
   env: AuditEngineEnv,
-  options: FetchWebsiteOptions = {},
-): Promise<DiscoverResponse> {
+  options: FetchWebsiteOptions = {}
+): Promise<DiscoverResponse> => {
   const request = discoverRequestSchema.parse(input);
-  const [google, apple] = await Promise.all([googleCandidates(request, env), appleCandidates(request, env)]);
+  const [google, apple] = await Promise.all([
+    googleCandidates(request, env),
+    appleCandidates(request, env),
+  ]);
   let candidates = [...google, ...apple];
   if (candidates.length === 0) {
     candidates = await nominatimCandidates(request, options.fetchImpl);
   }
 
-  const categoryId = categoryFromCandidates(candidates, request.categoryId ?? "other");
+  const categoryId = categoryFromCandidates(
+    candidates,
+    request.categoryId ?? "other"
+  );
   const profiles = profilesFromCandidates(candidates, request.websiteUrl);
   for (const profile of profilesFromUserInput(request)) {
     addUniqueProfile(profiles, profile);
@@ -414,7 +570,7 @@ export async function discoverBusiness(
   if (!profiles.some((profile) => profile.type === "website")) {
     const foundWebsite = await websiteFromSearch(request.businessName, env);
     if (foundWebsite) {
-      profiles.push({ type: "website", title: foundWebsite });
+      profiles.push({ title: foundWebsite, type: "website" });
     }
   }
 
@@ -423,17 +579,24 @@ export async function discoverBusiness(
     addUniqueProfile(profiles, profile);
   }
 
-  const firstAddress = request.address ?? candidates.find((candidate) => candidate.address)?.address;
+  const firstAddress =
+    request.address ??
+    candidates.find((candidate) => candidate.address)?.address;
 
   return discoverResponseSchema.parse({
-    categoryId,
-    candidates,
-    profiles,
     address: firstAddress,
+    candidates,
+    categoryId,
+    profiles,
   });
-}
+};
 
 export const lookupQuerySchema = z.object({
+  id: z.string().optional(),
+  lat: z.string().optional(),
+  lon: z.string().optional(),
+  near: z.string().optional(),
+  q: z.string().optional(),
   source: z.enum([
     "places",
     "google-search",
@@ -444,146 +607,352 @@ export const lookupQuerySchema = z.object({
     "nominatim-search",
     "nominatim-reverse",
   ]),
-  q: z.string().optional(),
-  id: z.string().optional(),
-  near: z.string().optional(),
-  lat: z.string().optional(),
-  lon: z.string().optional(),
+});
+
+export const lookupProvidersSchema = z.object({
+  apple: z.boolean(),
+  google: z.boolean(),
+  osm: z.literal(true),
 });
 
 export const lookupResponseSchema = z.object({
   candidates: z.array(placeCandidateSchema),
-  locality: z.string().optional(),
-  suburb: z.string().optional(),
   city: z.string().optional(),
+  locality: z.string().optional(),
+  providers: lookupProvidersSchema.optional(),
   strongMatchId: z.string().optional(),
+  suburb: z.string().optional(),
 });
 
-export async function lookupPlaces(
-  query: z.infer<typeof lookupQuerySchema>,
+const placeCandidateRank = (
+  candidate: PlaceCandidate,
+  search: string,
+  near?: string
+): number => {
+  let score = namesMatch(search, candidate.name) ? 1 : 0;
+  const normalizedNear = near ? normalizeName(near) : "";
+  const addressText = normalizeName(
+    [candidate.address, candidate.suburb].filter(Boolean).join(" ")
+  );
+  if (normalizedNear && addressText.includes(normalizedNear)) {
+    score += 0.5;
+  }
+  if (candidate.score !== undefined) {
+    score += candidate.score * 0.3;
+  }
+  return score;
+};
+
+export const rankPlaceCandidates = (
+  candidates: PlaceCandidate[],
+  search: string,
+  near?: string
+): PlaceCandidate[] =>
+  [...candidates].toSorted(
+    (left, right) =>
+      placeCandidateRank(right, search, near) -
+      placeCandidateRank(left, search, near)
+  );
+
+const searchGoogleCandidatesForQueries = async (
+  queries: string[],
   env: AuditEngineEnv,
-  fetchImpl: typeof fetch = fetch,
-): Promise<z.infer<typeof lookupResponseSchema>> {
-  const parsed = lookupQuerySchema.parse(query);
-  const search = parsed.q?.trim() ?? "";
-
-  if (parsed.source === "nominatim-reverse") {
-    const lat = Number(parsed.lat);
-    const lon = Number(parsed.lon);
-    const locality = await reverseNominatim(lat, lon, { fetchImpl });
-    return lookupResponseSchema.parse({
-      candidates: [],
-      locality: locality?.locality,
-      suburb: locality?.suburb,
-      city: locality?.city,
-    });
+  fetchImpl: typeof fetch
+): Promise<PlaceCandidate[]> => {
+  if (!env.googleApiKey || queries.length === 0) {
+    return [];
   }
+  const { googleApiKey } = env;
+  const batches = await Promise.all(
+    queries.map((query) =>
+      searchGooglePlaces(query, googleApiKey, fetchImpl).then((places) =>
+        places.flatMap((place) => {
+          const candidate = candidateFromGooglePlace(place);
+          return candidate ? [candidate] : [];
+        })
+      )
+    )
+  );
+  return dedupePlaceCandidates(batches.flat());
+};
 
-  if (parsed.source === "google-place") {
-    if (!parsed.id || !env.googleApiKey || isHttpUrl(parsed.id)) {
-      return lookupResponseSchema.parse({ candidates: [] });
-    }
-    const place = await fetchGooglePlace(parsed.id, env.googleApiKey, fetchImpl);
-    const candidate = place ? candidateFromGooglePlace(place) : null;
-    return lookupResponseSchema.parse({ candidates: candidate ? [candidate] : [] });
+const searchAppleCandidatesForQueries = async (
+  queries: string[],
+  near: string | undefined,
+  env: AuditEngineEnv,
+  fetchImpl: typeof fetch
+): Promise<PlaceCandidate[]> => {
+  if (!hasAppleConfig(env) || queries.length === 0) {
+    return [];
   }
-
-  if (parsed.source === "apple-place") {
-    if (!parsed.id || !hasAppleConfig(env)) {
-      return lookupResponseSchema.parse({ candidates: [] });
-    }
-    try {
-      const place = await fetchApplePlace(parsed.id, env, fetchImpl);
-      if (!place) {
-        return lookupResponseSchema.parse({ candidates: [] });
-      }
-      return lookupResponseSchema.parse({
-        candidates: [
-          placeCandidateSchema.parse({
-            source: "apple",
-            id: place.id,
-            name: place.name,
-            address: appleAddress(place.formattedAddressLines),
-          }),
-        ],
-      });
-    } catch {
-      return lookupResponseSchema.parse({ candidates: [] });
-    }
+  try {
+    const userLocation = near?.trim() || undefined;
+    const batches = await Promise.all(
+      queries.map((query) =>
+        searchAppleMaps(query, env, fetchImpl, userLocation).then((result) =>
+          result.results.map((place) =>
+            placeCandidateSchema.parse({
+              address: appleAddress(place.formattedAddressLines),
+              id: place.id,
+              name: place.name,
+              source: "apple",
+            })
+          )
+        )
+      )
+    );
+    return dedupePlaceCandidates(batches.flat());
+  } catch {
+    return [];
   }
+};
 
-  if (parsed.source === "google-autocomplete") {
-    if (!search || !env.googleApiKey) {
-      return lookupResponseSchema.parse({ candidates: [] });
-    }
-    const predictions = await autocompleteGooglePlaces(search, env.googleApiKey, fetchImpl);
-    return lookupResponseSchema.parse({
-      candidates: predictions.map((prediction) =>
-        placeCandidateSchema.parse({
-          source: "google",
-          id: prediction.id,
-          name: prediction.title,
-          address: prediction.description,
-          types: prediction.types,
-        }),
-      ),
-    });
-  }
+const lookupMapCandidates = async (
+  search: string,
+  near: string | undefined,
+  env: AuditEngineEnv,
+  fetchImpl: typeof fetch,
+  options: { wantGoogle: boolean; wantApple: boolean; includeOsm: boolean }
+): Promise<{ candidates: PlaceCandidate[]; strongMatchId?: string }> => {
+  const queries = buildPlaceSearchQueries(search, near);
+  const trimmedNear = near?.trim() ?? "";
 
-  if (parsed.source === "nominatim-search") {
-    if (search.length < 2) {
-      return lookupResponseSchema.parse({ candidates: [] });
-    }
-    const matches = await searchNominatim(search, parsed.near ?? "", { fetchImpl });
-    const candidates = matches.map(candidateFromNominatim);
-    return lookupResponseSchema.parse({
-      candidates,
-      strongMatchId: pickStrongMatch(matches)?.id,
-    });
-  }
-
-  const wantGoogle = parsed.source === "places" || parsed.source === "google-search";
-  const wantApple = parsed.source === "places" || parsed.source === "apple-search";
-  const [google, apple] = await Promise.all([
-    wantGoogle && search && env.googleApiKey
-      ? searchGooglePlaces(search, env.googleApiKey, fetchImpl).then((places) =>
-          places
-            .map(candidateFromGooglePlace)
-            .filter((candidate): candidate is PlaceCandidate => candidate !== null),
+  const [google, apple, osmMatches] = await Promise.all([
+    options.wantGoogle
+      ? searchGoogleCandidatesForQueries(queries, env, fetchImpl)
+      : Promise.resolve([]),
+    options.wantApple
+      ? searchAppleCandidatesForQueries(
+          queries,
+          trimmedNear || undefined,
+          env,
+          fetchImpl
         )
       : Promise.resolve([]),
-    wantApple && search && hasAppleConfig(env)
-      ? searchAppleMaps(search, env, fetchImpl)
-          .then((result) =>
-            result.results.map((place) =>
-              placeCandidateSchema.parse({
-                source: "apple",
-                id: place.id,
-                name: place.name,
-                address: appleAddress(place.formattedAddressLines),
-              }),
-            ),
-          )
-          .catch(() => [])
+    options.includeOsm && search.length >= 2
+      ? searchNominatim(search, trimmedNear, { fetchImpl })
       : Promise.resolve([]),
   ]);
 
-  let candidates = [...google, ...apple];
-  let strongMatchId: string | undefined;
+  let candidates = dedupePlaceCandidates([
+    ...google,
+    ...apple,
+    ...osmMatches.map(candidateFromNominatim),
+  ]);
 
-  if (candidates.length === 0 && parsed.source === "places" && search.length >= 2) {
-    const matches = await searchNominatim(search, parsed.near ?? "", { fetchImpl });
-    candidates = matches.map(candidateFromNominatim);
-    strongMatchId = pickStrongMatch(matches)?.id;
-  } else {
-    const named = google.filter((candidate) => namesMatch(search, candidate.name));
-    if (named.length === 1) {
-      strongMatchId = named[0]?.id;
+  let strongMatchId = pickStrongMatch(osmMatches)?.id;
+
+  if (
+    candidates.length === 0 &&
+    options.includeOsm &&
+    search.length >= 2 &&
+    !trimmedNear
+  ) {
+    const fallbackMatches = await searchNominatim(search, "", { fetchImpl });
+    candidates = fallbackMatches.map(candidateFromNominatim);
+    strongMatchId = pickStrongMatch(fallbackMatches)?.id;
+  }
+
+  if (!strongMatchId) {
+    const namedGoogle = google.filter((candidate) =>
+      namesMatch(search, candidate.name)
+    );
+    if (namedGoogle.length === 1) {
+      strongMatchId = namedGoogle[0]?.id;
     }
   }
 
-  return lookupResponseSchema.parse({
-    candidates,
+  return {
+    candidates: rankPlaceCandidates(
+      candidates,
+      search,
+      trimmedNear || undefined
+    ).slice(0, 8),
     strongMatchId,
+  };
+};
+
+const withLookupProviders = (
+  response: z.infer<typeof lookupResponseSchema>,
+  providers: LookupProviders
+): z.infer<typeof lookupResponseSchema> =>
+  lookupResponseSchema.parse({ ...response, providers });
+
+type LookupQuery = z.infer<typeof lookupQuerySchema>;
+type LookupResponse = z.infer<typeof lookupResponseSchema>;
+
+const lookupNominatimReverse = async (
+  parsed: LookupQuery,
+  providers: LookupProviders,
+  fetchImpl: typeof fetch
+): Promise<LookupResponse> => {
+  const lat = Number(parsed.lat);
+  const lon = Number(parsed.lon);
+  const locality = await reverseNominatim(lat, lon, { fetchImpl });
+  return withLookupProviders(
+    {
+      candidates: [],
+      city: locality?.city,
+      locality: locality?.locality,
+      suburb: locality?.suburb,
+    },
+    providers
+  );
+};
+
+const lookupGooglePlaceById = async (
+  parsed: LookupQuery,
+  env: AuditEngineEnv,
+  providers: LookupProviders,
+  fetchImpl: typeof fetch
+): Promise<LookupResponse> => {
+  if (!parsed.id || !env.googleApiKey || isHttpUrl(parsed.id)) {
+    return withLookupProviders({ candidates: [] }, providers);
+  }
+  const place = await fetchGooglePlace(parsed.id, env.googleApiKey, fetchImpl);
+  const candidate = place ? candidateFromGooglePlace(place) : null;
+  return withLookupProviders(
+    { candidates: candidate ? [candidate] : [] },
+    providers
+  );
+};
+
+const lookupApplePlaceById = async (
+  parsed: LookupQuery,
+  env: AuditEngineEnv,
+  providers: LookupProviders,
+  fetchImpl: typeof fetch
+): Promise<LookupResponse> => {
+  if (!parsed.id || !hasAppleConfig(env)) {
+    return withLookupProviders({ candidates: [] }, providers);
+  }
+  try {
+    const place = await fetchApplePlace(parsed.id, env, fetchImpl);
+    if (!place) {
+      return withLookupProviders({ candidates: [] }, providers);
+    }
+    return withLookupProviders(
+      {
+        candidates: [
+          placeCandidateSchema.parse({
+            address: appleAddress(place.formattedAddressLines),
+            id: place.id,
+            name: place.name,
+            source: "apple",
+          }),
+        ],
+      },
+      providers
+    );
+  } catch {
+    return withLookupProviders({ candidates: [] }, providers);
+  }
+};
+
+const lookupGoogleAutocomplete = async (
+  search: string,
+  env: AuditEngineEnv,
+  providers: LookupProviders,
+  fetchImpl: typeof fetch
+): Promise<LookupResponse> => {
+  if (!search || !env.googleApiKey) {
+    return withLookupProviders({ candidates: [] }, providers);
+  }
+  const predictions = await autocompleteGooglePlaces(
+    search,
+    env.googleApiKey,
+    fetchImpl
+  );
+  return withLookupProviders(
+    {
+      candidates: predictions.map((prediction) =>
+        placeCandidateSchema.parse({
+          address: prediction.description,
+          id: prediction.id,
+          name: prediction.title,
+          source: "google",
+          types: prediction.types,
+        })
+      ),
+    },
+    providers
+  );
+};
+
+const lookupNominatimSearch = async (
+  search: string,
+  parsed: LookupQuery,
+  providers: LookupProviders,
+  fetchImpl: typeof fetch
+): Promise<LookupResponse> => {
+  if (search.length < 2) {
+    return withLookupProviders({ candidates: [] }, providers);
+  }
+  const matches = await searchNominatim(search, parsed.near ?? "", {
+    fetchImpl,
   });
-}
+  const candidates = matches.map(candidateFromNominatim);
+  return withLookupProviders(
+    {
+      candidates,
+      strongMatchId: pickStrongMatch(matches)?.id,
+    },
+    providers
+  );
+};
+
+const lookupMapSearch = async (
+  search: string,
+  parsed: LookupQuery,
+  env: AuditEngineEnv,
+  providers: LookupProviders,
+  fetchImpl: typeof fetch
+): Promise<LookupResponse> => {
+  if (!search) {
+    return withLookupProviders({ candidates: [] }, providers);
+  }
+  const wantGoogle =
+    parsed.source === "places" || parsed.source === "google-search";
+  const wantApple =
+    parsed.source === "places" || parsed.source === "apple-search";
+  const includeOsm = parsed.source === "places";
+  const { candidates, strongMatchId } = await lookupMapCandidates(
+    search,
+    parsed.near,
+    env,
+    fetchImpl,
+    { includeOsm, wantApple, wantGoogle }
+  );
+  return withLookupProviders({ candidates, strongMatchId }, providers);
+};
+
+export const lookupPlaces = (
+  query: LookupQuery,
+  env: AuditEngineEnv,
+  fetchImpl: typeof fetch = fetch
+): Promise<LookupResponse> => {
+  const parsed = lookupQuerySchema.parse(query);
+  const search = parsed.q?.trim() ?? "";
+  const providers = lookupProvidersFromEnv(env);
+
+  switch (parsed.source) {
+    case "nominatim-reverse": {
+      return lookupNominatimReverse(parsed, providers, fetchImpl);
+    }
+    case "google-place": {
+      return lookupGooglePlaceById(parsed, env, providers, fetchImpl);
+    }
+    case "apple-place": {
+      return lookupApplePlaceById(parsed, env, providers, fetchImpl);
+    }
+    case "google-autocomplete": {
+      return lookupGoogleAutocomplete(search, env, providers, fetchImpl);
+    }
+    case "nominatim-search": {
+      return lookupNominatimSearch(search, parsed, providers, fetchImpl);
+    }
+    default: {
+      return lookupMapSearch(search, parsed, env, providers, fetchImpl);
+    }
+  }
+};

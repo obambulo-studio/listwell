@@ -24,26 +24,26 @@ export const channelSchema = z.object({
 export type Channel = z.infer<typeof channelSchema>;
 
 export const CHANNEL_CONFIG: Record<ChannelId, Channel> = {
-  website: { id: "website", name: "Website" },
-  facebook: { id: "facebook", name: "Facebook" },
-  instagram: { id: "instagram", name: "Instagram" },
-  tiktok: { id: "tiktok", name: "TikTok" },
-  youtube: { id: "youtube", name: "YouTube" },
-  "uber-eats": { id: "uber-eats", name: "Uber Eats" },
+  "apple-maps": { id: "apple-maps", name: "Apple Maps" },
   deliveroo: { id: "deliveroo", name: "Deliveroo" },
   doordash: { id: "doordash", name: "DoorDash" },
-  menulog: { id: "menulog", name: "Menulog" },
-  "apple-maps": { id: "apple-maps", name: "Apple Maps" },
+  facebook: { id: "facebook", name: "Facebook" },
   "google-maps": { id: "google-maps", name: "Google Maps" },
+  instagram: { id: "instagram", name: "Instagram" },
   linkedin: { id: "linkedin", name: "LinkedIn" },
+  menulog: { id: "menulog", name: "Menulog" },
+  tiktok: { id: "tiktok", name: "TikTok" },
+  "uber-eats": { id: "uber-eats", name: "Uber Eats" },
+  website: { id: "website", name: "Website" },
   x: { id: "x", name: "X" },
+  youtube: { id: "youtube", name: "YouTube" },
 };
 
 export const discoveredProfileSchema = z.object({
-  type: channelIdSchema,
-  title: z.string(),
-  subtitle: z.string().optional(),
-  googlePlaceId: z.string().optional(),
   appleMapsId: z.string().optional(),
+  googlePlaceId: z.string().optional(),
+  subtitle: z.string().optional(),
+  title: z.string(),
+  type: channelIdSchema,
 });
 export type DiscoveredProfile = z.infer<typeof discoveredProfileSchema>;

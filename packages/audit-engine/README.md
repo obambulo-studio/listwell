@@ -2,7 +2,7 @@
 
 Workers-friendly TypeScript modules for Listwell website and local SEO checks.
 
-Check IDs match `content/checks/*.md` so reports stay comparable with the original Nuxt handlers. Upstream `drevantonder/visimate` is fork history only.
+Check IDs match `content/checks/*.md` so reports stay comparable across runs.
 
 The Next.js OpenNext Worker imports this package and runs checks on the existing report routes. Do not stand up a parallel app.
 
@@ -12,7 +12,8 @@ import { runChecks } from "@listwell/audit-engine";
 const results = await runChecks(business, undefined, {
   env: {
     googleApiKey: process.env.GOOGLE_API_KEY,
-    googleProgrammableSearchEngineId: process.env.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID,
+    googleProgrammableSearchEngineId:
+      process.env.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID,
     cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID,
     cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN,
   },

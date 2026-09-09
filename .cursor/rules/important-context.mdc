@@ -3,14 +3,15 @@ description:
 globs:
 alwaysApply: true
 ---
-- Product name is Listwell. Do not use Visimate in UI, copy, metadata, package name, titles, or README except one MIT origin mention of drevantonder/visimate.
+- Product name is Listwell. Do not use Visimate in UI, copy, metadata, package name, titles, or README. Upstream copyright stays in LICENSE only.
+- Listwell is proprietary software owned by Obambulo Studio, not open source.
 - Use `bun` to install node packages.
 - Next.js App Router + OpenNext Cloudflare Workers (wrangler).
 - UI follows docs/DESIGN.md: Geist Sans/Mono, sentence-case, one continuous canvas. No Vercel wordmark or triangle.
 - Use Zod for types and type safety
 - Avoid premature optimization and remember KISS
 - Prefer adding to pre-existing files, rather than creating new ones
-- Database is sqlite / D1 with drizzle
+- Database is Convex (Better Auth component + app tables). Cloudflare keeps KV/audit engine only — no D1.
 - Prefer typescript inference
 - Use conventional commits
 - Don't use `any` or `as`. Use zod to parse and throw an error if the result doesn't match
