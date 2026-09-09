@@ -254,7 +254,7 @@ After you edit `content/checks`, run `bun run catalog` so `lib/checks/catalog.ts
 
 1. Set production env on Convex and on the Worker.
 2. Put the live domain in `SITE_URL` with no trailing slash.
-3. Replace `AUDIT_KV` ids in `wrangler.jsonc`.
+3. Bind `AUDIT_KV` and `listwell-next-cache` on the same Cloudflare account as the `listwell` Worker.
 4. Point Polar webhooks at `https://your-domain/api/webhook/polar`.
 5. Run `bun run convex:deploy`.
 6. Run `bun run deploy`.

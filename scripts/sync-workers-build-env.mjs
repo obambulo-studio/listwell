@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import path from "node:path";
 
-const ACCOUNT_ID = "2d1b0d0b11e44b3cf9177cd6fb703646";
+const ACCOUNT_ID = "0139d167327c252643c7691dc8b25c33";
 const WORKER_SCRIPT_ID = "81106cf5a23946e28051caa2ac22b335";
 const BUN_VERSION = "1.4.2";
 
