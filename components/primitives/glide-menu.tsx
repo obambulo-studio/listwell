@@ -54,11 +54,13 @@ const GlideMenu = ({
         aria-hidden
         className={`pointer-events-none absolute ${highlightClassName}`}
         style={{
-          height: box?.height ?? 0,
+          height: 1,
           opacity: box && visible ? 1 : 0,
-          top: box?.top ?? 0,
+          top: 0,
+          transform: `translateY(${box?.top ?? 0}px) scaleY(${box?.height ?? 1})`,
+          transformOrigin: "top",
           transition:
-            "top 220ms cubic-bezier(0.23,1,0.32,1), height 220ms cubic-bezier(0.23,1,0.32,1), opacity 150ms ease",
+            "transform 220ms cubic-bezier(0.23, 1, 0.32, 1), opacity 150ms ease",
         }}
       />
       {children}

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 
 import { CATEGORY_CONFIG } from "@/lib/category";
 import { lookupResponseSchema } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 const sourceLabel = (source: PlaceCandidate["source"]): string => {
   if (source === "osm") {
@@ -79,23 +81,24 @@ export const PlaceSearch = ({
   const [candidates, setCandidates] = useState<PlaceCandidate[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [selected, setSelected] = useState<PlaceCandidate | null>(null);
+  const debounceRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
-    if (value.trim().length < 2) {
+    window.clearTimeout(debounceRef.current);
+    abortRef.current?.abort();
+
+    const trimmed = value.trim();
+    if (trimmed.length < 2) {
       setCandidates([]);
       setStatus(null);
-    }
-  };
-
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 2) {
       return;
     }
 
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
+    debounceRef.current = window.setTimeout(() => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       const runSearch = async () => {
         setStatus("Searching listings");
         try {
@@ -126,14 +129,9 @@ export const PlaceSearch = ({
           setStatus("Search skipped");
         }
       };
-      runSearch();
-    }, 300);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [query, source]);
+      void runSearch();
+    }, SEARCH_DEBOUNCE_MS);
+  };
 
   return (
     <div className="vbg-field">

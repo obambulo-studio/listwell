@@ -610,6 +610,24 @@ a:focus-visible .animated-underline::after {
   }
 }
 
+@keyframes listwell-roll-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-1em);
+  }
+}
+
+@keyframes listwell-roll-down {
+  from {
+    transform: translateY(-1em);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

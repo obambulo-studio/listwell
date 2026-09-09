@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useRef,
@@ -241,6 +242,9 @@ export const AccountControl = ({
       triggerRef.current?.focus();
     }
   }, []);
+  const onDismissMenu = useEffectEvent((restoreFocus = false) => {
+    close(restoreFocus);
+  });
 
   const sessionEmail = session.data?.user.email ?? null;
   const status = accountStatusFromSession(session.isPending, sessionEmail);
@@ -256,7 +260,7 @@ export const AccountControl = ({
       if (target instanceof Node && rootRef.current?.contains(target)) {
         return;
       }
-      close();
+      onDismissMenu();
     };
 
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -264,7 +268,7 @@ export const AccountControl = ({
         return;
       }
       event.preventDefault();
-      close(true);
+      onDismissMenu(true);
     };
 
     document.addEventListener("pointerdown", onPointerDown);
@@ -273,7 +277,7 @@ export const AccountControl = ({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [close, open]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -331,12 +335,13 @@ export const AccountControl = ({
 
   const handleLogout = async () => {
     close();
-    await authClient.signOut();
     if (onLogout) {
+      await authClient.signOut();
       onLogout();
       refresh();
       return;
     }
+    await authClient.signOut();
     clearChatSession();
     window.dispatchEvent(new Event(LISTWELL_LOGOUT_EVENT));
     refresh();

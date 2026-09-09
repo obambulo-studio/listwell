@@ -1,6 +1,9 @@
 import type { HtmlDocument } from "../html";
 import type { GoogleSearchResult, SocialSearchHit } from "../types";
 
+const containsToken = (haystack: string, needle: string): boolean =>
+  needle.length > 0 && haystack.split(needle).length > 1;
+
 const titleScore = (
   title: string,
   searchQuery: string,
@@ -26,8 +29,7 @@ const titleScore = (
   const queryWords = normalizedQuery
     .split(/\s+/u)
     .filter((word) => word.length > 2);
-  const titleWords = cleanTitle.split(/\s+/u);
-  const titleWordSet = new Set(titleWords);
+  const titleWordSet = new Set(cleanTitle.split(/\s+/u));
   if (queryWords.length === 0) {
     return 0;
   }
@@ -37,11 +39,16 @@ const titleScore = (
   for (const queryWord of queryWords) {
     if (titleWordSet.has(queryWord)) {
       exactWordMatches += 1;
-    } else if (
-      titleWords.some(
-        (word) => word.includes(queryWord) || queryWord.includes(word)
-      )
-    ) {
+      continue;
+    }
+    let hasPartial = false;
+    for (const word of titleWordSet) {
+      if (containsToken(word, queryWord) || containsToken(queryWord, word)) {
+        hasPartial = true;
+        break;
+      }
+    }
+    if (hasPartial) {
       partialWordMatches += 1;
     }
   }

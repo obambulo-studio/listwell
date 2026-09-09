@@ -23,6 +23,9 @@ const WHITESPACE_PATTERN = /\s+/gu;
 const WORD_SPLIT_PATTERN = /\s+/gu;
 const STATE_CODE_PATTERN = /^[A-Z]+$/u;
 
+const containsToken = (haystack: string, needle: string): boolean =>
+  needle.length > 0 && haystack.split(needle).length > 1;
+
 interface TitleContext {
   businessName: string;
   normalizedTitle: string;
@@ -65,11 +68,13 @@ const matchStateCode = (
   if (!altNames) {
     return false;
   }
-  for (const altName of altNames) {
-    if (normalizedTitle.includes(altName)) {
-      matchedLocations.push(`${locationValue} (as ${altName})`);
-      return true;
+  const altNameSet = new Set(altNames);
+  for (const altName of altNameSet) {
+    if (!containsToken(normalizedTitle, altName)) {
+      continue;
     }
+    matchedLocations.push(`${locationValue} (as ${altName})`);
+    return true;
   }
   return false;
 };

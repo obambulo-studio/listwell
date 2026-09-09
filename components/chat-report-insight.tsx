@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 
 import { reportAllocationSegments } from "@/components/chat-report-allocation";
 import { scorePercent } from "@/lib/chat-onboarding";
@@ -132,40 +133,18 @@ export const ReportSummary = ({
 }: ReportSummaryProps) => {
   const score = scorePercent(stats);
   const segments = reportAllocationSegments(stats);
-  const [access, setAccess] = useState<EntitlementState>(() =>
-    entitlementStateSchema.parse({ paymentsEnabled: false, unlocked: false })
+  const fallbackAccess = entitlementStateSchema.parse({
+    paymentsEnabled: false,
+    unlocked: false,
+  });
+  const { data: fetchedAccess } = useSWR(
+    businessId ? (["entitlement", businessId] as const) : null,
+    ([, id]) => fetchEntitlement(id),
+    { revalidateOnFocus: false }
   );
+  const access = fetchedAccess ?? fallbackAccess;
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
-
-  useEffect(() => {
-    if (!businessId) {
-      return;
-    }
-    const id = businessId;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const next = await fetchEntitlement(id);
-        if (!cancelled) {
-          setAccess(next);
-        }
-      } catch {
-        if (!cancelled) {
-          setAccess(
-            entitlementStateSchema.parse({
-              paymentsEnabled: false,
-              unlocked: false,
-            })
-          );
-        }
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [businessId]);
 
   const sessionRequired = Boolean(access.unlocked && access.sessionRequired);
   const ctaDisabled =

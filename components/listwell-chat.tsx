@@ -8,10 +8,12 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
-import type { FormEvent, RefObject } from "react";
+import type { RefObject } from "react";
+import useSWR from "swr";
 
 import { ReportSummary } from "@/components/chat-report-insight";
 import {
@@ -385,28 +387,28 @@ const TypingIndicator = () => (
 const ChatComposer = ({
   placeholder,
   onSend,
-  autoFocus = false,
+  shouldFocus = false,
   embedded = false,
 }: {
   placeholder: string;
   onSend: (text: string) => void;
-  autoFocus?: boolean;
+  shouldFocus?: boolean;
   embedded?: boolean;
 }) => {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useReducer(
+    (_current: string, next: string) => next,
+    ""
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (autoFocus) {
+    if (shouldFocus) {
       inputRef.current?.focus();
     }
-  }, [autoFocus]);
+  }, [shouldFocus]);
 
-  const readValue = () => (inputRef.current?.value ?? value).trim();
-
-  const submit = (event?: FormEvent) => {
-    event?.preventDefault();
-    const trimmed = readValue();
+  const sendComposerMessage = () => {
+    const trimmed = (inputRef.current?.value ?? value).trim();
     if (!trimmed) {
       return;
     }
@@ -422,7 +424,7 @@ const ChatComposer = ({
   return (
     <form
       className={`listwell-chat__composer${embedded ? " listwell-chat__composer--embedded" : ""}`}
-      onSubmit={submit}
+      action={sendComposerMessage}
     >
       <input
         ref={inputRef}
@@ -514,7 +516,7 @@ const PromptCard = ({
   showEmbeddedInput = false,
   inputPlaceholder,
   onInputSend,
-  autoFocusInput = false,
+  shouldFocusInput = false,
   options,
   onOptionSelect,
 }: {
@@ -525,7 +527,7 @@ const PromptCard = ({
   showEmbeddedInput?: boolean;
   inputPlaceholder?: string;
   onInputSend?: (text: string) => void;
-  autoFocusInput?: boolean;
+  shouldFocusInput?: boolean;
   options?: string[];
   onOptionSelect?: (option: string) => void;
 }) => {
@@ -542,7 +544,7 @@ const PromptCard = ({
         embedded
         placeholder={inputPlaceholder}
         onSend={onInputSend}
-        autoFocus={autoFocusInput}
+        shouldFocus={shouldFocusInput}
       />
     ) : null;
   const showOptions =
@@ -697,7 +699,7 @@ const ListwellChatLayout = ({
                   showEmbeddedInput={isActivePrompt}
                   inputPlaceholder={promptPlaceholder}
                   onInputSend={handleSend}
-                  autoFocusInput={isActivePrompt}
+                  shouldFocusInput={isActivePrompt}
                   options={isCategoryPrompt ? categoryOptions : undefined}
                   onOptionSelect={isCategoryPrompt ? handleSend : undefined}
                 />
@@ -817,7 +819,103 @@ const startAudit = async ({
   }
 };
 
-export const ListwellChat = () => {
+interface ChatSessionState {
+  auditTasks: TaskRow[];
+  businessId: string | null;
+  candidates: PlaceCandidate[];
+  draft: ChatDraft;
+  isTyping: boolean;
+  locationHint: string;
+  messages: ChatMessage[];
+  phase: ChatPhase;
+  reportStats: BasicReportStats | null;
+}
+
+type ChatSessionAction =
+  | { type: "apply-locality"; locality: string }
+  | {
+      type: "audit-tasks";
+      updater: (current: TaskRow[]) => TaskRow[];
+    }
+  | { type: "messages"; updater: (current: ChatMessage[]) => ChatMessage[] }
+  | { type: "patch"; patch: Partial<ChatSessionState> }
+  | { type: "reset" };
+
+const emptyChatSession = (): ChatSessionState => ({
+  auditTasks: buildInitialAuditTasks("other"),
+  businessId: null,
+  candidates: [],
+  draft: INITIAL_DRAFT,
+  isTyping: false,
+  locationHint: "Suburb or city",
+  messages: [STARTER_PROMPT],
+  phase: "business_name",
+  reportStats: null,
+});
+
+const loadInitialChatSession = (): ChatSessionState => {
+  const stored = loadChatSession();
+  if (!(stored && isRestoredSession(stored))) {
+    return emptyChatSession();
+  }
+  return {
+    auditTasks:
+      stored.auditTasks.length > 0
+        ? stored.auditTasks
+        : buildInitialAuditTasks(stored.draft.categoryId),
+    businessId: stored.businessId,
+    candidates: stored.candidates,
+    draft: stored.draft,
+    isTyping: false,
+    locationHint: stored.locationHint,
+    messages: stored.messages,
+    phase: stored.phase,
+    reportStats: stored.reportStats,
+  };
+};
+
+const chatSessionReducer = (
+  state: ChatSessionState,
+  action: ChatSessionAction
+): ChatSessionState => {
+  switch (action.type) {
+    case "apply-locality": {
+      return {
+        ...state,
+        draft: {
+          ...state.draft,
+          location: state.draft.location || action.locality,
+        },
+        locationHint: action.locality,
+      };
+    }
+    case "audit-tasks": {
+      return { ...state, auditTasks: action.updater(state.auditTasks) };
+    }
+    case "messages": {
+      return { ...state, messages: action.updater(state.messages) };
+    }
+    case "patch": {
+      return { ...state, ...action.patch };
+    }
+    case "reset": {
+      return emptyChatSession();
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
+const fetchReverseLocality = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Reverse lookup failed");
+  }
+  return lookupResponseSchema.parse(await response.json());
+};
+
+const useListwellChat = () => {
   const { push } = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const skipRestoreScroll = useRef(
@@ -826,50 +924,59 @@ export const ListwellChat = () => {
       return Boolean(stored && isRestoredSession(stored));
     })()
   );
-  const [phase, setPhase] = useState<ChatPhase>(() => {
-    const stored = loadChatSession();
-    return stored && isRestoredSession(stored) ? stored.phase : "business_name";
-  });
-  const [draft, setDraft] = useState<ChatDraft>(() => {
-    const stored = loadChatSession();
-    return stored && isRestoredSession(stored) ? stored.draft : INITIAL_DRAFT;
-  });
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const stored = loadChatSession();
-    return stored && isRestoredSession(stored)
-      ? stored.messages
-      : [STARTER_PROMPT];
-  });
-  const [candidates, setCandidates] = useState<PlaceCandidate[]>(() => {
-    const stored = loadChatSession();
-    return stored && isRestoredSession(stored) ? stored.candidates : [];
-  });
-  const [locationHint, setLocationHint] = useState(() => {
-    const stored = loadChatSession();
-    return stored && isRestoredSession(stored)
-      ? stored.locationHint
-      : "Suburb or city";
-  });
-  const [businessId, setBusinessId] = useState<string | null>(() => {
-    const stored = loadChatSession();
-    return stored && isRestoredSession(stored) ? stored.businessId : null;
-  });
-  const [reportStats, setReportStats] = useState<BasicReportStats | null>(
-    () => {
-      const stored = loadChatSession();
-      return stored && isRestoredSession(stored) ? stored.reportStats : null;
-    }
+  const [state, dispatch] = useReducer(
+    chatSessionReducer,
+    undefined,
+    loadInitialChatSession
   );
-  const [isTyping, setIsTyping] = useState(false);
-  const [auditTasks, setAuditTasks] = useState<TaskRow[]>(() => {
-    const stored = loadChatSession();
-    if (stored && isRestoredSession(stored)) {
-      return stored.auditTasks.length > 0
-        ? stored.auditTasks
-        : buildInitialAuditTasks(stored.draft.categoryId);
-    }
-    return buildInitialAuditTasks("other");
-  });
+  const {
+    auditTasks,
+    businessId,
+    candidates,
+    draft,
+    isTyping,
+    locationHint,
+    messages,
+    phase,
+    reportStats,
+  } = state;
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(
+    null
+  );
+
+  const setPhase = useCallback((next: ChatPhase) => {
+    dispatch({ patch: { phase: next }, type: "patch" });
+  }, []);
+  const setDraft = useCallback((next: ChatDraft) => {
+    dispatch({ patch: { draft: next }, type: "patch" });
+  }, []);
+  const setMessages = useCallback(
+    (updater: (current: ChatMessage[]) => ChatMessage[]) => {
+      dispatch({ type: "messages", updater });
+    },
+    []
+  );
+  const setCandidates = useCallback((next: PlaceCandidate[]) => {
+    dispatch({ patch: { candidates: next }, type: "patch" });
+  }, []);
+  const setBusinessId = useCallback((next: string | null) => {
+    dispatch({ patch: { businessId: next }, type: "patch" });
+  }, []);
+  const setReportStats = useCallback((next: BasicReportStats | null) => {
+    dispatch({ patch: { reportStats: next }, type: "patch" });
+  }, []);
+  const setIsTyping = useCallback((next: boolean) => {
+    dispatch({ patch: { isTyping: next }, type: "patch" });
+  }, []);
+  const setAuditTasks = useCallback(
+    (next: TaskRow[] | ((current: TaskRow[]) => TaskRow[])) => {
+      dispatch({
+        type: "audit-tasks",
+        updater: typeof next === "function" ? next : () => next,
+      });
+    },
+    []
+  );
   const restored = isRestoredSession({ messages, phase });
 
   useEffect(() => {
@@ -897,15 +1004,7 @@ export const ListwellChat = () => {
 
   const resetChat = useCallback(() => {
     clearChatSession();
-    setPhase("business_name");
-    setDraft(INITIAL_DRAFT);
-    setMessages([STARTER_PROMPT]);
-    setCandidates([]);
-    setLocationHint("Suburb or city");
-    setBusinessId(null);
-    setReportStats(null);
-    setIsTyping(false);
-    setAuditTasks(buildInitialAuditTasks("other"));
+    dispatch({ type: "reset" });
   }, []);
 
   useEffect(() => {
@@ -920,23 +1019,29 @@ export const ListwellChat = () => {
     };
   }, [resetChat]);
 
-  const pushMessage = useCallback((role: ChatMessage["role"], text: string) => {
-    setMessages((current) => [...current, createMessage(role, text)]);
-  }, []);
+  const pushMessage = useCallback(
+    (role: ChatMessage["role"], text: string) => {
+      setMessages((current) => [...current, createMessage(role, text)]);
+    },
+    [setMessages]
+  );
 
-  const attachPromptAnswer = useCallback((answer: string) => {
-    setMessages((current) => {
-      for (let index = current.length - 1; index >= 0; index -= 1) {
-        const message = current[index];
-        if (message?.isPrompt && message.userAnswer === undefined) {
-          const next = [...current];
-          next[index] = { ...message, userAnswer: answer };
-          return next;
+  const attachPromptAnswer = useCallback(
+    (answer: string) => {
+      setMessages((current) => {
+        for (let index = current.length - 1; index >= 0; index -= 1) {
+          const message = current[index];
+          if (message?.isPrompt && message.userAnswer === undefined) {
+            const next = [...current];
+            next[index] = { ...message, userAnswer: answer };
+            return next;
+          }
         }
-      }
-      return current;
-    });
-  }, []);
+        return current;
+      });
+    },
+    [setMessages]
+  );
 
   const advance = useCallback(
     (next: ChatPhase, assistantText?: string) => {
@@ -952,7 +1057,7 @@ export const ListwellChat = () => {
         }
       }
     },
-    [pushMessage]
+    [pushMessage, setMessages, setPhase]
   );
 
   useLayoutEffect(() => {
@@ -968,17 +1073,20 @@ export const ListwellChat = () => {
     node.scrollTo({ behavior: "smooth", top: node.scrollHeight });
   });
 
-  const finishTyping = useCallback((startedAt: number) => {
-    const elapsed = Date.now() - startedAt;
-    const remaining = TYPING_MIN_MS - elapsed;
-    if (remaining <= 0) {
-      setIsTyping(false);
-      return;
-    }
-    setTimeout(() => {
-      setIsTyping(false);
-    }, remaining);
-  }, []);
+  const finishTyping = useCallback(
+    (startedAt: number) => {
+      const elapsed = Date.now() - startedAt;
+      const remaining = TYPING_MIN_MS - elapsed;
+      if (remaining <= 0) {
+        setIsTyping(false);
+        return;
+      }
+      setTimeout(() => {
+        setIsTyping(false);
+      }, remaining);
+    },
+    [setIsTyping]
+  );
 
   const showTypingThen = useCallback(
     async (work: () => void | Promise<void>) => {
@@ -987,216 +1095,210 @@ export const ListwellChat = () => {
       await work();
       finishTyping(startedAt);
     },
-    [finishTyping]
+    [finishTyping, setIsTyping]
   );
 
   useEffect(() => {
     if (!navigator.geolocation) {
       return;
     }
-
-    const controller = new AbortController();
-
-    const loadLocality = async (latitude: number, longitude: number) => {
-      try {
-        const response = await fetch(
-          `/api/lookups?source=nominatim-reverse&lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`,
-          { signal: controller.signal }
-        );
-        if (!response.ok) {
-          setLocationHint("Suburb or city");
-          return;
-        }
-        const parsed = lookupResponseSchema.parse(await response.json());
-        if (parsed.locality) {
-          setDraft((current) => ({
-            ...current,
-            location: current.location || (parsed.locality ?? ""),
-          }));
-          setLocationHint(parsed.locality);
-          return;
-        }
-        setLocationHint("Suburb or city");
-      } catch {
-        setLocationHint("Suburb or city");
-      }
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        loadLocality(position.coords.latitude, position.coords.longitude);
-      },
-      () => setLocationHint("Suburb or city")
-    );
-
-    return () => controller.abort();
+    navigator.geolocation.getCurrentPosition((position) => {
+      setCoords({
+        lat: position.coords.latitude,
+        lon: position.coords.longitude,
+      });
+    });
   }, []);
 
-  const runAudit = useCallback(async (nextDraft: ChatDraft) => {
-    let activeCheckDefinitions = checksForCategory(nextDraft.categoryId);
-    let initialPending = new Set(
-      activeCheckDefinitions.map((definition) => definition.id)
-    );
+  const reverseLookupUrl = coords
+    ? `/api/lookups?source=nominatim-reverse&lat=${encodeURIComponent(String(coords.lat))}&lon=${encodeURIComponent(String(coords.lon))}`
+    : null;
 
-    setAuditTasks(buildInitialAuditTasks(nextDraft.categoryId));
+  useSWR(reverseLookupUrl, fetchReverseLocality, {
+    onSuccess: (parsed) => {
+      if (!parsed.locality) {
+        return;
+      }
+      dispatch({ locality: parsed.locality, type: "apply-locality" });
+    },
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+  });
 
-    const updateChecksRow = (progress: CheckProgress) => {
+  const runAudit = useCallback(
+    async (nextDraft: ChatDraft) => {
+      let activeCheckDefinitions = checksForCategory(nextDraft.categoryId);
+      let initialPending = new Set(
+        activeCheckDefinitions.map((definition) => definition.id)
+      );
+
+      setAuditTasks(buildInitialAuditTasks(nextDraft.categoryId));
+
+      const updateChecksRow = (progress: CheckProgress) => {
+        setAuditTasks((current) =>
+          current.map((row) =>
+            row.key === "checks"
+              ? checksTaskRow(activeCheckDefinitions, progress)
+              : row
+          )
+        );
+      };
+
+      const discoverResponse = await fetch("/api/discover", {
+        body: JSON.stringify({
+          address: nextDraft.address,
+          appleMapsId: nextDraft.appleMapsId,
+          businessName: nextDraft.businessName,
+          categoryId: nextDraft.categoryId,
+          facebookUrl: nextDraft.facebookUrl,
+          googlePlaceId: nextDraft.googlePlaceId,
+          instagramUsername: nextDraft.instagramUsername,
+          listingUrl: nextDraft.listingUrl,
+          near: nextDraft.location,
+          websiteUrl: nextDraft.websiteUrl,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!discoverResponse.ok) {
+        throw new Error("Discover failed");
+      }
+      const discovery = discoverResponseSchema.parse(
+        await discoverResponse.json()
+      );
+
+      const candidate =
+        discovery.candidates.find(
+          (item) =>
+            nextDraft.googlePlaceId &&
+            item.source === "google" &&
+            item.id === nextDraft.googlePlaceId
+        ) ??
+        discovery.candidates.find(
+          (item) =>
+            nextDraft.appleMapsId &&
+            item.source === "apple" &&
+            item.id === nextDraft.appleMapsId
+        ) ??
+        discovery.candidates[0];
+
+      const profiles = candidate
+        ? filterProfilesForCandidate(discovery.profiles, candidate)
+        : discovery.profiles;
+
+      const resolvedCategory = discovery.categoryId ?? nextDraft.categoryId;
+      activeCheckDefinitions = checksForCategory(resolvedCategory);
+      initialPending = new Set(
+        activeCheckDefinitions.map((definition) => definition.id)
+      );
+
+      const payload = mapProfilesToBusinessData(
+        nextDraft.businessName,
+        resolvedCategory,
+        profiles
+      );
+      const address =
+        discovery.address ?? nextDraft.address ?? candidate?.address;
+      if (address?.trim()) {
+        if (payload.locations.length === 0) {
+          payload.locations.push({
+            address: address.trim(),
+            name: nextDraft.businessName,
+          });
+        } else if (!payload.locations[0]?.address) {
+          payload.locations[0] = {
+            ...payload.locations[0],
+            address: address.trim(),
+          };
+        }
+      }
+
       setAuditTasks((current) =>
         current.map((row) =>
-          row.key === "checks"
-            ? checksTaskRow(activeCheckDefinitions, progress)
+          row.key === "discover"
+            ? {
+                ...row,
+                details: [
+                  { label: "Profiles found", meta: String(profiles.length) },
+                  {
+                    label: "Category",
+                    meta: categoryLabel(
+                      discovery.categoryId ?? nextDraft.categoryId
+                    ),
+                  },
+                ],
+                status: "done",
+              }
             : row
         )
       );
-    };
 
-    const discoverResponse = await fetch("/api/discover", {
-      body: JSON.stringify({
-        address: nextDraft.address,
-        appleMapsId: nextDraft.appleMapsId,
-        businessName: nextDraft.businessName,
-        categoryId: nextDraft.categoryId,
-        facebookUrl: nextDraft.facebookUrl,
-        googlePlaceId: nextDraft.googlePlaceId,
-        instagramUsername: nextDraft.instagramUsername,
-        listingUrl: nextDraft.listingUrl,
-        near: nextDraft.location,
-        websiteUrl: nextDraft.websiteUrl,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    if (!discoverResponse.ok) {
-      throw new Error("Discover failed");
-    }
-    const discovery = discoverResponseSchema.parse(
-      await discoverResponse.json()
-    );
-
-    const candidate =
-      discovery.candidates.find(
-        (item) =>
-          nextDraft.googlePlaceId &&
-          item.source === "google" &&
-          item.id === nextDraft.googlePlaceId
-      ) ??
-      discovery.candidates.find(
-        (item) =>
-          nextDraft.appleMapsId &&
-          item.source === "apple" &&
-          item.id === nextDraft.appleMapsId
-      ) ??
-      discovery.candidates[0];
-
-    const profiles = candidate
-      ? filterProfilesForCandidate(discovery.profiles, candidate)
-      : discovery.profiles;
-
-    const resolvedCategory = discovery.categoryId ?? nextDraft.categoryId;
-    activeCheckDefinitions = checksForCategory(resolvedCategory);
-    initialPending = new Set(
-      activeCheckDefinitions.map((definition) => definition.id)
-    );
-
-    const payload = mapProfilesToBusinessData(
-      nextDraft.businessName,
-      resolvedCategory,
-      profiles
-    );
-    const address =
-      discovery.address ?? nextDraft.address ?? candidate?.address;
-    if (address?.trim()) {
-      if (payload.locations.length === 0) {
-        payload.locations.push({
-          address: address.trim(),
-          name: nextDraft.businessName,
-        });
-      } else if (!payload.locations[0]?.address) {
-        payload.locations[0] = {
-          ...payload.locations[0],
-          address: address.trim(),
-        };
-      }
-    }
-
-    setAuditTasks((current) =>
-      current.map((row) =>
-        row.key === "discover"
-          ? {
-              ...row,
-              details: [
-                { label: "Profiles found", meta: String(profiles.length) },
-                {
-                  label: "Category",
-                  meta: categoryLabel(
-                    discovery.categoryId ?? nextDraft.categoryId
-                  ),
-                },
-              ],
-              status: "done",
-            }
-          : row
-      )
-    );
-
-    updateChecksRow({
-      jobStatus: "running",
-      pending: initialPending,
-      results: {},
-    });
-
-    const id = crypto.randomUUID();
-    const saveResponse = await fetch("/api/businesses", {
-      body: JSON.stringify({ ...payload, id }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    if (!saveResponse.ok) {
-      throw new Error("Could not save audit");
-    }
-    const business = businessSchema.parse(await saveResponse.json());
-    addBusinessId(business.id);
-    setBusinessId(business.id);
-
-    const checksResponse = await fetch(`/api/businesses/${business.id}/checks`);
-    if (!checksResponse.ok) {
-      throw new Error("Checks failed");
-    }
-    const batch = checkBatchResponseSchema.parse(await checksResponse.json());
-
-    activeCheckDefinitions = checksForCategory(business.category);
-    const titles = Object.fromEntries(
-      activeCheckDefinitions.map((item) => [item.id, item.title])
-    );
-
-    let parsedResults = parseCheckResults(batch.results);
-    let pending = new Set(batch.pending);
-    let jobStatus = resolveInitialJobStatus(batch.jobId, pending.size);
-
-    updateChecksRow({ jobStatus, pending, results: parsedResults });
-
-    if (batch.jobId && pending.size > 0) {
-      const polled = await pollAuditJob({
-        activeCheckDefinitions,
-        attempt: 0,
-        jobId: batch.jobId,
-        onProgress: updateChecksRow,
-        parsedResults,
+      updateChecksRow({
+        jobStatus: "running",
+        pending: initialPending,
+        results: {},
       });
-      ({ parsedResults, pending, jobStatus } = polled);
-    }
 
-    for (const checkId of pending) {
-      parsedResults[checkId] = { value: null };
-    }
-    pending = new Set();
-    updateChecksRow({ jobStatus: "complete", pending, results: parsedResults });
+      const id = crypto.randomUUID();
+      const saveResponse = await fetch("/api/businesses", {
+        body: JSON.stringify({ ...payload, id }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!saveResponse.ok) {
+        throw new Error("Could not save audit");
+      }
+      const business = businessSchema.parse(await saveResponse.json());
+      addBusinessId(business.id);
+      setBusinessId(business.id);
 
-    setAuditTasks((current) => applySummaryRunning(current));
-    const stats = buildBasicReportStats(parsedResults, titles);
-    setReportStats(stats);
-    setAuditTasks((current) => applySummaryDone(current, stats));
-  }, []);
+      const checksResponse = await fetch(
+        `/api/businesses/${business.id}/checks`
+      );
+      if (!checksResponse.ok) {
+        throw new Error("Checks failed");
+      }
+      const batch = checkBatchResponseSchema.parse(await checksResponse.json());
+
+      activeCheckDefinitions = checksForCategory(business.category);
+      const titles = Object.fromEntries(
+        activeCheckDefinitions.map((item) => [item.id, item.title])
+      );
+
+      let parsedResults = parseCheckResults(batch.results);
+      let pending = new Set(batch.pending);
+      let jobStatus = resolveInitialJobStatus(batch.jobId, pending.size);
+
+      updateChecksRow({ jobStatus, pending, results: parsedResults });
+
+      if (batch.jobId && pending.size > 0) {
+        const polled = await pollAuditJob({
+          activeCheckDefinitions,
+          attempt: 0,
+          jobId: batch.jobId,
+          onProgress: updateChecksRow,
+          parsedResults,
+        });
+        ({ parsedResults, pending, jobStatus } = polled);
+      }
+
+      for (const checkId of pending) {
+        parsedResults[checkId] = { value: null };
+      }
+      pending = new Set();
+      updateChecksRow({
+        jobStatus: "complete",
+        pending,
+        results: parsedResults,
+      });
+
+      setAuditTasks((current) => applySummaryRunning(current));
+      const stats = buildBasicReportStats(parsedResults, titles);
+      setReportStats(stats);
+      setAuditTasks((current) => applySummaryDone(current, stats));
+    },
+    [setAuditTasks, setBusinessId, setReportStats]
+  );
 
   const handlePromptSend = useCallback(
     async (text: string) => {
@@ -1311,6 +1413,8 @@ export const ListwellChat = () => {
       phase,
       pushMessage,
       runAudit,
+      setCandidates,
+      setDraft,
       setPhase,
       showTypingThen,
     ]
@@ -1375,6 +1479,7 @@ export const ListwellChat = () => {
       draft,
       pushMessage,
       runAudit,
+      setDraft,
       setPhase,
       showTypingThen,
     ]
@@ -1427,26 +1532,29 @@ export const ListwellChat = () => {
     [handlePromptSend]
   );
 
-  return (
-    <ListwellChatLayout
-      activePromptId={activePromptId}
-      attachInput={attachInput}
-      auditTasks={auditTasks}
-      businessId={businessId}
-      candidates={candidates}
-      categoryOptions={categoryOptions}
-      draft={draft}
-      handleListingSubmit={handleListingSubmit}
-      handleSend={handleSend}
-      isStarter={isStarter}
-      isTyping={isTyping}
-      messages={messages}
-      phase={phase}
-      promptPlaceholder={promptPlaceholder}
-      reportStats={reportStats}
-      restored={restored}
-      push={push}
-      scrollRef={scrollRef}
-    />
-  );
+  return {
+    activePromptId,
+    attachInput,
+    auditTasks,
+    businessId,
+    candidates,
+    categoryOptions,
+    draft,
+    handleListingSubmit,
+    handleSend,
+    isStarter,
+    isTyping,
+    messages,
+    phase,
+    promptPlaceholder,
+    push,
+    reportStats,
+    restored,
+    scrollRef,
+  };
+};
+
+export const ListwellChat = () => {
+  const layout = useListwellChat();
+  return <ListwellChatLayout {...layout} />;
 };

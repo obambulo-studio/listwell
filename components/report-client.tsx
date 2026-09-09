@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { useMemo, useReducer, useState } from "react";
+import useSWR from "swr";
 import { z } from "zod";
 
 import { CheckBody } from "@/components/check-body";
@@ -33,6 +33,7 @@ import {
   scanSummarySchema,
 } from "@/lib/schema";
 import type {
+  AuditJobPoll,
   Business,
   CheckResult,
   CheckoutPlan,
@@ -44,11 +45,9 @@ import {
   completedCheckSchema,
 } from "@/lib/summaries";
 import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
-import { waitForMs } from "@/lib/wait";
 
 const initialResultsSchema = z.record(z.string(), checkResultSchema);
 const JOB_POLL_INTERVAL_MS = 2000;
-const JOB_POLL_MAX_ATTEMPTS = 30;
 const missingCheckResult = checkResultSchema.parse({
   label: "This check could not run",
   type: "check",
@@ -259,6 +258,55 @@ const recommendedCheckId = (
   );
 };
 
+interface UnlockFormState {
+  busy: "verify" | "resend" | null;
+  code: string;
+  email: string;
+  error: string | null;
+  resent: boolean;
+}
+
+type UnlockFormAction =
+  | { type: "busy"; busy: UnlockFormState["busy"] }
+  | { type: "code"; code: string }
+  | { type: "email"; email: string }
+  | { type: "error"; error: string | null }
+  | { type: "resent" };
+
+const initialUnlockFormState: UnlockFormState = {
+  busy: null,
+  code: "",
+  email: "",
+  error: null,
+  resent: false,
+};
+
+const unlockFormReducer = (
+  state: UnlockFormState,
+  action: UnlockFormAction
+): UnlockFormState => {
+  switch (action.type) {
+    case "busy": {
+      return { ...state, busy: action.busy, error: null, resent: false };
+    }
+    case "code": {
+      return { ...state, code: action.code };
+    }
+    case "email": {
+      return { ...state, email: action.email };
+    }
+    case "error": {
+      return { ...state, busy: null, error: action.error };
+    }
+    case "resent": {
+      return { ...state, busy: null, resent: true };
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
 const UnlockCodeForm = ({
   maskedEmail,
   checkoutReturned,
@@ -268,51 +316,47 @@ const UnlockCodeForm = ({
   checkoutReturned: boolean;
   onUnlocked: () => void;
 }) => {
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [resent, setResent] = useState(false);
-  const [busy, setBusy] = useState<"verify" | "resend" | null>(null);
+  const [state, dispatch] = useReducer(
+    unlockFormReducer,
+    initialUnlockFormState
+  );
   const destination = maskedEmail ?? "the email used at checkout";
   const lede = checkoutReturned
     ? `We sent a code to ${destination}.`
     : `Enter the code we sent to ${destination}.`;
 
-  const handleVerify = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setBusy("verify");
+  const verifyUnlockCode = async () => {
+    dispatch({ busy: "verify", type: "busy" });
     try {
-      await verifySignInCode(email, code);
+      await verifySignInCode(state.email, state.code);
       onUnlocked();
     } catch (verifyError) {
-      setBusy(null);
-      setError(
-        verifyError instanceof Error ? verifyError.message : "Invalid code"
-      );
+      dispatch({
+        error:
+          verifyError instanceof Error ? verifyError.message : "Invalid code",
+        type: "error",
+      });
     }
   };
 
-  const handleResend = async () => {
-    setError(null);
-    setResent(false);
-    setBusy("resend");
+  const resendUnlockCode = async () => {
+    dispatch({ busy: "resend", type: "busy" });
     try {
-      await requestSignInCode(email);
-      setResent(true);
-      setBusy(null);
+      await requestSignInCode(state.email);
+      dispatch({ type: "resent" });
     } catch (resendError) {
-      setError(
-        resendError instanceof Error
-          ? resendError.message
-          : "Could not send a code"
-      );
-      setBusy(null);
+      dispatch({
+        error:
+          resendError instanceof Error
+            ? resendError.message
+            : "Could not send a code",
+        type: "error",
+      });
     }
   };
 
   return (
-    <form className="listwell-report__unlock" onSubmit={handleVerify}>
+    <form className="listwell-report__unlock" action={verifyUnlockCode}>
       <h2 className="vbg-heading-24">Full report with fix steps</h2>
       <p className="vbg-lede">{lede}</p>
       <div className="vbg-field">
@@ -324,9 +368,10 @@ const UnlockCodeForm = ({
           type="email"
           name="email"
           autoComplete="email"
-          autoFocus={checkoutReturned}
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          value={state.email}
+          onChange={(event) =>
+            dispatch({ email: event.target.value, type: "email" })
+          }
           required
         />
       </div>
@@ -341,9 +386,12 @@ const UnlockCodeForm = ({
           inputMode="numeric"
           autoComplete="one-time-code"
           maxLength={6}
-          value={code}
+          value={state.code}
           onChange={(event) =>
-            setCode(event.target.value.replaceAll(/\D/gu, "").slice(0, 6))
+            dispatch({
+              code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+              type: "code",
+            })
           }
           required
         />
@@ -352,23 +400,23 @@ const UnlockCodeForm = ({
         <button
           className="listwell-report__button"
           type="submit"
-          disabled={busy !== null}
+          disabled={state.busy !== null}
         >
-          {busy === "verify" ? "Checking…" : "Unlock report"}
+          {state.busy === "verify" ? "Checking…" : "Unlock report"}
         </button>
         <button
           className="listwell-report__button listwell-report__button--quiet"
           type="button"
-          disabled={busy !== null || email.trim().length === 0}
+          disabled={state.busy !== null || state.email.trim().length === 0}
           onClick={() => {
-            void handleResend();
+            void resendUnlockCode();
           }}
         >
-          {busy === "resend" ? "Sending…" : "Send a new code"}
+          {state.busy === "resend" ? "Sending…" : "Send a new code"}
         </button>
       </div>
-      {error ? <p className="vbg-error">{error}</p> : null}
-      {resent && !error ? (
+      {state.error ? <p className="vbg-error">{state.error}</p> : null}
+      {state.resent && !state.error ? (
         <p className="vbg-caption">
           If that email has a Listwell account, we sent a new code.
         </p>
@@ -764,6 +812,157 @@ const ListingsSection = ({
   </section>
 );
 
+const mergeJobResults = (
+  base: Record<string, CheckResult>,
+  job: AuditJobPoll | undefined
+): Record<string, CheckResult> => {
+  if (!job) {
+    return base;
+  }
+  const next: Record<string, CheckResult> = { ...base };
+  for (const [id, result] of Object.entries(job.results)) {
+    if (result) {
+      next[id] = result;
+    }
+  }
+  if (job.status === "complete" || job.status === "error") {
+    for (const [id, result] of Object.entries(next)) {
+      if (result.queued) {
+        next[id] = missingCheckResult;
+      }
+    }
+  }
+  return next;
+};
+
+const fetchAuditJob = async (url: string): Promise<AuditJobPoll> => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Job poll failed");
+  }
+  return auditJobPollSchema.parse(await response.json());
+};
+
+const fetchScanHistory = async (url: string): Promise<ScanSummary[]> => {
+  const response = await fetch(url, { credentials: "same-origin" });
+  if (!response.ok) {
+    throw new Error("Scans failed");
+  }
+  const payload: unknown = await response.json();
+  return z.object({ scans: z.array(scanSummarySchema) }).parse(payload).scans;
+};
+
+const fetchRefinedSummary = async ([, businessId, completedChecks]: [
+  "summary",
+  string,
+  CompletedCheck[],
+]): Promise<AuditSummaryResult> => {
+  const response = await fetch(`/api/businesses/${businessId}/summary`, {
+    body: JSON.stringify({ checks: completedChecks }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  const payload: unknown = await response.json();
+  return auditSummaryResultSchema.parse(payload);
+};
+
+const useReportLiveData = ({
+  business,
+  checkJobId,
+  checks,
+  initialResults,
+  initialSummary,
+  serverAccess,
+}: {
+  business: Business;
+  checkJobId?: string;
+  checks: CheckDefinition[];
+  initialResults: Record<string, CheckResult>;
+  initialSummary: AuditSummaryResult;
+  serverAccess: EntitlementState;
+}) => {
+  const parsedInitialResults = useMemo(
+    () => initialResultsSchema.parse(initialResults),
+    [initialResults]
+  );
+  const parsedInitialSummary = useMemo(
+    () => auditSummaryResultSchema.parse(initialSummary),
+    [initialSummary]
+  );
+
+  const { data: clientAccess } = useSWR(
+    ["entitlement", business.id] as const,
+    ([, id]) => fetchEntitlement(id),
+    { revalidateOnFocus: false }
+  );
+  const access = clientAccess ?? serverAccess;
+  const showFixSteps = reportShowsFixSteps(access);
+
+  const { data: job } = useSWR(
+    checkJobId ? `/api/jobs/${checkJobId}` : null,
+    fetchAuditJob,
+    {
+      refreshInterval: (latest) => {
+        if (latest?.status === "complete" || latest?.status === "error") {
+          return 0;
+        }
+        return JOB_POLL_INTERVAL_MS;
+      },
+      refreshWhenHidden: true,
+      revalidateOnFocus: false,
+    }
+  );
+
+  const results = useMemo(
+    () => mergeJobResults(parsedInitialResults, job),
+    [job, parsedInitialResults]
+  );
+  const liveChecks = useMemo(
+    () => liveChecksFromResults(checks, results),
+    [checks, results]
+  );
+  const completedChecks = useMemo(
+    () =>
+      liveChecks.flatMap((item) => {
+        const status = completedStatus(item.status);
+        if (!status) {
+          return [];
+        }
+        return [
+          completedCheckSchema.parse({
+            channelCategory: item.definition.channelCategory,
+            id: item.definition.id,
+            label: item.result?.label,
+            points: pointsFor(item.definition, business.category),
+            status,
+            title: item.definition.title,
+          }),
+        ];
+      }),
+    [business.category, liveChecks]
+  );
+
+  const { data: refinedSummary } = useSWR(
+    completedChecks.length > 0
+      ? (["summary", business.id, completedChecks] as const)
+      : null,
+    fetchRefinedSummary,
+    { revalidateOnFocus: false }
+  );
+  const summary =
+    refinedSummary?.available === true ? refinedSummary : parsedInitialSummary;
+
+  const { data: scanHistory = [] } = useSWR(
+    access.kind === "report_monthly" && showFixSteps
+      ? `/api/businesses/${business.id}/scans`
+      : null,
+    fetchScanHistory,
+    { revalidateOnFocus: false }
+  );
+
+  return { access, liveChecks, scanHistory, showFixSteps, summary };
+};
+
 export const ReportClient = ({
   initialBusiness,
   checks,
@@ -789,176 +988,19 @@ export const ReportClient = ({
     () => entitlementStateSchema.parse(initialAccess),
     [initialAccess]
   );
-  const [clientAccess, setClientAccess] = useState<EntitlementState | null>(
-    null
-  );
-  const access = clientAccess ?? serverAccess;
+  const { access, liveChecks, scanHistory, showFixSteps, summary } =
+    useReportLiveData({
+      business,
+      checkJobId,
+      checks,
+      initialResults,
+      initialSummary,
+      serverAccess,
+    });
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
-  const [scanHistory, setScanHistory] = useState<ScanSummary[]>([]);
-  const showFixSteps = reportShowsFixSteps(access);
-  const [results, setResults] = useState(() =>
-    initialResultsSchema.parse(initialResults)
-  );
-  const liveChecks = useMemo(
-    () => liveChecksFromResults(checks, results),
-    [checks, results]
-  );
   const [pickedId, setPickedId] = useState<string | undefined>();
   const [filter, setFilter] = useState<"failures" | "all">("failures");
-  const [summary, setSummary] = useState<AuditSummaryResult>(() =>
-    auditSummaryResultSchema.parse(initialSummary)
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    const refineAccess = async () => {
-      try {
-        const next = await fetchEntitlement(business.id);
-        if (!cancelled) {
-          setClientAccess(next);
-        }
-      } catch {
-        // Keep the server-rendered entitlement.
-      }
-    };
-    void refineAccess();
-    return () => {
-      cancelled = true;
-    };
-  }, [business.id]);
-
-  useEffect(() => {
-    if (!checkJobId) {
-      return;
-    }
-    let cancelled = false;
-
-    const poll = async (attempt: number): Promise<void> => {
-      if (cancelled || attempt >= JOB_POLL_MAX_ATTEMPTS) {
-        return;
-      }
-      await waitForMs(JOB_POLL_INTERVAL_MS);
-      if (cancelled) {
-        return;
-      }
-      try {
-        const response = await fetch(`/api/jobs/${checkJobId}`);
-        if (!response.ok) {
-          return;
-        }
-        const parsed = auditJobPollSchema.safeParse(await response.json());
-        if (!parsed.success) {
-          return;
-        }
-        const job = parsed.data;
-        if (cancelled) {
-          return;
-        }
-        setResults((current) => {
-          const next: Record<string, CheckResult> = { ...current };
-          for (const [id, result] of Object.entries(job.results)) {
-            if (result) {
-              next[id] = result;
-            }
-          }
-          if (job.status === "complete" || job.status === "error") {
-            for (const [id, result] of Object.entries(next)) {
-              if (result.queued) {
-                next[id] = missingCheckResult;
-              }
-            }
-          }
-          return next;
-        });
-        if (job.status === "complete" || job.status === "error") {
-          return;
-        }
-        await poll(attempt + 1);
-      } catch {
-        // Stop polling if the job endpoint is unreachable.
-      }
-    };
-
-    void poll(0);
-    return () => {
-      cancelled = true;
-    };
-  }, [checkJobId]);
-
-  useEffect(() => {
-    if (access.kind !== "report_monthly" || !showFixSteps) {
-      return;
-    }
-    let cancelled = false;
-    const loadScans = async () => {
-      try {
-        const response = await fetch(`/api/businesses/${business.id}/scans`, {
-          credentials: "same-origin",
-        });
-        if (!response.ok) {
-          return;
-        }
-        const payload: unknown = await response.json();
-        const parsed = z
-          .object({ scans: z.array(scanSummarySchema) })
-          .parse(payload);
-        if (!cancelled) {
-          setScanHistory(parsed.scans);
-        }
-      } catch {
-        // Keep scan history hidden when unavailable.
-      }
-    };
-    void loadScans();
-    return () => {
-      cancelled = true;
-    };
-  }, [access.kind, business.id, showFixSteps]);
-
-  useEffect(() => {
-    const completedChecks = liveChecks.flatMap((item) => {
-      const status = completedStatus(item.status);
-      if (!status) {
-        return [];
-      }
-      return [
-        completedCheckSchema.parse({
-          channelCategory: item.definition.channelCategory,
-          id: item.definition.id,
-          label: item.result?.label,
-          points: pointsFor(item.definition, business.category),
-          status,
-          title: item.definition.title,
-        }),
-      ];
-    });
-    if (completedChecks.length === 0) {
-      return;
-    }
-
-    let cancelled = false;
-    const refineSummary = async () => {
-      try {
-        const response = await fetch(`/api/businesses/${business.id}/summary`, {
-          body: JSON.stringify({ checks: completedChecks }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-        const payload: unknown = await response.json();
-        const next = auditSummaryResultSchema.parse(payload);
-        if (!cancelled && next.available) {
-          setSummary(next);
-        }
-      } catch {
-        // Keep the server-rendered fallback brief.
-      }
-    };
-    void refineSummary();
-    return () => {
-      cancelled = true;
-    };
-  }, [business.category, business.id, liveChecks]);
 
   const selectedId = pickedId ?? recommendedCheckId(summary, liveChecks);
   const selected = liveChecks.find((item) => item.definition.id === selectedId);

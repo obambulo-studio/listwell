@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
-import type { FormEvent } from "react";
+import { useId, useReducer } from "react";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
@@ -12,6 +11,58 @@ const signInEmailSchema = z.string().email();
 const signInCodeSchema = z.string().regex(/^\d{6}$/u);
 
 type SignInStep = "email" | "code";
+
+interface SignInState {
+  busy: boolean;
+  code: string;
+  email: string;
+  error: string | null;
+  step: SignInStep;
+}
+
+type SignInAction =
+  | { type: "busy"; busy: boolean }
+  | { type: "code"; code: string }
+  | { type: "email"; email: string }
+  | { type: "error"; error: string | null }
+  | { type: "reset-email" }
+  | { type: "sent"; email: string };
+
+const initialSignInState: SignInState = {
+  busy: false,
+  code: "",
+  email: "",
+  error: null,
+  step: "email",
+};
+
+const signInReducer = (
+  state: SignInState,
+  action: SignInAction
+): SignInState => {
+  if (action.type === "busy") {
+    return { ...state, busy: action.busy };
+  }
+  if (action.type === "code") {
+    return { ...state, code: action.code, error: null };
+  }
+  if (action.type === "email") {
+    return { ...state, email: action.email, error: null };
+  }
+  if (action.type === "error") {
+    return { ...state, busy: false, error: action.error };
+  }
+  if (action.type === "reset-email") {
+    return { ...state, code: "", error: null, step: "email" };
+  }
+  return {
+    ...state,
+    busy: false,
+    email: action.email,
+    error: null,
+    step: "code",
+  };
+};
 
 const maskAccountEmail = (email: string): string => {
   const at = email.indexOf("@");
@@ -46,69 +97,66 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
   const codeFieldId = useId();
   const session = authClient.useSession();
   const authAvailable = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-  const [step, setStep] = useState<SignInStep>("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [state, dispatch] = useReducer(signInReducer, initialSignInState);
 
   const signedIn = Boolean(session.data?.user.email);
+  const safeReturn = returnPath.startsWith("/") ? returnPath : "/";
 
-  useEffect(() => {
-    if (!signedIn || session.isPending) {
+  if (signedIn && !session.isPending) {
+    window.location.assign(safeReturn);
+  }
+
+  const sendCode = async () => {
+    if (state.busy) {
       return;
     }
-    window.location.assign(returnPath.startsWith("/") ? returnPath : "/");
-  }, [returnPath, session.isPending, signedIn]);
-
-  const handleSendCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (busy) {
-      return;
-    }
-    const parsed = signInEmailSchema.safeParse(email.trim().toLowerCase());
+    const parsed = signInEmailSchema.safeParse(
+      state.email.trim().toLowerCase()
+    );
     if (!parsed.success) {
-      setError("Enter a valid email");
+      dispatch({ error: "Enter a valid email", type: "error" });
       return;
     }
-    setBusy(true);
-    setError(null);
+    dispatch({ busy: true, type: "busy" });
     const result = await authClient.emailOtp.sendVerificationOtp({
       email: parsed.data,
       type: "sign-in",
     });
-    setBusy(false);
     if (result.error) {
-      setError(result.error.message ?? "Could not send a code");
+      dispatch({
+        error: result.error.message ?? "Could not send a code",
+        type: "error",
+      });
       return;
     }
-    setEmail(parsed.data);
-    setStep("code");
+    dispatch({ email: parsed.data, type: "sent" });
   };
 
-  const handleVerifyCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (busy) {
+  const verifyCode = async () => {
+    if (state.busy) {
       return;
     }
-    const parsed = signInCodeSchema.safeParse(code.replaceAll(/\s/gu, ""));
+    const parsed = signInCodeSchema.safeParse(
+      state.code.replaceAll(/\s/gu, "")
+    );
     if (!parsed.success) {
-      setError("Enter the 6-digit code");
+      dispatch({ error: "Enter the 6-digit code", type: "error" });
       return;
     }
-    setBusy(true);
-    setError(null);
+    dispatch({ busy: true, type: "busy" });
     const result = await authClient.signIn.emailOtp({
-      email,
+      email: state.email,
       otp: parsed.data,
     });
-    setBusy(false);
     if (result.error) {
-      setError(result.error.message ?? "Invalid code");
+      dispatch({
+        error: result.error.message ?? "Invalid code",
+        type: "error",
+      });
       return;
     }
     await claimStoredBusinesses();
-    window.location.assign(returnPath.startsWith("/") ? returnPath : "/");
+    window.location.assign(safeReturn);
   };
 
   if (!authAvailable) {
@@ -134,11 +182,13 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
     );
   }
 
-  if (step === "code") {
+  if (state.step === "code") {
     return (
-      <form className="listwell-report__unlock" onSubmit={handleVerifyCode}>
+      <form className="listwell-report__unlock" action={verifyCode}>
         <h1 className="vbg-title">Enter your code</h1>
-        <p className="vbg-lede">We sent a code to {maskAccountEmail(email)}.</p>
+        <p className="vbg-lede">
+          We sent a code to {maskAccountEmail(state.email)}.
+        </p>
         <div className="vbg-field">
           <label className="vbg-label" htmlFor={codeFieldId}>
             Code
@@ -151,19 +201,15 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
             autoComplete="one-time-code"
             pattern="[0-9]*"
             maxLength={6}
-            value={code}
-            disabled={busy}
+            value={state.code}
+            disabled={state.busy}
             placeholder="000000"
             className="vbg-mono"
-            autoFocus
             onChange={(event) => {
-              const next = event.target.value
-                .replaceAll(/\D/gu, "")
-                .slice(0, 6);
-              setCode(next);
-              if (error) {
-                setError(null);
-              }
+              dispatch({
+                code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+                type: "code",
+              });
             }}
           />
         </div>
@@ -171,30 +217,26 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
           <button
             className="listwell-report__button"
             type="submit"
-            disabled={busy || code.length !== 6}
+            disabled={state.busy || state.code.length !== 6}
           >
-            {busy ? "Signing in" : "Sign in"}
+            {state.busy ? "Signing in" : "Sign in"}
           </button>
           <button
             className="listwell-report__button listwell-report__button--quiet"
             type="button"
-            disabled={busy}
-            onClick={() => {
-              setStep("email");
-              setCode("");
-              setError(null);
-            }}
+            disabled={state.busy}
+            onClick={() => dispatch({ type: "reset-email" })}
           >
             Use a different email
           </button>
         </div>
-        {error ? <p className="vbg-error">{error}</p> : null}
+        {state.error ? <p className="vbg-error">{state.error}</p> : null}
       </form>
     );
   }
 
   return (
-    <form className="listwell-report__unlock" onSubmit={handleSendCode}>
+    <form className="listwell-report__unlock" action={sendCode}>
       <h1 className="vbg-title">Sign in</h1>
       <p className="vbg-lede">
         We&apos;ll email you a one-time code. No password needed.
@@ -209,25 +251,21 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
           name="email"
           autoComplete="email"
           inputMode="email"
-          value={email}
-          disabled={busy}
+          value={state.email}
+          disabled={state.busy}
           placeholder="you@business.com"
-          autoFocus
-          onChange={(event) => {
-            setEmail(event.target.value);
-            if (error) {
-              setError(null);
-            }
-          }}
+          onChange={(event) =>
+            dispatch({ email: event.target.value, type: "email" })
+          }
         />
       </div>
       <div className="listwell-report__unlock-actions">
         <button
           className="listwell-report__button"
           type="submit"
-          disabled={busy}
+          disabled={state.busy}
         >
-          {busy ? "Sending code" : "Send code"}
+          {state.busy ? "Sending code" : "Send code"}
         </button>
         <Link
           className="listwell-report__button listwell-report__button--quiet"
@@ -236,7 +274,7 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
           Back to chat
         </Link>
       </div>
-      {error ? <p className="vbg-error">{error}</p> : null}
+      {state.error ? <p className="vbg-error">{state.error}</p> : null}
     </form>
   );
 };
