@@ -258,3 +258,22 @@ After you edit `content/checks`, run `bun run catalog` so `lib/checks/catalog.ts
 4. Point Polar webhooks at `https://your-domain/api/webhook/polar`.
 5. Run `bun run convex:deploy`.
 6. Run `bun run deploy`.
+
+The apex Worker on `https://listwell.dev` is already production. LIST-8 still needs `https://www.listwell.dev` to 301 to `https://listwell.dev` with the same path and query.
+
+`wrangler.jsonc` lists both `listwell.dev` and `www.listwell.dev` as custom domains. `middleware.ts` issues the 301. A production Workers Builds deploy after merge attaches www to the `listwell` Worker.
+
+If that deploy fails because www already has a CNAME:
+
+1. Open [DNS records for listwell.dev](https://dash.cloudflare.com/0139d167327c252643c7691dc8b25c33/listwell.dev/dns/records).
+2. Delete the `www` record.
+3. Retry the production deploy. Wrangler recreates www as a Worker custom domain.
+
+Account `0139d167327c252643c7691dc8b25c33` already has a `www-to-apex` Worker (`0b0a8688c79a480c819d1604056d9bdf`). That is the Obambulo pattern for other hostnames. To use it instead of the extra Listwell route:
+
+1. Open [www-to-apex domains](https://dash.cloudflare.com/0139d167327c252643c7691dc8b25c33/workers/services/view/www-to-apex/production).
+2. Settings → Domains & Routes → Add → Custom Domain → `www.listwell.dev`.
+3. If Cloudflare refuses an existing CNAME, delete the `www` record first, then add the custom domain.
+4. Remove the `www.listwell.dev` route from `wrangler.jsonc` so the next Listwell deploy does not fight that Worker.
+
+Do not invent D1 ids or Google/Apple keys. This agent cannot bind hostnames (no Wrangler login).

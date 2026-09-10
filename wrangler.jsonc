@@ -6,9 +6,16 @@
   "workers_dev": false,
   "preview_urls": false,
   "compatibility_date": "2026-09-09",
+  // Apex is already production. www is the last LIST-8 gap (HTTP 522).
+  // Custom Domains are exact-hostname. middleware.ts 301s www → apex.
   "routes": [
     {
       "pattern": "listwell.dev",
+      "zone_name": "listwell.dev",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "www.listwell.dev",
       "zone_name": "listwell.dev",
       "custom_domain": true,
     },
