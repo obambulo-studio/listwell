@@ -8,6 +8,7 @@ import { checksForCategory } from "@/lib/checks/registry";
 import { pointsFor } from "@/lib/checks/types";
 import { getBusiness } from "@/lib/data";
 import { getReportAccess } from "@/lib/polar-server";
+import { isFileLikePathId } from "@/lib/site-metadata";
 import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,9 @@ export const generateMetadata = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = paramsSchema.parse(await params);
+  if (isFileLikePathId(id)) {
+    notFound();
+  }
   const business = await getBusiness(id);
   return {
     title: business ? `${business.name} report` : "Report",
@@ -62,6 +66,9 @@ const ReportPage = async ({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => {
   const { id } = paramsSchema.parse(await params);
+  if (isFileLikePathId(id)) {
+    notFound();
+  }
   const business = await getBusiness(id);
   if (!business) {
     notFound();
