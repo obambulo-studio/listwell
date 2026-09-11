@@ -6,16 +6,12 @@
   "workers_dev": false,
   "preview_urls": false,
   "compatibility_date": "2026-09-09",
-  // Apex is already production. www is the last LIST-8 gap (HTTP 522).
-  // Custom Domains are exact-hostname. middleware.ts 301s www → apex.
+  // Apex only. www.listwell.dev is the shared www-to-apex Worker
+  // (0b0a8688c79a480c819d1604056d9bdf). Binding www here makes
+  // `wrangler deploy` fight that Worker and fail Workers Builds.
   "routes": [
     {
       "pattern": "listwell.dev",
-      "zone_name": "listwell.dev",
-      "custom_domain": true,
-    },
-    {
-      "pattern": "www.listwell.dev",
       "zone_name": "listwell.dev",
       "custom_domain": true,
     },
