@@ -304,4 +304,33 @@ describe("discover helpers", () => {
     ).toBeTruthy();
     expect(result.categoryId).toBe("food");
   });
+
+  it("retries Nominatim without the suburb when the first search is empty", async () => {
+    const cafe = {
+      category: "amenity",
+      display_name: "Blackstar Coffee, 44 Thomas Street, West End, Brisbane",
+      name: "Blackstar Coffee",
+      osm_id: 524_298_424,
+      osm_type: "way",
+      place_id: 27_802_478,
+      type: "cafe",
+    };
+    const result = await discoverBusiness(
+      {
+        businessName: "Blackstar Coffee Roasters",
+        near: "Brisbane QLD",
+      },
+      {},
+      {
+        fetchImpl: (input) => {
+          const url = String(input);
+          const body = url.includes("Brisbane") ? [] : [cafe];
+          return Promise.resolve(Response.json(body));
+        },
+      }
+    );
+
+    expect(result.candidates[0]?.name).toBe("Blackstar Coffee");
+    expect(result.candidates[0]?.source).toBe("osm");
+  });
 });

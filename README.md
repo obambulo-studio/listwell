@@ -19,11 +19,11 @@ Cloudflare Workers run the Next.js app through OpenNext. The Worker also runs th
 
 Worker bindings:
 
-- `AUDIT_KV` - queued check jobs and run state
+- `AUDIT_KV` - queued check jobs, run state, and anonymous Discover audits when Convex is down
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI for report briefs, or cited check text if AI is off
 
-The project does not use D1 or Drizzle. If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
+The project does not use D1 or Drizzle. Discover does not need a D1 database. If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
 
 A Convex cron runs due monthly scans each hour (`internal.scans.runDue`). OpenNext config is `open-next.config.ts`.
 
@@ -108,6 +108,9 @@ Deploy:
 - `bun run deploy` - OpenNext build and Worker deploy
 - `bun run upload` - OpenNext build and Worker version upload
 - `bun run cf-typegen` - write `cloudflare-env.d.ts` from Wrangler
+- `bun run smoke:discover` - prove Discover → save → checks on a live origin
+
+## Environment variables
 
 ## Environment variables
 
@@ -263,4 +266,31 @@ The apex Worker on `https://listwell.dev` is production. `https://www.listwell.d
 
 `wrangler.jsonc` binds only `listwell.dev`. `middleware.ts` still 301s www if a request ever reaches this Worker.
 
-Do not invent D1 ids or Google/Apple keys. This agent cannot bind hostnames (no Wrangler login).
+Do not invent D1 ids or Google/Apple keys. This agent cannot bind hostnames (no Wrangler login). Discover does not use D1. Anonymous audits persist in `AUDIT_KV` when Convex is down. Accounts, sign-in, and paid unlock still need Convex.
+
+## Prove Discover on production
+
+After merge and a production Workers Builds deploy:
+
+```bash
+bun run smoke:discover https://listwell.dev
+```
+
+Or by hand:
+
+1. `GET https://listwell.dev/api/health` — `ok` is true, `storage.d1` is false, `storage.auditKv` is true, `lookups.osm` is true. `convex` may be `error` until Convex is redeployed.
+2. Open https://listwell.dev. Enter `Blackstar Coffee` and suburb `Brisbane`. Continue.
+3. Confirm an OpenStreetMap listing. Land on a report URL `/{id}`.
+4. `GET /api/businesses/{id}` returns the cafe. `GET /api/businesses/{id}/checks` returns check results.
+
+Google/Apple keys are optional for this OSM path. Full Google Business Profile quality still needs `GOOGLE_API_KEY`.
+
+### Zacchary-only
+
+This agent cannot log into Cloudflare or Convex.
+
+1. Confirm `AUDIT_KV` stays bound on the `listwell` Worker (live id already in `wrangler.jsonc`). Do not create D1.
+2. `bun run convex:deploy` so `businesses.create` no longer loads Better Auth on every query.
+3. On the Convex production deployment, set `SITE_URL=https://listwell.dev` (no trailing slash), `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and UseSend vars. `INTERNAL_API_SECRET` must also be a Worker secret (`bun run cf:sync-env`).
+4. Optional: Worker secrets `GOOGLE_API_KEY`, `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`, Apple MapKit keys, Browser Rendering `LISTWELL_*`.
+5. Do not add `www.listwell.dev` as a Listwell custom domain.

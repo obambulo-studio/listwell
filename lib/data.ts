@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Id } from "../convex/_generated/dataModel";
+import { getCloudflareEnv } from "./audit-env";
 import {
   api,
   convexMutation,
@@ -42,74 +43,252 @@ const mapLocations = (locations: CreateBusinessRequest["locations"]) =>
     name: location.name,
   }));
 
-export const listBusinesses = async (ids: string[]): Promise<Business[]> => {
-  const rows = await convexPublicQuery(api.businesses.listByExternalIds, {
-    externalIds: ids,
+const storedBusinessKey = (id: string): string => `business:${id}`;
+
+declare global {
+  var listwellBusinesses: Map<string, Business> | undefined;
+}
+
+const businessMemory: Map<string, Business> =
+  globalThis.listwellBusinesses ?? new Map<string, Business>();
+globalThis.listwellBusinesses = businessMemory;
+
+const optionalUrl = (value: string | undefined): string | null => value ?? null;
+
+export const businessFromCreateRequest = (
+  input: CreateBusinessRequest
+): Business => {
+  const data = createBusinessRequestSchema.parse(input);
+  const timestamp = new Date().toISOString();
+  const id = data.id ?? crypto.randomUUID();
+  return businessSchema.parse({
+    category: data.category,
+    createdAt: timestamp,
+    deliverooUrl: optionalUrl(data.deliverooUrl),
+    doorDashUrl: optionalUrl(data.doorDashUrl),
+    facebookUsername: optionalUrl(data.facebookUsername),
+    id,
+    instagramUsername: optionalUrl(data.instagramUsername),
+    linkedinUrl: optionalUrl(data.linkedinUrl),
+    locations: data.locations.map((location, index) => ({
+      address: location.address ?? null,
+      appleMapsId: location.appleMapsId ?? null,
+      businessId: id,
+      createdAt: timestamp,
+      googlePlaceId: location.googlePlaceId ?? null,
+      id: index + 1,
+      name: location.name ?? null,
+      updatedAt: timestamp,
+    })),
+    menulogUrl: optionalUrl(data.menulogUrl),
+    name: data.name,
+    tiktokUsername: optionalUrl(data.tiktokUsername),
+    uberEatsUrl: optionalUrl(data.uberEatsUrl),
+    updatedAt: timestamp,
+    userId: null,
+    websiteUrl: optionalUrl(data.websiteUrl),
+    xUsername: optionalUrl(data.xUsername),
+    youtubeUrl: optionalUrl(data.youtubeUrl),
   });
-  return z.array(businessSchema).parse(rows);
+};
+
+export const writeStoredBusiness = async (
+  business: Business
+): Promise<Business> => {
+  const parsed = businessSchema.parse(business);
+  businessMemory.set(parsed.id, parsed);
+  const env = await getCloudflareEnv();
+  if (env?.AUDIT_KV) {
+    await env.AUDIT_KV.put(
+      storedBusinessKey(parsed.id),
+      JSON.stringify(parsed)
+    );
+  }
+  return parsed;
+};
+
+export const readStoredBusiness = async (
+  id: string
+): Promise<Business | null> => {
+  const env = await getCloudflareEnv();
+  if (env?.AUDIT_KV) {
+    const raw = await env.AUDIT_KV.get(storedBusinessKey(id), "json");
+    const parsed = businessSchema.safeParse(raw);
+    if (parsed.success) {
+      businessMemory.set(parsed.data.id, parsed.data);
+      return parsed.data;
+    }
+  }
+  return businessMemory.get(id) ?? null;
+};
+
+export const hasAuditKv = async (): Promise<boolean> => {
+  const env = await getCloudflareEnv();
+  return Boolean(env?.AUDIT_KV);
+};
+
+const tryConvexQuery = async <T>(
+  run: () => Promise<T>
+): Promise<T | undefined> => {
+  try {
+    return await run();
+  } catch {
+    return undefined;
+  }
+};
+
+export const listBusinesses = async (ids: string[]): Promise<Business[]> => {
+  const rows = await tryConvexQuery(() =>
+    convexPublicQuery(api.businesses.listByExternalIds, {
+      externalIds: ids,
+    })
+  );
+  if (rows) {
+    const parsed = z.array(businessSchema).parse(rows);
+    await Promise.all(parsed.map((business) => writeStoredBusiness(business)));
+    return parsed;
+  }
+  const stored = await Promise.all(ids.map((id) => readStoredBusiness(id)));
+  return stored.filter((business): business is Business => business !== null);
 };
 
 export const getBusiness = async (id: string): Promise<Business | null> => {
-  const row = await convexPublicQuery(api.businesses.getByExternalId, {
-    externalId: id,
-  });
-  return row ? businessSchema.parse(row) : null;
+  const row = await tryConvexQuery(() =>
+    convexPublicQuery(api.businesses.getByExternalId, {
+      externalId: id,
+    })
+  );
+  if (row) {
+    return writeStoredBusiness(businessSchema.parse(row));
+  }
+  return readStoredBusiness(id);
 };
 
 export const createBusiness = async (
   input: CreateBusinessRequest
 ): Promise<Business> => {
   const data = createBusinessRequestSchema.parse(input);
-  const created = await getConvexClient().mutation(api.businesses.create, {
-    category: data.category,
-    deliverooUrl: data.deliverooUrl,
-    doorDashUrl: data.doorDashUrl,
-    externalId: data.id,
-    facebookUsername: data.facebookUsername,
-    instagramUsername: data.instagramUsername,
-    linkedinUrl: data.linkedinUrl,
-    locations: mapLocations(data.locations),
-    menulogUrl: data.menulogUrl,
-    name: data.name,
-    tiktokUsername: data.tiktokUsername,
-    uberEatsUrl: data.uberEatsUrl,
-    websiteUrl: data.websiteUrl,
-    xUsername: data.xUsername,
-    youtubeUrl: data.youtubeUrl,
+  const created = await tryConvexQuery(() =>
+    getConvexClient().mutation(api.businesses.create, {
+      category: data.category,
+      deliverooUrl: data.deliverooUrl,
+      doorDashUrl: data.doorDashUrl,
+      externalId: data.id,
+      facebookUsername: data.facebookUsername,
+      instagramUsername: data.instagramUsername,
+      linkedinUrl: data.linkedinUrl,
+      locations: mapLocations(data.locations),
+      menulogUrl: data.menulogUrl,
+      name: data.name,
+      tiktokUsername: data.tiktokUsername,
+      uberEatsUrl: data.uberEatsUrl,
+      websiteUrl: data.websiteUrl,
+      xUsername: data.xUsername,
+      youtubeUrl: data.youtubeUrl,
+    })
+  );
+  if (created) {
+    return writeStoredBusiness(businessSchema.parse(created));
+  }
+  return writeStoredBusiness(businessFromCreateRequest(data));
+};
+
+const locationInputsFromBusiness = (
+  business: Business
+): CreateBusinessRequest["locations"] =>
+  business.locations.map((location) => ({
+    address: location.address ?? undefined,
+    appleMapsId: location.appleMapsId ?? undefined,
+    googlePlaceId: location.googlePlaceId ?? undefined,
+    name: location.name ?? undefined,
+  }));
+
+const keepUrl = (
+  next: string | undefined,
+  current: string | null
+): string | undefined => next ?? current ?? undefined;
+
+const mergeBusinessUpdate = (
+  existing: Business,
+  input: UpdateBusinessRequest
+): Business => {
+  const next = businessFromCreateRequest({
+    category: input.category ?? existing.category,
+    deliverooUrl: keepUrl(input.deliverooUrl, existing.deliverooUrl),
+    doorDashUrl: keepUrl(input.doorDashUrl, existing.doorDashUrl),
+    facebookUsername: keepUrl(
+      input.facebookUsername,
+      existing.facebookUsername
+    ),
+    id: existing.id,
+    instagramUsername: keepUrl(
+      input.instagramUsername,
+      existing.instagramUsername
+    ),
+    linkedinUrl: keepUrl(input.linkedinUrl, existing.linkedinUrl),
+    locations: input.locations ?? locationInputsFromBusiness(existing),
+    menulogUrl: keepUrl(input.menulogUrl, existing.menulogUrl),
+    name: input.name ?? existing.name,
+    tiktokUsername: keepUrl(input.tiktokUsername, existing.tiktokUsername),
+    uberEatsUrl: keepUrl(input.uberEatsUrl, existing.uberEatsUrl),
+    websiteUrl: keepUrl(input.websiteUrl, existing.websiteUrl),
+    xUsername: keepUrl(input.xUsername, existing.xUsername),
+    youtubeUrl: keepUrl(input.youtubeUrl, existing.youtubeUrl),
   });
-  return businessSchema.parse(created);
+  return {
+    ...next,
+    createdAt: existing.createdAt,
+    userId: existing.userId,
+  };
 };
 
 export const updateBusiness = async (
   id: string,
   input: UpdateBusinessRequest
 ): Promise<Business> => {
-  const updated = await convexMutation(api.businesses.update, {
-    category: input.category,
-    deliverooUrl: input.deliverooUrl,
-    doorDashUrl: input.doorDashUrl,
-    externalId: id,
-    facebookUsername: input.facebookUsername,
-    instagramUsername: input.instagramUsername,
-    linkedinUrl: input.linkedinUrl,
-    locations: input.locations ? mapLocations(input.locations) : undefined,
-    menulogUrl: input.menulogUrl,
-    name: input.name,
-    tiktokUsername: input.tiktokUsername,
-    uberEatsUrl: input.uberEatsUrl,
-    websiteUrl: input.websiteUrl,
-    xUsername: input.xUsername,
-    youtubeUrl: input.youtubeUrl,
-  });
-  return businessSchema.parse(updated);
+  const updated = await tryConvexQuery(() =>
+    convexMutation(api.businesses.update, {
+      category: input.category,
+      deliverooUrl: input.deliverooUrl,
+      doorDashUrl: input.doorDashUrl,
+      externalId: id,
+      facebookUsername: input.facebookUsername,
+      instagramUsername: input.instagramUsername,
+      linkedinUrl: input.linkedinUrl,
+      locations: input.locations ? mapLocations(input.locations) : undefined,
+      menulogUrl: input.menulogUrl,
+      name: input.name,
+      tiktokUsername: input.tiktokUsername,
+      uberEatsUrl: input.uberEatsUrl,
+      websiteUrl: input.websiteUrl,
+      xUsername: input.xUsername,
+      youtubeUrl: input.youtubeUrl,
+    })
+  );
+  if (updated) {
+    return writeStoredBusiness(businessSchema.parse(updated));
+  }
+  const existing = await readStoredBusiness(id);
+  if (!existing) {
+    throw new Error("Business not found");
+  }
+  return writeStoredBusiness(mergeBusinessUpdate(existing, input));
 };
 
-export const getBusinessOwnerId = (
+export const getBusinessOwnerId = async (
   businessId: string
-): Promise<string | null> =>
-  convexPublicQuery(api.businesses.getOwnerId, {
-    externalId: businessId,
-  });
+): Promise<string | null> => {
+  const ownerId = await tryConvexQuery(() =>
+    convexPublicQuery(api.businesses.getOwnerId, {
+      externalId: businessId,
+    })
+  );
+  if (ownerId !== undefined) {
+    return ownerId;
+  }
+  const stored = await readStoredBusiness(businessId);
+  return stored?.userId ?? null;
+};
 
 export const claimBusinesses = (
   ids: string[],
@@ -120,10 +299,16 @@ export const claimBusinesses = (
     userId,
   });
 
-export const hasActiveEntitlement = (businessId: string): Promise<boolean> =>
-  convexPublicQuery(api.entitlements.hasActive, {
-    businessExternalId: businessId,
-  });
+export const hasActiveEntitlement = async (
+  businessId: string
+): Promise<boolean> => {
+  const active = await tryConvexQuery(() =>
+    convexPublicQuery(api.entitlements.hasActive, {
+      businessExternalId: businessId,
+    })
+  );
+  return active ?? false;
+};
 
 export const grantEntitlement = async (input: {
   businessId: string;
@@ -166,15 +351,34 @@ export const getActiveEntitlementOwner = async (
   ownerEmail: string | null;
   ownerUserId: string | null;
 }> => {
-  const owner = await convexQuery(api.entitlements.getActiveOwner, {
-    businessExternalId: businessId,
-  });
+  const owner = await tryConvexQuery(() =>
+    convexQuery(api.entitlements.getActiveOwner, {
+      businessExternalId: businessId,
+    })
+  );
+  if (!owner) {
+    return {
+      kind: null,
+      ownerEmail: null,
+      ownerUserId: null,
+      unlocked: false,
+    };
+  }
   return {
     kind: owner.kind ? entitlementKindSchema.parse(owner.kind) : null,
     ownerEmail: owner.ownerEmail,
     ownerUserId: owner.ownerUserId,
     unlocked: owner.unlocked,
   };
+};
+
+export const probeConvexBusinesses = async (): Promise<"ok" | "error"> => {
+  const row = await tryConvexQuery(() =>
+    convexPublicQuery(api.businesses.getByExternalId, {
+      externalId: "health-probe",
+    })
+  );
+  return row === undefined ? "error" : "ok";
 };
 
 export const listDueMonthlyEntitlements = async (now: Date, limit: number) => {

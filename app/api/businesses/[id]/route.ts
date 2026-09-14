@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -21,12 +21,25 @@ export const GET = async (
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) => {
-  const { id } = paramsSchema.parse(await context.params);
-  const business = await getBusiness(id);
-  if (!business) {
-    return NextResponse.json({ error: "Business not found" }, { status: 404 });
+  try {
+    const { id } = paramsSchema.parse(await context.params);
+    const business = await getBusiness(id);
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 }
+      );
+    }
+    return NextResponse.json(business);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: "Could not load this audit" },
+      { status: 500 }
+    );
   }
-  return NextResponse.json(business);
 };
 
 export const PUT = async (
@@ -58,7 +71,11 @@ export const PUT = async (
   const business = await updateBusiness(id, parsed);
 
   if (sessionUser && !ownerId) {
-    await claimBusinesses([id], sessionUser.id);
+    try {
+      await claimBusinesses([id], sessionUser.id);
+    } catch {
+      // Claim is best-effort when Convex is down. The audit is still saved.
+    }
   }
 
   return NextResponse.json(business);

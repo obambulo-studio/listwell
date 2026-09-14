@@ -52,6 +52,8 @@
   "images": {
     "binding": "IMAGES",
   },
+  // Discover persists anonymous audits here when Convex is down.
+  // No D1. Do not invent new KV/D1 UUIDs; this id is the live namespace.
   "kv_namespaces": [
     {
       "binding": "AUDIT_KV",

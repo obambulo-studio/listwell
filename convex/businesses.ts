@@ -2,10 +2,26 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { authComponent } from "./auth";
 import { locationValidator } from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();
+
+const optionalAuthUserId = async (
+  ctx: MutationCtx
+): Promise<string | undefined> => {
+  try {
+    const { authComponent } = await import("./auth");
+    const user = await authComponent.safeGetAuthUser(ctx);
+    return user?._id;
+  } catch {
+    return undefined;
+  }
+};
+
+const requireAuthUser = async (ctx: MutationCtx) => {
+  const { authComponent } = await import("./auth");
+  return authComponent.getAuthUser(ctx);
+};
 
 const entitlementAllowsClaim = async (
   ctx: { db: MutationCtx["db"] },
@@ -153,8 +169,8 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const timestamp = nowIso();
     const externalId = args.externalId ?? crypto.randomUUID();
-    const [user, existing] = await Promise.all([
-      authComponent.safeGetAuthUser(ctx),
+    const [userId, existing] = await Promise.all([
+      optionalAuthUserId(ctx),
       ctx.db
         .query("businesses")
         .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
@@ -179,10 +195,10 @@ export const create = mutation({
       tiktokUsername: args.tiktokUsername,
       uberEatsUrl: args.uberEatsUrl,
       updatedAt: timestamp,
-      userId: user?._id,
       websiteUrl: args.websiteUrl,
       xUsername: args.xUsername,
       youtubeUrl: args.youtubeUrl,
+      ...(userId ? { userId } : {}),
     });
 
     const doc = await ctx.db.get("businesses", id);
@@ -244,7 +260,7 @@ export const update = mutation({
 export const claim = mutation({
   args: { externalIds: v.array(v.string()) },
   handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
+    const user = await requireAuthUser(ctx);
     const timestamp = nowIso();
 
     const claimResults = await Promise.all(
