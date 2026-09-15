@@ -1246,7 +1246,7 @@ const useListwellChat = () => {
         method: "POST",
       });
       if (!saveResponse.ok) {
-        throw new Error("Could not save audit");
+        throw new Error("Could not save this audit");
       }
       const business = businessSchema.parse(await saveResponse.json());
       addBusinessId(business.id);

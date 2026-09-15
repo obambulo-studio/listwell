@@ -480,12 +480,20 @@ const nominatimCandidates = async (
   fetchImpl?: typeof fetch
 ): Promise<PlaceCandidate[]> => {
   const near = request.near ?? request.address ?? "";
-  const matches = await searchNominatim(
-    request.businessName,
-    near,
-    fetchImpl ? { fetchImpl } : {}
-  );
-  return matches.map(candidateFromNominatim);
+  const options = fetchImpl ? { fetchImpl, minIntervalMs: 0 } : {};
+  try {
+    const matches = await searchNominatim(request.businessName, near, options);
+    if (matches.length > 0) {
+      return matches.map(candidateFromNominatim);
+    }
+    if (near.trim().length === 0) {
+      return [];
+    }
+    const broader = await searchNominatim(request.businessName, "", options);
+    return broader.map(candidateFromNominatim);
+  } catch {
+    return [];
+  }
 };
 
 const websiteFromSearch = async (

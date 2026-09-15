@@ -22,6 +22,7 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "catalog": "bun scripts/generate-check-catalog.ts",
+    "smoke:discover": "bash scripts/smoke-discover.sh",
     "test": "vitest run && bun run --cwd packages/audit-engine test",
     "typecheck": "tsc --noEmit && bun run --cwd packages/audit-engine typecheck",
     "check": "npx ultracite check && npx -y react-doctor@0.2.1 --verbose --lint -y && tsc --noEmit && npx -y knip",
