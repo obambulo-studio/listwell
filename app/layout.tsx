@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ConvexClientProvider } from "@/components/convex-client-provider";
 import { getToken } from "@/lib/auth-server";
+import { listwellSiteUrl } from "@/lib/site-metadata";
 import { ThemeBootstrapScript } from "@/lib/theme";
 
 import "./beautifui/foundation.css";
@@ -36,6 +37,7 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
   } catch {
     // Convex dev may not be running locally yet.
   }
+  const origin = listwellSiteUrl();
   return (
     <html
       lang="en-AU"
@@ -44,6 +46,21 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
     >
       <head>
         <ThemeBootstrapScript />
+        <link
+          rel="describedby"
+          href={`${origin}/llms.txt`}
+          type="text/markdown"
+        />
+        <link
+          rel="service-doc"
+          href={`${origin}/llms.txt`}
+          type="text/markdown"
+        />
+        <link
+          rel="ard"
+          href={`${origin}/.well-known/ai-catalog.json`}
+          type="application/json"
+        />
       </head>
       <body>
         <ConvexClientProvider initialToken={token}>

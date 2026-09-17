@@ -14,18 +14,15 @@ export const listwellSiteUrl = (): string => {
 
 export const isFileLikePathId = (id: string): boolean => id.includes(".");
 
-export const robotsDirectives = () => {
-  const origin = listwellSiteUrl();
-  return {
-    host: new URL(origin).host,
-    rules: {
-      allow: "/",
-      disallow: ["/account", "/api/"],
-      userAgent: "*",
-    },
-    sitemap: `${origin}/sitemap.xml`,
-  };
-};
+export const robotsDirectives = (origin = listwellSiteUrl()) => ({
+  host: new URL(origin).host,
+  rules: {
+    allow: "/",
+    disallow: ["/account", "/api/"],
+    userAgent: "*",
+  },
+  sitemap: `${origin}/sitemap.xml`,
+});
 
 export const sitemapEntries = () => {
   const origin = listwellSiteUrl();
@@ -49,6 +46,11 @@ export const sitemapEntries = () => {
       changeFrequency: "yearly" as const,
       priority: 0.3,
       url: `${origin}/sign-in`,
+    },
+    {
+      changeFrequency: "monthly" as const,
+      priority: 0.4,
+      url: `${origin}/llms.txt`,
     },
   ];
 };
