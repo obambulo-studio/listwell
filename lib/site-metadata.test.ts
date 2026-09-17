@@ -49,6 +49,8 @@ describe("site metadata", () => {
       expect(isFileLikePathId("robots.txt")).toBeTruthy();
       expect(isFileLikePathId("sitemap.xml")).toBeTruthy();
       expect(isFileLikePathId("favicon.ico")).toBeTruthy();
+      expect(isFileLikePathId("llms.txt")).toBeTruthy();
+      expect(isFileLikePathId("auth.md")).toBeTruthy();
     });
 
     it("allows UUID report ids", () => {
@@ -81,6 +83,7 @@ describe("site metadata", () => {
         "https://listwell.dev/discover",
         "https://listwell.dev/new",
         "https://listwell.dev/sign-in",
+        "https://listwell.dev/llms.txt",
       ]);
     });
   });
