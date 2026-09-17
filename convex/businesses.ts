@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import { businessResponseValidator } from "./lib/response-validators";
 import { locationValidator } from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();
@@ -119,6 +120,7 @@ export const getByExternalId = query({
       .unique();
     return doc ? toBusinessResponse(doc) : null;
   },
+  returns: v.union(businessResponseValidator, v.null()),
 });
 
 export const listByExternalIds = query({
@@ -135,6 +137,7 @@ export const listByExternalIds = query({
     );
     return businesses.filter((business) => business !== null);
   },
+  returns: v.array(businessResponseValidator),
 });
 
 export const getOwnerId = query({
@@ -146,6 +149,7 @@ export const getOwnerId = query({
       .unique();
     return doc?.userId ?? null;
   },
+  returns: v.union(v.string(), v.null()),
 });
 
 export const create = mutation({
@@ -207,6 +211,7 @@ export const create = mutation({
     }
     return toBusinessResponse(doc);
   },
+  returns: businessResponseValidator,
 });
 
 export const update = mutation({
@@ -255,6 +260,7 @@ export const update = mutation({
     }
     return toBusinessResponse(updated);
   },
+  returns: businessResponseValidator,
 });
 
 export const claim = mutation({
@@ -290,6 +296,7 @@ export const claim = mutation({
     }
     return claimedCount;
   },
+  returns: v.number(),
 });
 
 export const claimInternal = mutation({
@@ -330,6 +337,7 @@ export const claimInternal = mutation({
     }
     return claimedCount;
   },
+  returns: v.number(),
 });
 
 export const attachOwnerIfUnowned = mutation({
@@ -358,4 +366,5 @@ export const attachOwnerIfUnowned = mutation({
     });
     return true;
   },
+  returns: v.boolean(),
 });

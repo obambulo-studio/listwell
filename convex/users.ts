@@ -4,6 +4,7 @@ import { components } from "./_generated/api";
 import { action, query } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
 import { requireInternalSecret } from "./lib/internal";
+import { userSummaryValidator } from "./lib/response-validators";
 
 export const findIdByEmail = query({
   args: { email: v.string(), secret: v.string() },
@@ -20,6 +21,7 @@ export const findIdByEmail = query({
     const id = user._id;
     return typeof id === "string" ? id : null;
   },
+  returns: v.union(v.string(), v.null()),
 });
 
 export const getById = query({
@@ -36,6 +38,7 @@ export const getById = query({
       id: user._id,
     };
   },
+  returns: v.union(userSummaryValidator, v.null()),
 });
 
 export const createSignInOtp = action({
