@@ -96,8 +96,9 @@ Development:
 
 Quality:
 
+- GitHub Actions runs `bun x ultracite check`, `bun run typecheck`, and `bun run test` on pull requests and `main`.
 - `bun run catalog` - write `lib/checks/catalog.ts` from `content/checks`
-- `bun run test` - Vitest for the app and the audit engine
+- `bun run test` - Vitest for the app and the audit engine (use this instead of bare `bun test` at the repo root)
 - `bun run typecheck` - TypeScript for the app and the audit engine
 - `bun run check` - Ultracite, React Doctor, TypeScript, and knip
 - `bun run fix` - Ultracite auto-fix
