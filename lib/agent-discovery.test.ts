@@ -76,6 +76,12 @@ describe("agent discovery", () => {
         "Agentmap: https://listwell.dev/.well-known/ai-catalog.json"
       );
     });
+
+    it("separates crawler groups with a blank line", () => {
+      expect(robotsTxt(origin)).toContain(
+        `${CONTENT_SIGNAL}\n\nUser-Agent: GPTBot\n`
+      );
+    });
   });
 
   describe(prefersMarkdown, () => {

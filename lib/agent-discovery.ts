@@ -92,7 +92,7 @@ export const robotsTxt = (origin = listwellSiteUrl()): string => {
     "# ai-train: train or fine-tune AI models",
     "# yes = allowed for that use; no = not allowed for that use",
     "",
-    ...groups,
+    groups.join("\n\n"),
     "",
     `Host: ${host}`,
     `Sitemap: ${sitemap}`,
