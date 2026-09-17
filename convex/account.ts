@@ -1,5 +1,8 @@
+import { v } from "convex/values";
+
 import { query } from "./_generated/server";
 import { authComponent } from "./auth";
+import { accountReportValidator } from "./lib/response-validators";
 
 type ReportPlan = "preview" | "once" | "monthly";
 
@@ -129,4 +132,5 @@ export const listReports = query({
 
     return reports;
   },
+  returns: v.array(accountReportValidator),
 });

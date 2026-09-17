@@ -9,6 +9,12 @@ import {
   query,
 } from "./_generated/server";
 import { requireInternalSecret, siteUrl } from "./lib/internal";
+import {
+  latestCompleteScanValidator,
+  scanResponseValidator,
+  scanSummaryValidator,
+} from "./lib/response-validators";
+import { parseScanResultsJson } from "./lib/scan-results";
 import { scanStatusValidator, scanTriggerValidator } from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();
@@ -28,10 +34,7 @@ const toScanResponse = (doc: {
   finishedAt?: string;
   createdAt: string;
 }) => {
-  const results =
-    doc.resultsJson && doc.resultsJson.length > 0
-      ? (JSON.parse(doc.resultsJson) as Record<string, unknown>)
-      : null;
+  const results = parseScanResultsJson(doc.resultsJson);
 
   return {
     businessId: doc.businessExternalId,
@@ -100,6 +103,7 @@ export const insert = mutation({
     }
     return toScanResponse(doc);
   },
+  returns: scanResponseValidator,
 });
 
 export const update = mutation({
@@ -147,6 +151,7 @@ export const update = mutation({
     }
     return toScanResponse(doc);
   },
+  returns: scanResponseValidator,
 });
 
 export const listForBusiness = query({
@@ -170,6 +175,7 @@ export const listForBusiness = query({
       .slice(0, limit)
       .map(toScanSummary);
   },
+  returns: v.array(scanSummaryValidator),
 });
 
 export const getLatestComplete = query({
@@ -197,6 +203,7 @@ export const getLatestComplete = query({
       score: latest.score ?? null,
     };
   },
+  returns: latestCompleteScanValidator,
 });
 
 export const listDueEntitlements = internalQuery({

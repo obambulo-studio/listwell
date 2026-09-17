@@ -4,6 +4,10 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
 import { requireInternalSecret } from "./lib/internal";
+import {
+  dueEntitlementRowValidator,
+  entitlementResponseValidator,
+} from "./lib/response-validators";
 import { entitlementKindValidator } from "./lib/validators";
 
 const SCAN_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -114,6 +118,7 @@ export const hasActive = query({
       .collect();
     return entitlements.some((row) => row.status === "active");
   },
+  returns: v.boolean(),
 });
 
 export const grant = mutation({
@@ -199,6 +204,7 @@ export const grant = mutation({
     }
     return toEntitlementResponse(inserted);
   },
+  returns: entitlementResponseValidator,
 });
 
 export const revoke = mutation({
@@ -237,6 +243,7 @@ export const revoke = mutation({
       )
     );
   },
+  returns: v.null(),
 });
 
 export const listDueMonthly = query({
@@ -263,6 +270,7 @@ export const listDueMonthly = query({
         nextScanAt: row.nextScanAt ?? null,
       }));
   },
+  returns: v.array(dueEntitlementRowValidator),
 });
 
 export const setNextScanAt = internalMutation({
@@ -288,4 +296,5 @@ export const setNextScanAtInternal = mutation({
       updatedAt: nowIso(),
     });
   },
+  returns: v.null(),
 });
