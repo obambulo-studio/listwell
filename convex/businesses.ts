@@ -7,23 +7,6 @@ import { locationValidator } from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();
 
-const optionalAuthUserId = async (
-  ctx: MutationCtx
-): Promise<string | undefined> => {
-  try {
-    const { authComponent } = await import("./auth");
-    const user = await authComponent.safeGetAuthUser(ctx);
-    return user?._id;
-  } catch {
-    return undefined;
-  }
-};
-
-const requireAuthUser = async (ctx: MutationCtx) => {
-  const { authComponent } = await import("./auth");
-  return authComponent.getAuthUser(ctx);
-};
-
 const entitlementAllowsClaim = async (
   ctx: { db: MutationCtx["db"] },
   businessExternalId: string,
@@ -173,13 +156,10 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const timestamp = nowIso();
     const externalId = args.externalId ?? crypto.randomUUID();
-    const [userId, existing] = await Promise.all([
-      optionalAuthUserId(ctx),
-      ctx.db
-        .query("businesses")
-        .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
-        .unique(),
-    ]);
+    const existing = await ctx.db
+      .query("businesses")
+      .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
+      .unique();
     if (existing) {
       return toBusinessResponse(existing);
     }
@@ -202,7 +182,6 @@ export const create = mutation({
       websiteUrl: args.websiteUrl,
       xUsername: args.xUsername,
       youtubeUrl: args.youtubeUrl,
-      ...(userId ? { userId } : {}),
     });
 
     const doc = await ctx.db.get("businesses", id);
@@ -261,42 +240,6 @@ export const update = mutation({
     return toBusinessResponse(updated);
   },
   returns: businessResponseValidator,
-});
-
-export const claim = mutation({
-  args: { externalIds: v.array(v.string()) },
-  handler: async (ctx, args) => {
-    const user = await requireAuthUser(ctx);
-    const timestamp = nowIso();
-
-    const claimResults = await Promise.all(
-      args.externalIds.map(async (externalId) => {
-        const doc = await ctx.db
-          .query("businesses")
-          .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
-          .unique();
-        if (
-          doc &&
-          !doc.userId &&
-          (await entitlementAllowsClaim(ctx, externalId, user._id))
-        ) {
-          await ctx.db.patch("businesses", doc._id, {
-            updatedAt: timestamp,
-            userId: user._id,
-          });
-          return 1;
-        }
-        return 0;
-      })
-    );
-
-    let claimedCount = 0;
-    for (const claimed of claimResults) {
-      claimedCount += claimed;
-    }
-    return claimedCount;
-  },
-  returns: v.number(),
 });
 
 export const claimInternal = mutation({

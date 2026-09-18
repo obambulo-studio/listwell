@@ -19,9 +19,10 @@ const authSiteUrl = (): string => {
   return url.replace(/\/$/u, "");
 };
 
-export const createAuth = (ctx: GenericCtx<DataModel>) =>
-  betterAuth({
-    baseURL: authSiteUrl(),
+export const createAuth = (ctx: GenericCtx<DataModel>) => {
+  const siteUrl = authSiteUrl();
+  return betterAuth({
+    baseURL: siteUrl,
     database: authComponent.adapter(ctx),
     emailAndPassword: {
       enabled: false,
@@ -37,6 +38,8 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
       }),
       convex({ authConfig }),
     ],
+    trustedOrigins: [siteUrl],
   });
+};
 
 export const { getAuthUser } = authComponent.clientApi();

@@ -76,6 +76,13 @@ export const POST = async (request: Request) => {
           xUsername: parsed.xUsername,
           youtubeUrl: parsed.youtubeUrl,
         });
+        try {
+          await fetchAuthMutation(api.claims.claim, {
+            externalIds: [created.id],
+          });
+        } catch {
+          // Claim is best-effort after a signed-in create.
+        }
         return NextResponse.json(
           await writeStoredBusiness(businessSchema.parse(created))
         );
