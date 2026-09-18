@@ -81,9 +81,13 @@
     },
   ],
   "vars": {
+    "CONVEX_DEPLOYMENT": "dev:rugged-perch-380",
     "NEXT_PUBLIC_CONVEX_SITE_URL": "https://hallowed-mallard-135.convex.site",
     "NEXT_PUBLIC_CONVEX_URL": "https://hallowed-mallard-135.convex.cloud",
     "NEXT_PUBLIC_SITE_URL": "https://listwell.dev",
     "POLAR_SERVER": "sandbox",
+    "SITE_URL": "https://listwell.dev",
+    "USESEND_BASE_URL": "https://send.obambulo.studio",
+    "USESEND_FROM": "Listwell <no-reply@t.listwell.dev>",
   },
 }
