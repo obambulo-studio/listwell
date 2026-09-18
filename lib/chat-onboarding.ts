@@ -256,12 +256,19 @@ export const draftFromListingCandidate = (
   websiteUrl: candidate.websiteUrl ?? draft.websiteUrl,
 });
 
-export {
+import {
   findListingCandidateByOption,
   listingOptionLabel,
   listingPickerOptions,
   pickListingCandidateByOptionIndex,
 } from "./jev-decisions";
+
+export {
+  findListingCandidateByOption,
+  listingOptionLabel,
+  listingPickerOptions,
+  pickListingCandidateByOptionIndex,
+};
 
 export const listingQuestion = (candidates: PlaceCandidate[]) => ({
   options: listingPickerOptions(candidates),

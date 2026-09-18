@@ -1,4 +1,3 @@
-import type { CloudflareEnv } from "../cloudflare-env";
 import { customerIpAddress } from "./polar-server";
 
 const WINDOW_SECONDS = 60;
