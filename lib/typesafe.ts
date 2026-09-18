@@ -1,3 +1,6 @@
+/**
+ * Server-only: reads Worker secrets and calls TypeSafe. Do not import from client bundles.
+ */
 import { z } from "zod";
 
 import { getCloudflareEnv } from "./audit-env";

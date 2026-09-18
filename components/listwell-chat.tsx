@@ -34,7 +34,7 @@ import {
   draftFromListingCandidate,
   categoryTextForPhase,
   fetchListingCandidates,
-  findListingCandidateByOption,
+  pickListingCandidateByOptionIndex,
   isPromptInputPhase,
   isTextInputPhase,
   listingLookupSkipMessage,
@@ -1497,16 +1497,20 @@ const useListwellChat = () => {
       const submitListing = async () => {
         const pickedIndex = answers[0]?.[0];
         const { options } = listingQuestion(candidates);
-        const label =
-          pickedIndex === undefined ? undefined : options[pickedIndex];
-        if (!label || label === "None of these") {
+        if (
+          pickedIndex === undefined ||
+          options[pickedIndex] === "None of these"
+        ) {
           pushMessage("user", "None of these");
           await showTypingThen(() => {
             advance("website", promptForPhase("website"));
           });
           return;
         }
-        const candidate = findListingCandidateByOption(candidates, label);
+        const candidate = pickListingCandidateByOptionIndex(
+          candidates,
+          pickedIndex
+        );
         if (!candidate) {
           await showTypingThen(() => {
             advance("website", promptForPhase("website"));

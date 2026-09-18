@@ -29,12 +29,54 @@ const SOCIAL_CONFIDENCE_MIN = 0.6;
 const INTERPRET_CONFIDENCE_MIN = 0.55;
 const CATEGORY_CONFIDENCE_MIN = 0.55;
 
+export const LISTING_PICKER_MAX = 4;
+
+export const listingShortlist = (
+  candidates: PlaceCandidate[]
+): PlaceCandidate[] => candidates.slice(0, LISTING_PICKER_MAX);
+
 export const listingOptionLabel = (candidate: PlaceCandidate): string => {
   const locality =
     candidate.suburb ??
     candidate.address?.split(",")[0]?.trim() ??
     candidate.source;
   return `${candidate.name} (${locality})`;
+};
+
+/** Radio labels for the listing picker; disambiguates duplicate display strings with candidate id. */
+export const listingPickerOptions = (
+  candidates: PlaceCandidate[]
+): string[] => {
+  const shortlist = listingShortlist(candidates);
+  const baseLabels = shortlist.map((item) => listingOptionLabel(item));
+  const labelCounts = new Map<string, number>();
+  for (const label of baseLabels) {
+    labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+  }
+  const duplicated = new Set(
+    [...labelCounts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([label]) => label)
+  );
+  const options = shortlist.map((candidate, index) => {
+    const base = baseLabels[index] ?? listingOptionLabel(candidate);
+    if (!duplicated.has(base)) {
+      return base;
+    }
+    return `${base} [${candidate.id}]`;
+  });
+  return [...options, "None of these"];
+};
+
+export const pickListingCandidateByOptionIndex = (
+  candidates: PlaceCandidate[],
+  optionIndex: number
+): PlaceCandidate | null => {
+  const shortlist = listingShortlist(candidates);
+  if (optionIndex < 0 || optionIndex >= shortlist.length) {
+    return null;
+  }
+  return shortlist[optionIndex] ?? null;
 };
 
 export const findListingCandidateByOption = (
@@ -44,10 +86,12 @@ export const findListingCandidateByOption = (
   if (optionLabel === "None of these") {
     return null;
   }
-  const shortlist = candidates.slice(0, 4);
-  return (
-    shortlist.find((item) => listingOptionLabel(item) === optionLabel) ?? null
-  );
+  const labels = listingPickerOptions(candidates).slice(0, -1);
+  const index = labels.indexOf(optionLabel);
+  if (index === -1) {
+    return null;
+  }
+  return pickListingCandidateByOptionIndex(candidates, index);
 };
 
 const listingChoiceCriteria = (

@@ -5,6 +5,7 @@ import {
   findListingCandidateByOption,
   jevRefineListingCandidates,
   listingOptionLabel,
+  listingPickerOptions,
 } from "./jev-decisions";
 import type { TypeSafeConfig } from "./typesafe";
 
@@ -69,6 +70,32 @@ describe("listing labels and lookup", () => {
     expect(
       findListingCandidateByOption(candidates, "Joe's Pizza (Surry Hills)")?.id
     ).toBe("google-joes-surry");
+  });
+
+  it("disambiguates duplicate display labels by candidate id", () => {
+    const googleListing: PlaceCandidate = {
+      address: "1 King St, Newtown NSW",
+      id: "google-joes-king",
+      name: "Joe's Pizza",
+      source: "google",
+      suburb: "Newtown",
+    };
+    const appleListing: PlaceCandidate = {
+      address: "1 King St, Newtown NSW",
+      id: "apple-joes-king",
+      name: "Joe's Pizza",
+      source: "apple",
+      suburb: "Newtown",
+    };
+    const options = listingPickerOptions([googleListing, appleListing]);
+    expect(options[0]).toBe("Joe's Pizza (Newtown) [google-joes-king]");
+    expect(options[1]).toBe("Joe's Pizza (Newtown) [apple-joes-king]");
+    expect(
+      findListingCandidateByOption(
+        [googleListing, appleListing],
+        options[1] ?? ""
+      )?.id
+    ).toBe("apple-joes-king");
   });
 });
 

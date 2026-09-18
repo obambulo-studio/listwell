@@ -37,6 +37,7 @@ import {
   jevPickWebsiteFromSearch,
   jevRefineListingCandidates,
 } from "./jev-decisions";
+import { getTypeSafeConfig } from "./typesafe";
 
 const socialChannelSchema = z.enum([
   "facebook",
@@ -746,6 +747,24 @@ const searchAppleCandidatesForQueries = async (
   }
 };
 
+const pickHeuristicStrongMatchId = (
+  osmMatches: NominatimMatch[],
+  google: PlaceCandidate[],
+  search: string
+): string | undefined => {
+  const fromOsm = pickStrongMatch(osmMatches)?.id;
+  if (fromOsm) {
+    return fromOsm;
+  }
+  const namedGoogle = google.filter((candidate) =>
+    namesMatch(search, candidate.name)
+  );
+  if (namedGoogle.length === 1) {
+    return namedGoogle[0]?.id;
+  }
+  return undefined;
+};
+
 const lookupMapCandidates = async (
   search: string,
   near: string | undefined,
@@ -779,7 +798,7 @@ const lookupMapCandidates = async (
     ...osmMatches.map(candidateFromNominatim),
   ]);
 
-  let strongMatchId = pickStrongMatch(osmMatches)?.id;
+  let strongMatchId = pickHeuristicStrongMatchId(osmMatches, google, search);
 
   if (
     candidates.length === 0 &&
@@ -789,16 +808,7 @@ const lookupMapCandidates = async (
   ) {
     const fallbackMatches = await searchNominatim(search, "", { fetchImpl });
     candidates = fallbackMatches.map(candidateFromNominatim);
-    strongMatchId = pickStrongMatch(fallbackMatches)?.id;
-  }
-
-  if (!strongMatchId) {
-    const namedGoogle = google.filter((candidate) =>
-      namesMatch(search, candidate.name)
-    );
-    if (namedGoogle.length === 1) {
-      strongMatchId = namedGoogle[0]?.id;
-    }
+    strongMatchId = pickHeuristicStrongMatchId(fallbackMatches, google, search);
   }
 
   const ranked = rankPlaceCandidates(
@@ -807,16 +817,38 @@ const lookupMapCandidates = async (
     trimmedNear || undefined
   ).slice(0, 8);
 
-  const jevRefined = await jevRefineListingCandidates({
+  return applyJevListingRefinement({
     businessName: search,
     candidates: ranked,
     fetchImpl,
+    heuristicStrongMatchId: strongMatchId,
     near: trimmedNear || undefined,
   });
+};
+
+const applyJevListingRefinement = async (input: {
+  businessName: string;
+  candidates: PlaceCandidate[];
+  fetchImpl: typeof fetch;
+  heuristicStrongMatchId?: string;
+  near?: string;
+}): Promise<{ candidates: PlaceCandidate[]; strongMatchId?: string }> => {
+  const typesafeConfig = await getTypeSafeConfig();
+  const jevRefined = await jevRefineListingCandidates({
+    businessName: input.businessName,
+    candidates: input.candidates,
+    config: typesafeConfig,
+    fetchImpl: input.fetchImpl,
+    near: input.near,
+  });
+
+  const strongMatchIdForResponse = typesafeConfig
+    ? jevRefined.strongMatchId
+    : (jevRefined.strongMatchId ?? input.heuristicStrongMatchId);
 
   return {
     candidates: jevRefined.candidates,
-    strongMatchId: jevRefined.strongMatchId ?? strongMatchId,
+    strongMatchId: strongMatchIdForResponse,
   };
 };
 

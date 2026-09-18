@@ -7,7 +7,6 @@ import type { PlaceCandidate, lookupProvidersSchema } from "./discover";
 import {
   categoryFromInputWithJev,
   interpretResponseSchema,
-  listingOptionLabel,
 } from "./jev-decisions";
 import { normalizeCategoryText } from "./text-normalize";
 
@@ -121,17 +120,27 @@ export const chatPhaseSchema = z.enum([
 ]);
 export type ChatPhase = z.infer<typeof chatPhaseSchema>;
 
+/** Caps payload size on interpret and TypeSafe state. */
+export const CHAT_DRAFT_STRING_MAX = 500;
+export const CHAT_INTERPRET_TEXT_MAX = 500;
+
+const chatDraftString = z.string().max(CHAT_DRAFT_STRING_MAX);
+const chatDraftOptionalString = z
+  .string()
+  .max(CHAT_DRAFT_STRING_MAX)
+  .optional();
+
 export const chatDraftSchema = z.object({
-  address: z.string().optional(),
-  appleMapsId: z.string().optional(),
-  businessName: z.string(),
+  address: chatDraftOptionalString,
+  appleMapsId: chatDraftOptionalString,
+  businessName: chatDraftString,
   categoryId: categoryIdSchema,
-  facebookUrl: z.string().optional(),
-  googlePlaceId: z.string().optional(),
-  instagramUsername: z.string().optional(),
-  listingUrl: z.string().optional(),
-  location: z.string(),
-  websiteUrl: z.string().optional(),
+  facebookUrl: chatDraftOptionalString,
+  googlePlaceId: chatDraftOptionalString,
+  instagramUsername: chatDraftOptionalString,
+  listingUrl: chatDraftOptionalString,
+  location: chatDraftString,
+  websiteUrl: chatDraftOptionalString,
 });
 export type ChatDraft = z.infer<typeof chatDraftSchema>;
 
@@ -250,13 +259,12 @@ export const draftFromListingCandidate = (
 export {
   findListingCandidateByOption,
   listingOptionLabel,
+  listingPickerOptions,
+  pickListingCandidateByOptionIndex,
 } from "./jev-decisions";
 
 export const listingQuestion = (candidates: PlaceCandidate[]) => ({
-  options: [
-    ...candidates.slice(0, 4).map((c) => listingOptionLabel(c)),
-    "None of these",
-  ],
+  options: listingPickerOptions(candidates),
   q: "Is this your business on Google or Apple Maps?",
   type: "radio" as const,
 });
