@@ -279,7 +279,7 @@ bun run smoke:discover https://listwell.dev
 
 Or by hand:
 
-1. `GET https://listwell.dev/api/health` — `ok` is true, `storage.d1` is false, `storage.auditKv` is true, `lookups.osm` is true. `convex` may be `error` until Convex is redeployed.
+1. `GET https://listwell.dev/api/health` — `ok` is true, `storage.d1` is false, `storage.auditKv` is true, `lookups.osm` is true. `convex` is `ok` after Convex production is redeployed.
 2. Open https://listwell.dev. Enter `Blackstar Coffee` and suburb `Brisbane`. Continue.
 3. Confirm an OpenStreetMap listing. Land on a report URL `/{id}`.
 4. `GET /api/businesses/{id}` returns the cafe. `GET /api/businesses/{id}/checks` returns check results.
@@ -288,10 +288,45 @@ Google/Apple keys are optional for this OSM path. Full Google Business Profile q
 
 ### Zacchary-only
 
-This agent cannot log into Cloudflare or Convex.
+This agent cannot log into Cloudflare or Convex. Production Convex (`hallowed-mallard-135`) currently serves `businesses:getByExternalId` as a generic Server Error, and `https://hallowed-mallard-135.convex.site` reports that HTTP actions are not enabled. Set env **before** deploy.
 
-1. Confirm `AUDIT_KV` stays bound on the `listwell` Worker (live id already in `wrangler.jsonc`). Do not create D1.
-2. `bun run convex:deploy` so `businesses.create` no longer loads Better Auth on every query.
-3. On the Convex production deployment, set `SITE_URL=https://listwell.dev` (no trailing slash), `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, and UseSend vars. `INTERNAL_API_SECRET` must also be a Worker secret (`bun run cf:sync-env`).
-4. Optional: Worker secrets `GOOGLE_API_KEY`, `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`, Apple MapKit keys, Browser Rendering `LISTWELL_*`.
-5. Do not add `www.listwell.dev` as a Listwell custom domain.
+Confirm `AUDIT_KV` stays bound on the `listwell` Worker (live id already in `wrangler.jsonc`). Do not create D1. Do not add `www.listwell.dev` as a Listwell custom domain.
+
+On Convex production `hallowed-mallard-135`, set env (no trailing slash on `SITE_URL`):
+
+```bash
+npx convex env set SITE_URL https://listwell.dev --prod
+npx convex env set BETTER_AUTH_SECRET "<same value as the Worker / .env.local>" --prod
+npx convex env set INTERNAL_API_SECRET "<same value as the Worker>" --prod
+npx convex env set USESEND_API_KEY "<usesend api key>" --prod
+npx convex env set USESEND_FROM "Listwell <noreply@your-verified-domain>" --prod
+# optional:
+# npx convex env set USESEND_BASE_URL https://app.usesend.com --prod
+```
+
+`INTERNAL_API_SECRET` must also be a Worker secret (`bun run cf:sync-env`).
+
+From a machine linked to the Listwell Convex project, deploy functions, schema, the Better Auth component, and HTTP actions to production:
+
+```bash
+bun run convex:deploy
+```
+
+This targets prod `hallowed-mallard-135`. Do not run `npx convex deploy` from local feature work except this production restore.
+
+Optional Worker secrets: `GOOGLE_API_KEY`, `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`, Apple MapKit keys, Browser Rendering `LISTWELL_*`.
+
+Verify:
+
+```bash
+curl -sS -X POST https://hallowed-mallard-135.convex.cloud/api/query \
+  -H 'content-type: application/json' \
+  -d '{"path":"businesses:getByExternalId","args":{"externalId":"health-probe"},"format":"json"}'
+# expect {"status":"success","value":null}
+
+curl -fsS https://listwell.dev/api/health
+# expect convex:"ok"
+
+curl -sS https://hallowed-mallard-135.convex.site/api/auth/ok
+# must not say "HTTP actions are not enabled"
+```

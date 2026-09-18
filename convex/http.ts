@@ -3,11 +3,11 @@ import { httpRouter } from "convex/server";
 import { authComponent, createAuth } from "./auth";
 
 const http = httpRouter();
+const siteUrl = process.env.SITE_URL;
 
-authComponent.registerRoutes(http, createAuth, {
-  cors: {
-    allowedOrigins: [process.env.SITE_URL ?? "http://localhost:3000"],
-  },
+authComponent.registerRoutesLazy(http, createAuth, {
+  cors: true,
+  ...(siteUrl ? { trustedOrigins: [siteUrl] } : {}),
 });
 
 export default http;

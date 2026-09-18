@@ -16,7 +16,7 @@ export const POST = async (request: Request) => {
 
   const parsed = claimBusinessesRequestSchema.parse(body);
   try {
-    const claimed = await fetchAuthMutation(api.businesses.claim, {
+    const claimed = await fetchAuthMutation(api.claims.claim, {
       externalIds: parsed.ids,
     });
     return NextResponse.json({ claimed });
