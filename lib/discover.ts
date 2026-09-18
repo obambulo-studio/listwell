@@ -32,6 +32,11 @@ import {
 import type { CategoryId } from "./category";
 import { discoveredProfileSchema } from "./channel";
 import type { DiscoveredProfile } from "./channel";
+import {
+  jevPickSocialHit,
+  jevPickWebsiteFromSearch,
+  jevRefineListingCandidates,
+} from "./jev-decisions";
 
 const socialChannelSchema = z.enum([
   "facebook",
@@ -498,10 +503,19 @@ const nominatimCandidates = async (
 
 const websiteFromSearch = async (
   businessName: string,
-  env: AuditEngineEnv
+  env: AuditEngineEnv,
+  near?: string
 ): Promise<string | undefined> => {
   try {
     const results = await googleSearch(businessName, env);
+    const jevLink = await jevPickWebsiteFromSearch({
+      businessName,
+      near,
+      results,
+    });
+    if (jevLink) {
+      return jevLink;
+    }
     const match = results.find(
       (result) => namesMatch(businessName, result.title) && result.link
     );
@@ -514,7 +528,8 @@ const websiteFromSearch = async (
 const socialProfiles = async (
   businessName: string,
   categoryId: CategoryId,
-  env: AuditEngineEnv
+  env: AuditEngineEnv,
+  near?: string
 ): Promise<DiscoveredProfile[]> => {
   const platforms = recommendedSocialMedia[categoryId].flatMap((channel) => {
     const parsed = socialChannelSchema.safeParse(channel);
@@ -527,7 +542,13 @@ const socialProfiles = async (
         const hits = await searchSocial(platform, businessName, (query) =>
           googleSearch(query, env)
         );
-        const hit = pickSocialHit(hits);
+        const jevHit = await jevPickSocialHit({
+          businessName,
+          hits,
+          near,
+          platform,
+        });
+        const hit = jevHit ?? pickSocialHit(hits);
         return hit ? socialProfileFromHit(platform, hit) : null;
       } catch {
         return null;
@@ -575,14 +596,24 @@ export const discoverBusiness = async (
     }
   }
 
+  const nearText = request.near ?? request.address;
   if (!profiles.some((profile) => profile.type === "website")) {
-    const foundWebsite = await websiteFromSearch(request.businessName, env);
+    const foundWebsite = await websiteFromSearch(
+      request.businessName,
+      env,
+      nearText
+    );
     if (foundWebsite) {
       profiles.push({ title: foundWebsite, type: "website" });
     }
   }
 
-  const social = await socialProfiles(request.businessName, categoryId, env);
+  const social = await socialProfiles(
+    request.businessName,
+    categoryId,
+    env,
+    nearText
+  );
   for (const profile of social) {
     addUniqueProfile(profiles, profile);
   }
@@ -770,13 +801,22 @@ const lookupMapCandidates = async (
     }
   }
 
+  const ranked = rankPlaceCandidates(
+    candidates,
+    search,
+    trimmedNear || undefined
+  ).slice(0, 8);
+
+  const jevRefined = await jevRefineListingCandidates({
+    businessName: search,
+    candidates: ranked,
+    fetchImpl,
+    near: trimmedNear || undefined,
+  });
+
   return {
-    candidates: rankPlaceCandidates(
-      candidates,
-      search,
-      trimmedNear || undefined
-    ).slice(0, 8),
-    strongMatchId,
+    candidates: jevRefined.candidates,
+    strongMatchId: jevRefined.strongMatchId ?? strongMatchId,
   };
 };
 

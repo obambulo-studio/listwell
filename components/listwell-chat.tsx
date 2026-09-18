@@ -26,17 +26,22 @@ import TaskRows from "@/components/primitives/task-rows";
 import type { TaskDetail, TaskRow } from "@/components/primitives/task-rows";
 import {
   buildBasicReportStats,
-  categoryFromInput,
+  categoryFromInputAsync,
   categoryLabel,
   commonCategoryLabels,
   createMessage,
   createPromptMessage,
+  draftFromListingCandidate,
+  categoryTextForPhase,
   fetchListingCandidates,
+  findListingCandidateByOption,
   isPromptInputPhase,
   isTextInputPhase,
   listingLookupSkipMessage,
   listingQuestion,
   promptForPhase,
+  requestChatInterpret,
+  resolveListingAutoPick,
   scorePercent,
 } from "@/lib/chat-onboarding";
 import type {
@@ -1300,17 +1305,123 @@ const useListwellChat = () => {
     [setAuditTasks, setBusinessId, setReportStats]
   );
 
+  const continueAfterListingPick = useCallback(
+    async (candidate: PlaceCandidate) => {
+      pushMessage("user", candidate.name);
+      const nextDraft = draftFromListingCandidate(draft, candidate);
+      setDraft(nextDraft);
+      if (nextDraft.websiteUrl) {
+        await startAudit({
+          advance,
+          errorMessage: "Something went wrong running the audit. Try again.",
+          errorPhase: "website",
+          nextDraft,
+          pushMessage,
+          runAudit,
+          setPhase,
+          showTypingThen,
+        });
+        return;
+      }
+      await showTypingThen(() => {
+        advance("website", promptForPhase("website"));
+      });
+    },
+    [advance, draft, pushMessage, runAudit, setDraft, setPhase, showTypingThen]
+  );
+
+  const continueWebsitePhaseFromDraft = useCallback(
+    async (nextDraft: ChatDraft) => {
+      if (nextDraft.categoryId === "other" && !nextDraft.googlePlaceId) {
+        await showTypingThen(() => {
+          advance("category", promptForPhase("category"));
+        });
+        return;
+      }
+      await startAudit({
+        advance,
+        errorMessage:
+          "Something went wrong running the audit. Try again with a website URL or listing link.",
+        errorPhase: "website",
+        nextDraft,
+        pushMessage,
+        runAudit,
+        setPhase,
+        showTypingThen,
+      });
+    },
+    [advance, pushMessage, runAudit, setPhase, showTypingThen]
+  );
+
+  const finishListingLookup = useCallback(
+    async (lookup: Awaited<ReturnType<typeof fetchListingCandidates>>) => {
+      if (lookup.kind === "candidates") {
+        const autoPick = resolveListingAutoPick(lookup);
+        if (autoPick) {
+          setCandidates(lookup.candidates);
+          await continueAfterListingPick(autoPick);
+          return;
+        }
+        setCandidates(lookup.candidates);
+        advance("listing", promptForPhase("listing"));
+        return;
+      }
+      pushMessage("assistant", listingLookupSkipMessage(lookup.reason));
+      advance("website", promptForPhase("website"));
+    },
+    [advance, continueAfterListingPick, pushMessage, setCandidates]
+  );
+
   const handlePromptSend = useCallback(
     async (text: string) => {
+      const interpret = isPromptInputPhase(phase)
+        ? await requestChatInterpret({ draft, phase, text })
+        : null;
+
+      if (
+        interpret?.intent === "name_and_location" &&
+        interpret.businessName &&
+        interpret.location
+      ) {
+        attachPromptAnswer(text);
+        const nextDraft = {
+          ...draft,
+          businessName: interpret.businessName,
+          location: interpret.location,
+        };
+        setDraft(nextDraft);
+        const lookupPromise = fetchListingCandidates(
+          nextDraft.businessName,
+          nextDraft.location
+        );
+        await showTypingThen(() => {
+          setPhase("identifying");
+        });
+        await finishListingLookup(await lookupPromise);
+        return;
+      }
+
+      if (phase === "website" && interpret?.skipWebsite) {
+        attachPromptAnswer("Skip");
+        setDraft(draft);
+        await continueWebsitePhaseFromDraft(draft);
+        return;
+      }
+
       const normalized = normalizeChatInput(phase, text);
       if (!normalized) {
         return;
       }
 
       if (phase === "category") {
-        const { categoryId, displayLabel } = categoryFromInput(
-          normalized.kind === "text" ? normalized.value : text
-        );
+        const categoryText = categoryTextForPhase({
+          fallbackText: text,
+          interpret,
+          normalizedText:
+            normalized.kind === "text" ? normalized.value : undefined,
+        });
+        const { categoryId, displayLabel } =
+          await categoryFromInputAsync(categoryText);
         attachPromptAnswer(displayLabel);
         const nextDraft = { ...draft, categoryId };
         setDraft(nextDraft);
@@ -1329,25 +1440,8 @@ const useListwellChat = () => {
 
       if (normalized.kind === "skip") {
         attachPromptAnswer(normalized.display);
-        const nextDraft = draft;
-        setDraft(nextDraft);
-        if (nextDraft.categoryId === "other" && !nextDraft.googlePlaceId) {
-          await showTypingThen(() => {
-            advance("category", promptForPhase("category"));
-          });
-          return;
-        }
-        await startAudit({
-          advance,
-          errorMessage:
-            "Something went wrong running the audit. Try again with a website URL or listing link.",
-          errorPhase: "website",
-          nextDraft,
-          pushMessage,
-          runAudit,
-          setPhase,
-          showTypingThen,
-        });
+        setDraft(draft);
+        await continueWebsitePhaseFromDraft(draft);
         return;
       }
 
@@ -1373,47 +1467,25 @@ const useListwellChat = () => {
         await showTypingThen(() => {
           setPhase("identifying");
         });
-        const lookup = await lookupPromise;
-        if (lookup.kind === "candidates") {
-          setCandidates(lookup.candidates);
-          advance("listing", promptForPhase("listing"));
-          return;
-        }
-        pushMessage("assistant", listingLookupSkipMessage(lookup.reason));
-        advance("website", promptForPhase("website"));
+        await finishListingLookup(await lookupPromise);
         return;
       }
 
       if (phase === "website") {
         const nextDraft = { ...draft, websiteUrl: value };
         setDraft(nextDraft);
-        if (nextDraft.categoryId === "other" && !nextDraft.googlePlaceId) {
-          await showTypingThen(() => {
-            advance("category", promptForPhase("category"));
-          });
-          return;
-        }
-        await startAudit({
-          advance,
-          errorMessage:
-            "Something went wrong running the audit. Try again with a website URL or listing link.",
-          errorPhase: "website",
-          nextDraft,
-          pushMessage,
-          runAudit,
-          setPhase,
-          showTypingThen,
-        });
+        await continueWebsitePhaseFromDraft(nextDraft);
       }
     },
     [
       advance,
       attachPromptAnswer,
+      continueWebsitePhaseFromDraft,
       draft,
+      finishListingLookup,
       phase,
       pushMessage,
       runAudit,
-      setCandidates,
       setDraft,
       setPhase,
       showTypingThen,
@@ -1434,55 +1506,18 @@ const useListwellChat = () => {
           });
           return;
         }
-        const candidate = candidates.find((item) => item.name === label);
+        const candidate = findListingCandidateByOption(candidates, label);
         if (!candidate) {
           await showTypingThen(() => {
             advance("website", promptForPhase("website"));
           });
           return;
         }
-        pushMessage("user", candidate.name);
-        const nextDraft: ChatDraft = {
-          ...draft,
-          address: candidate.address ?? draft.address,
-          appleMapsId:
-            candidate.source === "apple" ? candidate.id : draft.appleMapsId,
-          businessName: candidate.name,
-          categoryId: candidate.categoryId ?? draft.categoryId,
-          googlePlaceId:
-            candidate.source === "google" ? candidate.id : draft.googlePlaceId,
-          websiteUrl: candidate.websiteUrl ?? draft.websiteUrl,
-        };
-        setDraft(nextDraft);
-        if (nextDraft.websiteUrl) {
-          await startAudit({
-            advance,
-            errorMessage: "Something went wrong running the audit. Try again.",
-            errorPhase: "website",
-            nextDraft,
-            pushMessage,
-            runAudit,
-            setPhase,
-            showTypingThen,
-          });
-          return;
-        }
-        await showTypingThen(() => {
-          advance("website", promptForPhase("website"));
-        });
+        await continueAfterListingPick(candidate);
       };
       submitListing();
     },
-    [
-      advance,
-      candidates,
-      draft,
-      pushMessage,
-      runAudit,
-      setDraft,
-      setPhase,
-      showTypingThen,
-    ]
+    [advance, candidates, continueAfterListingPick, pushMessage, showTypingThen]
   );
 
   const promptPlaceholder = useMemo(() => {

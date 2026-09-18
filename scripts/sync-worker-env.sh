@@ -44,6 +44,8 @@ keys=(
   USESEND_API_KEY
   USESEND_FROM
   USESEND_BASE_URL
+  TYPESAFE_API_KEY
+  TYPESAFE_MODEL
 )
 
 for key in "${keys[@]}"; do

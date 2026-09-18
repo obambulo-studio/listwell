@@ -112,6 +112,8 @@ interface CloudflareEnv {
   POLAR_SERVER?: string;
   POLAR_WEBHOOK_SECRET?: string;
   SITE_URL?: string;
+  TYPESAFE_API_KEY?: string;
+  TYPESAFE_MODEL?: string;
   USESEND_API_KEY?: string;
   USESEND_BASE_URL?: string;
   USESEND_FROM?: string;

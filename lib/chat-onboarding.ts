@@ -4,6 +4,11 @@ import { categoryIdSchema, CATEGORY_CONFIG } from "./category";
 import type { CategoryId } from "./category";
 import { lookupResponseSchema, placeCandidateSchema } from "./discover";
 import type { PlaceCandidate, lookupProvidersSchema } from "./discover";
+import {
+  categoryFromInputWithJev,
+  interpretResponseSchema,
+  listingOptionLabel,
+} from "./jev-decisions";
 import { normalizeCategoryText } from "./text-normalize";
 
 export const LOOKUP_TIMEOUT_MS = 12_000;
@@ -11,8 +16,59 @@ export const LOOKUP_TIMEOUT_MS = 12_000;
 export type LookupSkipReason = "empty" | "unavailable" | "error" | "timeout";
 
 export type ListingLookupResult =
-  | { kind: "candidates"; candidates: PlaceCandidate[] }
+  | {
+      kind: "candidates";
+      candidates: PlaceCandidate[];
+      strongMatchId?: string;
+    }
   | { kind: "skipped"; reason: LookupSkipReason };
+
+export type ChatInterpretResponse = z.infer<typeof interpretResponseSchema>;
+
+export const resolveListingAutoPick = (
+  lookup: Extract<ListingLookupResult, { kind: "candidates" }>
+): PlaceCandidate | undefined => {
+  if (!lookup.strongMatchId) {
+    return undefined;
+  }
+  return lookup.candidates.find((item) => item.id === lookup.strongMatchId);
+};
+
+export const requestChatInterpret = async (input: {
+  draft: ChatDraft;
+  phase: ChatPhase;
+  text: string;
+}): Promise<ChatInterpretResponse | null> => {
+  try {
+    const response = await fetch("/api/chat/interpret", {
+      body: JSON.stringify(input),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const json: unknown = await response.json();
+    const parsed = interpretResponseSchema.safeParse(json);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+};
+
+export const categoryTextForPhase = (input: {
+  fallbackText: string;
+  interpret: ChatInterpretResponse | null;
+  normalizedText?: string;
+}): string => {
+  if (input.interpret?.intent === "category" && input.interpret.categoryText) {
+    return input.interpret.categoryText;
+  }
+  if (input.normalizedText) {
+    return input.normalizedText;
+  }
+  return input.fallbackText;
+};
 
 export const listingLookupSkipMessage = (reason: LookupSkipReason): string => {
   switch (reason) {
@@ -159,8 +215,48 @@ export const categoryFromInput = (
   return { categoryId: "other", displayLabel: normalizeCategoryText(trimmed) };
 };
 
+export const categoryFromInputAsync = async (
+  text: string
+): Promise<{ categoryId: CategoryId; displayLabel: string }> => {
+  const trimmed = text.trim();
+  const fromLabel = categoryFromLabel(trimmed);
+  if (fromLabel) {
+    return { categoryId: fromLabel, displayLabel: categoryLabel(fromLabel) };
+  }
+  const lower = trimmed.toLowerCase();
+  for (const option of COMMON_CATEGORY_OPTIONS) {
+    if (option.label.toLowerCase() === lower) {
+      return { categoryId: option.categoryId, displayLabel: option.label };
+    }
+  }
+  const fromJev = await categoryFromInputWithJev({ text });
+  return fromJev ?? categoryFromInput(text);
+};
+
+export const draftFromListingCandidate = (
+  draft: ChatDraft,
+  candidate: PlaceCandidate
+): ChatDraft => ({
+  ...draft,
+  address: candidate.address ?? draft.address,
+  appleMapsId: candidate.source === "apple" ? candidate.id : draft.appleMapsId,
+  businessName: candidate.name,
+  categoryId: candidate.categoryId ?? draft.categoryId,
+  googlePlaceId:
+    candidate.source === "google" ? candidate.id : draft.googlePlaceId,
+  websiteUrl: candidate.websiteUrl ?? draft.websiteUrl,
+});
+
+export {
+  findListingCandidateByOption,
+  listingOptionLabel,
+} from "./jev-decisions";
+
 export const listingQuestion = (candidates: PlaceCandidate[]) => ({
-  options: [...candidates.slice(0, 4).map((c) => c.name), "None of these"],
+  options: [
+    ...candidates.slice(0, 4).map((c) => listingOptionLabel(c)),
+    "None of these",
+  ],
   q: "Is this your business on Google or Apple Maps?",
   type: "radio" as const,
 });
@@ -198,7 +294,11 @@ const requestListingLookup = async (
       ),
     };
   }
-  return { candidates: parsed.candidates, kind: "candidates" };
+  return {
+    candidates: parsed.candidates,
+    kind: "candidates",
+    strongMatchId: parsed.strongMatchId,
+  };
 };
 
 export const fetchListingCandidates = async (

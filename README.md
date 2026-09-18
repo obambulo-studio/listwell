@@ -132,6 +132,10 @@ Lookups:
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - web search for social and website discovery
 - `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY` - Apple Maps search
 - `LISTWELL_BROWSER_RENDERING_ACCOUNT_ID`, `LISTWELL_BROWSER_RENDERING_API_TOKEN` - Browser Rendering REST
+- `TYPESAFE_API_KEY` - optional TypeSafe Jev for listing disambiguation, social/website hit selection, and chat intake (chat and discover fall back without it)
+- `TYPESAFE_MODEL` - optional, default `jev-latest`
+
+Business names, suburbs, and URLs sent to Jev are processed by TypeSafe when this key is set. Do not enable it for flows that must stay fully on-prem unless your privacy policy covers that.
 
 Payments and email:
 
