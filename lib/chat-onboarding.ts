@@ -7,8 +7,16 @@ import type { PlaceCandidate, lookupProvidersSchema } from "./discover";
 import {
   categoryFromInputWithJev,
   interpretResponseSchema,
+  listingPickerOptions,
 } from "./jev-decisions";
 import { normalizeCategoryText } from "./text-normalize";
+
+export {
+  findListingCandidateByOption,
+  listingOptionLabel,
+  listingPickerOptions,
+  pickListingCandidateByOptionIndex,
+} from "./jev-decisions";
 
 export const LOOKUP_TIMEOUT_MS = 12_000;
 
@@ -255,20 +263,6 @@ export const draftFromListingCandidate = (
     candidate.source === "google" ? candidate.id : draft.googlePlaceId,
   websiteUrl: candidate.websiteUrl ?? draft.websiteUrl,
 });
-
-import {
-  findListingCandidateByOption,
-  listingOptionLabel,
-  listingPickerOptions,
-  pickListingCandidateByOptionIndex,
-} from "./jev-decisions";
-
-export {
-  findListingCandidateByOption,
-  listingOptionLabel,
-  listingPickerOptions,
-  pickListingCandidateByOptionIndex,
-};
 
 export const listingQuestion = (candidates: PlaceCandidate[]) => ({
   options: listingPickerOptions(candidates),
