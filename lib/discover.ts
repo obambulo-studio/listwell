@@ -765,6 +765,32 @@ const pickHeuristicStrongMatchId = (
   return undefined;
 };
 
+const applyJevListingRefinement = async (input: {
+  businessName: string;
+  candidates: PlaceCandidate[];
+  fetchImpl: typeof fetch;
+  heuristicStrongMatchId?: string;
+  near?: string;
+}): Promise<{ candidates: PlaceCandidate[]; strongMatchId?: string }> => {
+  const typesafeConfig = await getTypeSafeConfig();
+  const jevRefined = await jevRefineListingCandidates({
+    businessName: input.businessName,
+    candidates: input.candidates,
+    config: typesafeConfig,
+    fetchImpl: input.fetchImpl,
+    near: input.near,
+  });
+
+  const strongMatchIdForResponse = typesafeConfig
+    ? jevRefined.strongMatchId
+    : (jevRefined.strongMatchId ?? input.heuristicStrongMatchId);
+
+  return {
+    candidates: jevRefined.candidates,
+    strongMatchId: strongMatchIdForResponse,
+  };
+};
+
 const lookupMapCandidates = async (
   search: string,
   near: string | undefined,
@@ -824,32 +850,6 @@ const lookupMapCandidates = async (
     heuristicStrongMatchId: strongMatchId,
     near: trimmedNear || undefined,
   });
-};
-
-const applyJevListingRefinement = async (input: {
-  businessName: string;
-  candidates: PlaceCandidate[];
-  fetchImpl: typeof fetch;
-  heuristicStrongMatchId?: string;
-  near?: string;
-}): Promise<{ candidates: PlaceCandidate[]; strongMatchId?: string }> => {
-  const typesafeConfig = await getTypeSafeConfig();
-  const jevRefined = await jevRefineListingCandidates({
-    businessName: input.businessName,
-    candidates: input.candidates,
-    config: typesafeConfig,
-    fetchImpl: input.fetchImpl,
-    near: input.near,
-  });
-
-  const strongMatchIdForResponse = typesafeConfig
-    ? jevRefined.strongMatchId
-    : (jevRefined.strongMatchId ?? input.heuristicStrongMatchId);
-
-  return {
-    candidates: jevRefined.candidates,
-    strongMatchId: strongMatchIdForResponse,
-  };
 };
 
 const withLookupProviders = (
