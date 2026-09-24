@@ -162,13 +162,14 @@ export const listForBusiness = query({
   },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
-    const limit = args.limit ?? 12;
+    const limit = Math.min(args.limit ?? 12, 50);
     const rows = await ctx.db
       .query("scans")
       .withIndex("by_businessExternalId", (q) =>
         q.eq("businessExternalId", args.businessExternalId)
       )
-      .collect();
+      .order("desc")
+      .take(limit);
 
     return rows
       .toSorted((left, right) => right.startedAt.localeCompare(left.startedAt))
@@ -186,7 +187,8 @@ export const getLatestComplete = query({
       .withIndex("by_businessExternalId", (q) =>
         q.eq("businessExternalId", args.businessExternalId)
       )
-      .collect();
+      .order("desc")
+      .take(50);
 
     const complete = rows
       .filter((row) => row.status === "complete")
@@ -210,10 +212,11 @@ export const listDueEntitlements = internalQuery({
   args: { limit: v.number(), nowIso: v.string() },
   handler: async (ctx, args) => {
     const nowMs = Date.parse(args.nowIso);
+    const limit = Math.min(args.limit, 10);
     const rows = await ctx.db
       .query("entitlements")
       .withIndex("by_status_and_nextScanAt", (q) => q.eq("status", "active"))
-      .collect();
+      .take(100);
 
     return rows
       .filter((row) => {
@@ -223,7 +226,7 @@ export const listDueEntitlements = internalQuery({
         const dueMs = Date.parse(row.nextScanAt);
         return !Number.isNaN(dueMs) && dueMs <= nowMs;
       })
-      .slice(0, args.limit)
+      .slice(0, limit)
       .map((row) => ({
         businessExternalId: row.businessExternalId,
         id: row._id,
@@ -249,33 +252,34 @@ export const runDue = internalAction({
       businessExternalId: string;
       id: Id<"entitlements">;
     }[] = await ctx.runQuery(internal.scans.listDueEntitlements, {
-      limit: 5,
+      limit: 2,
       nowIso: nowIso(),
     });
 
-    const outcomes: boolean[] = await Promise.all(
-      due.map(async (entitlement) => {
-        try {
-          const response = await fetch(
-            `${siteUrl()}/api/internal/scans/run-one`,
-            {
-              body: JSON.stringify({
-                businessId: entitlement.businessExternalId,
-                entitlementId: entitlement.id,
-              }),
-              headers: {
-                authorization: `Bearer ${secret}`,
-                "content-type": "application/json",
-              },
-              method: "POST",
-            }
-          );
-          return response.ok;
-        } catch {
-          return false;
-        }
-      })
-    );
+    // Sequential to avoid concurrent Chromium bursts on the Worker.
+    const outcomes: boolean[] = [];
+    for (const entitlement of due) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const response = await fetch(
+          `${siteUrl()}/api/internal/scans/run-one`,
+          {
+            body: JSON.stringify({
+              businessId: entitlement.businessExternalId,
+              entitlementId: entitlement.id,
+            }),
+            headers: {
+              authorization: `Bearer ${secret}`,
+              "content-type": "application/json",
+            },
+            method: "POST",
+          }
+        );
+        outcomes.push(response.ok);
+      } catch {
+        outcomes.push(false);
+      }
+    }
 
     return {
       failed: outcomes.filter((ok: boolean) => !ok).length,

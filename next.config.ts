@@ -22,6 +22,36 @@ for (const [key, value] of Object.entries(productionPublicEnv)) {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["listwell.localhost", "*.listwell.localhost"],
+  headers() {
+    return Promise.resolve([
+      {
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(self)",
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+        ],
+        source: "/:path*",
+      },
+    ]);
+  },
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      { hostname: "**.googleusercontent.com" },
+      { hostname: "**.gstatic.com" },
+      { hostname: "**.apple-mapkit.com" },
+      { hostname: "**.cdn-apple.com" },
+    ],
+  },
+  poweredByHeader: false,
   transpilePackages: ["@listwell/audit-engine"],
   typedRoutes: true,
 };

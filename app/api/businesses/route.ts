@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
+import { getCloudflareEnv } from "@/lib/audit-env";
 import { fetchAuthMutation, isAuthenticated } from "@/lib/auth-server";
 import { api } from "@/lib/convex/server";
 import {
   createBusiness,
   idListQuerySchema,
   listBusinesses,
+  MAX_BULK_IDS,
   writeStoredBusiness,
 } from "@/lib/data";
+import { consumeRateLimit } from "@/lib/rate-limit-kv";
 import { businessSchema, createBusinessRequestSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +26,19 @@ const isAuthed = async (): Promise<boolean> => {
 
 export const GET = async (request: Request) => {
   try {
+    const allowed = await consumeRateLimit({
+      bucket: "businesses-get",
+      env: await getCloudflareEnv(),
+      failClosed: false,
+      maxRequests: 60,
+      request,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again soon." },
+        { status: 429 }
+      );
+    }
     const url = new URL(request.url);
     const query = idListQuerySchema.parse({
       ids: url.searchParams.get("ids") ?? undefined,
@@ -30,10 +46,13 @@ export const GET = async (request: Request) => {
     if (!query.ids) {
       return NextResponse.json([]);
     }
-    const ids = query.ids.split(",").flatMap((id) => {
-      const trimmed = id.trim();
-      return trimmed ? [trimmed] : [];
-    });
+    const ids = query.ids
+      .split(",")
+      .flatMap((id) => {
+        const trimmed = id.trim();
+        return trimmed ? [trimmed] : [];
+      })
+      .slice(0, MAX_BULK_IDS);
     const businesses = await listBusinesses(ids);
     return NextResponse.json(businesses);
   } catch (error) {
@@ -49,6 +68,19 @@ export const GET = async (request: Request) => {
 
 export const POST = async (request: Request) => {
   try {
+    const allowed = await consumeRateLimit({
+      bucket: "businesses-post",
+      env: await getCloudflareEnv(),
+      failClosed: false,
+      maxRequests: 15,
+      request,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again soon." },
+        { status: 429 }
+      );
+    }
     const body: unknown = await request.json();
     const parsed = createBusinessRequestSchema.parse(body);
 

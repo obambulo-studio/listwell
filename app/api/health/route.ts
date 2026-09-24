@@ -36,6 +36,11 @@ export const GET = async () => {
         auditKv,
         d1: false,
       },
-    })
+    }),
+    {
+      headers: {
+        "Cache-Control": "public, max-age=30, stale-while-revalidate=60",
+      },
+    }
   );
 };

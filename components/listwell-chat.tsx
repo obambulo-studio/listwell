@@ -444,7 +444,7 @@ const ChatComposer = ({
       <button
         className="listwell-chat__send"
         type="submit"
-        aria-disabled={!canSend}
+        disabled={!canSend}
         aria-label="Send"
       >
         <svg

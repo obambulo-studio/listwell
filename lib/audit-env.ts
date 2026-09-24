@@ -22,20 +22,18 @@ const readSecret = (value: unknown): string | undefined => {
   return parsed.success ? parsed.data : undefined;
 };
 
-/** Browser Rendering REST creds. Use LISTWELL_* in .env.local so Wrangler/OpenNext remote dev does not treat a Browser Rendering-only token as the Workers CLI token. */
+/** Browser Rendering REST creds. Worker-first; never fall back to the Workers CLI token. */
 const browserRenderingAccountId = (
   workerEnv: CloudflareEnv | null
 ): string | undefined =>
-  readSecret(process.env.LISTWELL_BROWSER_RENDERING_ACCOUNT_ID) ??
-  readSecret(workerEnv?.CLOUDFLARE_ACCOUNT_ID) ??
-  readSecret(process.env.CLOUDFLARE_ACCOUNT_ID);
+  readSecret(workerEnv?.LISTWELL_BROWSER_RENDERING_ACCOUNT_ID) ??
+  readSecret(process.env.LISTWELL_BROWSER_RENDERING_ACCOUNT_ID);
 
 const browserRenderingApiToken = (
   workerEnv: CloudflareEnv | null
 ): string | undefined =>
-  readSecret(process.env.LISTWELL_BROWSER_RENDERING_API_TOKEN) ??
-  readSecret(workerEnv?.CLOUDFLARE_API_TOKEN) ??
-  readSecret(process.env.CLOUDFLARE_API_TOKEN);
+  readSecret(workerEnv?.LISTWELL_BROWSER_RENDERING_API_TOKEN) ??
+  readSecret(process.env.LISTWELL_BROWSER_RENDERING_API_TOKEN);
 
 export const toBusinessSnapshot = (business: Business): BusinessSnapshot =>
   businessSnapshotSchema.parse({

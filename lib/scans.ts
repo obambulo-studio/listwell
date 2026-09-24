@@ -133,12 +133,17 @@ export const runDueScans = async (
   } = {}
 ): Promise<{ ran: number; failed: number }> => {
   const now = input.now ?? new Date();
-  const limit = input.limit ?? 5;
+  // Keep browser concurrency low on Workers: process due scans in small
+  // sequential batches instead of one wide Promise.all.
+  const limit = Math.min(input.limit ?? 2, 5);
   const due = await listDueMonthlyEntitlements(now, limit);
 
-  const outcomes = await Promise.all(
-    due.map((entitlement) => processDueEntitlement(entitlement, now))
-  );
+  const outcomes: ("failed" | "ok")[] = [];
+  // Sequential on purpose: avoids concurrent Chromium bursts on Workers.
+  for (const entitlement of due) {
+    // eslint-disable-next-line no-await-in-loop
+    outcomes.push(await processDueEntitlement(entitlement, now));
+  }
 
   return {
     failed: outcomes.filter((outcome) => outcome === "failed").length,

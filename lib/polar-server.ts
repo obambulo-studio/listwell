@@ -188,15 +188,50 @@ const polarClient = (config: PolarConfig): Polar =>
     server: config.server,
   });
 
+const allowedOrigins = (): string[] => {
+  const values = [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.SITE_URL,
+    "https://listwell.dev",
+    "http://localhost:3000",
+  ];
+  const allowlist: string[] = [];
+  for (const value of values) {
+    if (value) {
+      allowlist.push(value.replace(/\/$/u, ""));
+    }
+  }
+  return allowlist;
+};
+
 export const publicOrigin = (request: Request): string => {
   const url = new URL(request.url);
-  const host =
-    request.headers.get("x-forwarded-host") ??
-    request.headers.get("host") ??
-    url.host;
+  const forwardedHost = request.headers.get("x-forwarded-host")?.trim();
+  const hostHeader = request.headers.get("host")?.trim();
   const proto =
     request.headers.get("x-forwarded-proto") ??
     (url.protocol === "https:" ? "https" : "http");
+  const candidates: string[] = [];
+  if (forwardedHost) {
+    candidates.push(forwardedHost);
+  }
+  if (hostHeader) {
+    candidates.push(hostHeader);
+  }
+  const allowlist = new Set(allowedOrigins());
+  for (const candidate of candidates) {
+    const origin = `${proto}://${candidate}`;
+    if (allowlist.has(origin)) {
+      return origin;
+    }
+  }
+  // Fall back to the configured site URL in production; never trust an
+  // arbitrary forwarded host for checkout return URLs.
+  if (process.env.NODE_ENV === "production") {
+    const [first] = allowlist;
+    return first ?? `${url.protocol}//${url.host}`;
+  }
+  const host = candidates[0] ?? url.host;
   return `${proto}://${host}`;
 };
 

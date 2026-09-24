@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { GenericId } from "convex/values";
 
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
@@ -225,15 +226,54 @@ export const revoke = mutation({
     }
 
     const timestamp = nowIso();
-    const rows = await ctx.db.query("entitlements").collect();
-    const matchingRows = rows.filter(
-      (row) =>
-        (args.businessExternalId &&
-          row.businessExternalId === args.businessExternalId) ||
-        (args.polarOrderId && row.polarOrderId === args.polarOrderId) ||
-        (args.polarSubscriptionId &&
-          row.polarSubscriptionId === args.polarSubscriptionId)
-    );
+    interface EntitlementDoc {
+      _id: GenericId<"entitlements">;
+      businessExternalId: string;
+      userId?: string;
+      kind: "report_once" | "report_monthly";
+      status: "active" | "revoked";
+      polarOrderId?: string;
+      polarSubscriptionId?: string;
+      nextScanAt?: string;
+      createdAt: string;
+      updatedAt: string;
+    }
+    const matchingRows: EntitlementDoc[] = [];
+    if (args.businessExternalId) {
+      const byBusiness = await ctx.db
+        .query("entitlements")
+        .withIndex("by_businessExternalId", (q) =>
+          q.eq("businessExternalId", args.businessExternalId as string)
+        )
+        .collect();
+      matchingRows.push(...byBusiness);
+    }
+    if (args.polarOrderId) {
+      const byOrder = await ctx.db
+        .query("entitlements")
+        .withIndex("by_polarOrderId", (q) =>
+          q.eq("polarOrderId", args.polarOrderId as string)
+        )
+        .collect();
+      for (const row of byOrder) {
+        if (!matchingRows.some((existing) => existing._id === row._id)) {
+          matchingRows.push(row);
+        }
+      }
+    }
+    if (args.polarSubscriptionId) {
+      const bySubscription = await ctx.db
+        .query("entitlements")
+        .withIndex("by_polarSubscriptionId", (q) =>
+          q.eq("polarSubscriptionId", args.polarSubscriptionId as string)
+        )
+        .collect();
+      for (const row of bySubscription) {
+        if (!matchingRows.some((existing) => existing._id === row._id)) {
+          matchingRows.push(row);
+        }
+      }
+    }
     await Promise.all(
       matchingRows.map((row) =>
         ctx.db.patch("entitlements", row._id, {
@@ -250,10 +290,11 @@ export const listDueMonthly = query({
   args: { limit: v.number(), nowIso: v.string() },
   handler: async (ctx, args) => {
     const nowMs = Date.parse(args.nowIso);
+    const limit = Math.min(args.limit, 10);
     const rows = await ctx.db
       .query("entitlements")
       .withIndex("by_status_and_nextScanAt", (q) => q.eq("status", "active"))
-      .collect();
+      .take(100);
 
     return rows
       .filter((row) => {
@@ -263,7 +304,7 @@ export const listDueMonthly = query({
         const dueMs = Date.parse(row.nextScanAt);
         return !Number.isNaN(dueMs) && dueMs <= nowMs;
       })
-      .slice(0, args.limit)
+      .slice(0, limit)
       .map((row) => ({
         businessExternalId: row.businessExternalId,
         id: row._id,

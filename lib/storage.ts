@@ -13,16 +13,27 @@ const zStringArray = {
   },
 };
 
-export const getStoredBusinessIds = (): string[] => {
+const readLocalJson = (key: string): unknown | null => {
   if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (!stored) {
+      return null;
+    }
+    return JSON.parse(stored) as unknown;
+  } catch {
+    return null;
+  }
+};
+
+export const getStoredBusinessIds = (): string[] => {
+  const parsed = readLocalJson(STORAGE_KEY);
+  if (!parsed) {
     return [];
   }
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return [];
-    }
-    const parsed: unknown = JSON.parse(stored);
     return zStringArray.parse(parsed);
   } catch {
     return [];
@@ -40,20 +51,12 @@ export const addBusinessId = (id: string): void => {
 };
 
 export const loadChatSession = (): ChatSessionSnapshot | null => {
-  if (typeof window === "undefined") {
+  const parsed = readLocalJson(CHAT_SESSION_STORAGE_KEY);
+  if (!parsed) {
     return null;
   }
-  try {
-    const stored = window.localStorage.getItem(CHAT_SESSION_STORAGE_KEY);
-    if (!stored) {
-      return null;
-    }
-    const parsed: unknown = JSON.parse(stored);
-    const result = chatSessionSnapshotSchema.safeParse(parsed);
-    return result.success ? result.data : null;
-  } catch {
-    return null;
-  }
+  const result = chatSessionSnapshotSchema.safeParse(parsed);
+  return result.success ? result.data : null;
 };
 
 export const saveChatSession = (snapshot: ChatSessionSnapshot): void => {

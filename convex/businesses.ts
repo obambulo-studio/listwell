@@ -109,8 +109,9 @@ export const getByExternalId = query({
 export const listByExternalIds = query({
   args: { externalIds: v.array(v.string()) },
   handler: async (ctx, args) => {
+    const capped = args.externalIds.slice(0, 50);
     const businesses = await Promise.all(
-      args.externalIds.map(async (externalId) => {
+      capped.map(async (externalId) => {
         const doc = await ctx.db
           .query("businesses")
           .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
@@ -154,6 +155,15 @@ export const create = mutation({
     youtubeUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.name.trim().length === 0 || args.name.length > 200) {
+      throw new Error("Invalid business name");
+    }
+    if (args.category.length > 100) {
+      throw new Error("Invalid category");
+    }
+    if ((args.locations ?? []).length > 20) {
+      throw new Error("Too many locations");
+    }
     const timestamp = nowIso();
     const externalId = args.externalId ?? crypto.randomUUID();
     const existing = await ctx.db

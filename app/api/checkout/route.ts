@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getCloudflareEnv } from "@/lib/audit-env";
 import { getBusiness } from "@/lib/data";
 import {
   createPolarCheckout,
@@ -7,11 +8,25 @@ import {
   getPolarConfig,
   publicOrigin,
 } from "@/lib/polar-server";
+import { consumeRateLimit } from "@/lib/rate-limit-kv";
 import { checkoutRequestSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
 export const POST = async (request: Request) => {
+  const allowed = await consumeRateLimit({
+    bucket: "checkout",
+    env: await getCloudflareEnv(),
+    failClosed: false,
+    maxRequests: 10,
+    request,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again soon." },
+      { status: 429 }
+    );
+  }
   const config = await getPolarConfig();
   if (!config) {
     return NextResponse.json(

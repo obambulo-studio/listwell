@@ -9,6 +9,12 @@ import {
 } from "@/lib/agent-discovery";
 import { wwwToApexHref } from "@/lib/www-redirect";
 
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:png|jpg|jpeg|svg|ico|webp|avif|css|js|map)).*)",
+  ],
+};
+
 export const middleware = async (
   request: NextRequest
 ): Promise<NextResponse> => {

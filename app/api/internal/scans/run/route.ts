@@ -38,6 +38,9 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runDueScans({ limit: 5 });
+  // Source of truth for scheduling is the Convex cron
+  // (convex/crons.ts -> internal.scans.runDue). This route exists for manual
+  // backfill only and processes a small batch sequentially.
+  const result = await runDueScans({ limit: 2 });
   return NextResponse.json(result);
 };

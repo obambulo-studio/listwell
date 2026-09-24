@@ -121,7 +121,11 @@ export const parseJsonObject = (text: string): unknown => {
     throw new Error("Model response did not contain a JSON object");
   }
 
-  return JSON.parse(stripped.slice(start, end + 1));
+  try {
+    return JSON.parse(stripped.slice(start, end + 1));
+  } catch {
+    throw new Error("Model response contained invalid JSON");
+  }
 };
 
 export const buildListwellPrompt = (

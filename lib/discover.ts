@@ -415,8 +415,11 @@ const googleCandidates = async (
   const near = request.near ?? request.address ?? "";
   const queries = buildPlaceSearchQueries(request.businessName, near);
   const { googleApiKey } = env;
-  const searchResults = await Promise.all(
+  const settled = await Promise.allSettled(
     queries.map((query) => searchGooglePlaces(query, googleApiKey))
+  );
+  const searchResults = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : []
   );
   const places = searchResults.flat();
   return dedupePlaceCandidates(
@@ -457,8 +460,11 @@ const appleCandidates = async (
     const near = request.near ?? request.address ?? "";
     const queries = buildPlaceSearchQueries(request.businessName, near);
     const userLocation = near.trim() || undefined;
-    const searchResults = await Promise.all(
+    const settled = await Promise.allSettled(
       queries.map((query) => searchAppleMaps(query, env, fetch, userLocation))
+    );
+    const searchResults = settled.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
     );
     const results = searchResults.flatMap((search) => search.results);
     return dedupePlaceCandidates(
@@ -703,7 +709,7 @@ const searchGoogleCandidatesForQueries = async (
     return [];
   }
   const { googleApiKey } = env;
-  const batches = await Promise.all(
+  const settled = await Promise.allSettled(
     queries.map((query) =>
       searchGooglePlaces(query, googleApiKey, fetchImpl).then((places) =>
         places.flatMap((place) => {
@@ -712,6 +718,9 @@ const searchGoogleCandidatesForQueries = async (
         })
       )
     )
+  );
+  const batches = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : []
   );
   return dedupePlaceCandidates(batches.flat());
 };
@@ -727,19 +736,23 @@ const searchAppleCandidatesForQueries = async (
   }
   try {
     const userLocation = near?.trim() || undefined;
-    const batches = await Promise.all(
+    const settled = await Promise.allSettled(
       queries.map((query) =>
         searchAppleMaps(query, env, fetchImpl, userLocation).then((result) =>
-          result.results.map((place) =>
-            placeCandidateSchema.parse({
+          result.results.flatMap((place) => {
+            const parsed = placeCandidateSchema.safeParse({
               address: appleAddress(place.formattedAddressLines),
               id: place.id,
               name: place.name,
               source: "apple",
-            })
-          )
+            });
+            return parsed.success ? [parsed.data] : [];
+          })
         )
       )
+    );
+    const batches = settled.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
     );
     return dedupePlaceCandidates(batches.flat());
   } catch {

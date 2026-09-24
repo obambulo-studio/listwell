@@ -31,15 +31,16 @@ export const timingSafeEqual = (left: string, right: string): boolean => {
   const encoder = new TextEncoder();
   const leftBytes = encoder.encode(left);
   const rightBytes = encoder.encode(right);
-  if (leftBytes.length !== rightBytes.length) {
-    return false;
-  }
-  for (let index = 0; index < leftBytes.length; index += 1) {
+  const maxLength = Math.max(leftBytes.length, rightBytes.length);
+  // eslint-disable-next-line no-bitwise
+  let diff = leftBytes.length ^ rightBytes.length;
+  for (let index = 0; index < maxLength; index += 1) {
     if ((leftBytes[index] ?? 0) !== (rightBytes[index] ?? 0)) {
-      return false;
+      // eslint-disable-next-line no-bitwise
+      diff |= 1;
     }
   }
-  return true;
+  return diff === 0;
 };
 
 export const isAuthEnabled = (): Promise<boolean> =>

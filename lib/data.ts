@@ -35,6 +35,10 @@ export const idListQuerySchema = z.object({
   ids: z.string().optional(),
 });
 
+export const MAX_BULK_IDS = 50;
+const BUSINESS_KV_TTL_SECONDS = 7 * 24 * 60 * 60;
+const BUSINESS_MEMORY_MAX = 500;
+
 const mapLocations = (locations: CreateBusinessRequest["locations"]) =>
   locations.map((location) => ({
     address: location.address,
@@ -52,6 +56,21 @@ declare global {
 const businessMemory: Map<string, Business> =
   globalThis.listwellBusinesses ?? new Map<string, Business>();
 globalThis.listwellBusinesses = businessMemory;
+
+const evictBusinessMemoryIfNeeded = (): void => {
+  if (businessMemory.size <= BUSINESS_MEMORY_MAX) {
+    return;
+  }
+  const overflow = businessMemory.size - BUSINESS_MEMORY_MAX;
+  const iterator = businessMemory.keys();
+  for (let index = 0; index < overflow; index += 1) {
+    const next = iterator.next();
+    if (next.done) {
+      break;
+    }
+    businessMemory.delete(next.value);
+  }
+};
 
 const optionalUrl = (value: string | undefined): string | null => value ?? null;
 
@@ -97,11 +116,13 @@ export const writeStoredBusiness = async (
 ): Promise<Business> => {
   const parsed = businessSchema.parse(business);
   businessMemory.set(parsed.id, parsed);
+  evictBusinessMemoryIfNeeded();
   const env = await getCloudflareEnv();
   if (env?.AUDIT_KV) {
     await env.AUDIT_KV.put(
       storedBusinessKey(parsed.id),
-      JSON.stringify(parsed)
+      JSON.stringify(parsed),
+      { expirationTtl: BUSINESS_KV_TTL_SECONDS }
     );
   }
   return parsed;
@@ -138,9 +159,10 @@ const tryConvexQuery = async <T>(
 };
 
 export const listBusinesses = async (ids: string[]): Promise<Business[]> => {
+  const capped = ids.slice(0, MAX_BULK_IDS);
   const rows = await tryConvexQuery(() =>
     convexPublicQuery(api.businesses.listByExternalIds, {
-      externalIds: ids,
+      externalIds: capped,
     })
   );
   if (rows) {
@@ -148,7 +170,7 @@ export const listBusinesses = async (ids: string[]): Promise<Business[]> => {
     await Promise.all(parsed.map((business) => writeStoredBusiness(business)));
     return parsed;
   }
-  const stored = await Promise.all(ids.map((id) => readStoredBusiness(id)));
+  const stored = await Promise.all(capped.map((id) => readStoredBusiness(id)));
   return stored.filter((business): business is Business => business !== null);
 };
 
@@ -472,13 +494,16 @@ export const updateScan = async (
     }
   >
 ): Promise<ScanRow> => {
+  const resultsJson = patch.results
+    ? JSON.stringify(patch.results).slice(0, 400_000)
+    : undefined;
   const row = await convexMutation(api.scans.update, {
     error: patch.error ?? undefined,
     errorCount: patch.errorCount,
     failCount: patch.failCount,
     finishedAt: patch.finishedAt ?? undefined,
     passCount: patch.passCount,
-    resultsJson: patch.results ? JSON.stringify(patch.results) : undefined,
+    resultsJson,
     scanId: scanId as Id<"scans">,
     score: patch.score ?? undefined,
     status: patch.status ?? "running",

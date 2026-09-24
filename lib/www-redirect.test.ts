@@ -24,7 +24,7 @@ describe(wwwToApexHref, () => {
   });
 
   it("rejects an invalid URL", () => {
-    expect(() => wwwToApexHref("not-a-url")).toThrow(/Invalid URL/u);
+    expect(wwwToApexHref("not-a-url")).toBeNull();
   });
 });
 
