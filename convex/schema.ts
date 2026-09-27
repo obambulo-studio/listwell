@@ -60,6 +60,17 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_unsubscribeToken", ["unsubscribeToken"]),
 
+  reportShares: defineTable({
+    businessExternalId: v.string(),
+    createdAt: v.string(),
+    expiresAt: v.optional(v.string()),
+    revokedAt: v.optional(v.string()),
+    token: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_businessExternalId", ["businessExternalId"])
+    .index("by_token", ["token"]),
+
   scans: defineTable({
     businessExternalId: v.string(),
     createdAt: v.string(),

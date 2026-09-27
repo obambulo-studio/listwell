@@ -1,13 +1,12 @@
 # Listwell
 
-Listwell audits local listings and websites for search engine optimization (SEO). You create an audit. You run the checks. Then you read a report with fix steps.
+Listwell audits local listings and websites for search engine optimisation (SEO). It is built for Australian small businesses and agencies. You create an audit, run the checks, then read a report with fix steps.
 
 Obambulo Studio owns Listwell. The software is proprietary. It is not open source. See `LICENSE`.
 
 ## What Listwell does
 
-You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. A full report with fix steps costs A$9.99 one time (`report_once`).
-Continued reports cost A$4.99 per month per business (`report_monthly`) or A$49 per year per business (`report_yearly` checkout plan; same scan entitlement as monthly).
+You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. Paid plans use the display strings in `lib/polar.ts` (`REPORT_ONCE_PRICE`, `REPORT_MONTHLY_PRICE`, `REPORT_YEARLY_PRICE`): one-off full report (`report_once`), continued monthly reports per business (`report_monthly`), or yearly checkout with the same scan entitlement as monthly (`report_yearly`).
 
 Sign-in uses a one-time code by email. There is no password. The `/account` page lists businesses for the signed-in user.
 
@@ -147,7 +146,7 @@ Business names, suburbs, and URLs sent to Jev are processed by TypeSafe when thi
 Payments and email:
 
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar API and webhooks
-- `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, `POLAR_PRODUCT_REPORT_YEARLY` - Polar product IDs (create products at A$9.99 once, A$4.99/month per business, and A$49/year per business in Polar; IDs are not hardcoded in the app). Yearly checkout is hidden when `POLAR_PRODUCT_REPORT_YEARLY` is unset.
+- `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, `POLAR_PRODUCT_REPORT_YEARLY` - Polar product IDs (create products in Polar at the amounts in `lib/polar.ts`; IDs are not hardcoded in the app). Yearly checkout is hidden when `POLAR_PRODUCT_REPORT_YEARLY` is unset.
 - `POLAR_SERVER` - `sandbox` or `production`
 - `USESEND_API_KEY`, `USESEND_FROM` - sign-in codes (Convex) and optional monthly scan emails (Worker; set as Worker secrets via `bun run cf:sync-secrets` / dashboard)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
@@ -202,7 +201,7 @@ Bindings:
 - `NEXT_CACHE_DO_QUEUE` - OpenNext ISR revalidation queue
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI
-- `IMAGES` - Cloudflare Images for Next.js image optimization
+- `IMAGES` - Cloudflare Images for Next.js image optimisation
 
 Set remaining Worker secrets with `wrangler secret put` or `bun run cf:sync-env`. See `.env.example`.
 
@@ -257,13 +256,13 @@ The product does not scrape Google Maps HTML. It does not bypass bot walls.
 
 Polar is the merchant of record.
 
-Plans:
+Plans (user-facing amounts come from `lib/polar.ts`):
 
-- Full report with fix steps - A$9.99 one time (`report_once`)
-- Continued monthly reports - A$4.99 per month per business (`report_monthly`)
-- Continued yearly reports - A$49 per year per business (`report_yearly` checkout; grants the same entitlement as monthly for continued scans)
+- Full report with fix steps — `REPORT_ONCE_PRICE` once (`report_once`)
+- Continued monthly reports — `REPORT_MONTHLY_PRICE` (`report_monthly`)
+- Continued yearly reports — `REPORT_YEARLY_PRICE` (`report_yearly` checkout; grants the same entitlement as monthly for continued scans)
 
-Create matching products in the Polar dashboard at these prices, then set `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, and `POLAR_PRODUCT_REPORT_YEARLY` to those product IDs on the Worker.
+Create matching products in the Polar dashboard at those prices, then set `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, and `POLAR_PRODUCT_REPORT_YEARLY` to those product IDs on the Worker.
 
 Set the Polar webhook to `POST /api/webhook/polar` on your public site URL.
 

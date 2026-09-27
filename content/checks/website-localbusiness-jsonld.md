@@ -11,7 +11,7 @@ points:
 
 Help search engines understand your business details with structured data markup that can improve local search visibility and enable rich search result features.
 
-::tech-detail{summary="What we check for LocalBusiness structured data"} We verify that your website includes JSON-LD structured data using the LocalBusiness schema (schema.org/LocalBusiness). This markup provides search engines with detailed information about your business including name, address, phone number, hours, services, and more in a standardized format that helps with local search optimization and rich snippets. ::
+::tech-detail{summary="What we check for LocalBusiness structured data"} We verify that your website includes JSON-LD structured data using the LocalBusiness schema (schema.org/LocalBusiness). This markup provides search engines with detailed information about your business including name, address, phone number, hours, services, and more in a standardized format that helps with local search optimisation and rich snippets. ::
 
 ## What we're checking
 
@@ -49,7 +49,7 @@ Businesses with proper schema markup have advantages in local search results and
 
 ::fix-step{number="4" title="Include Service or Product Details"} Enhance your schema with specific services offered, payment methods accepted, and areas served if applicable. ::
 
-::fix-step{number="5" title="Test and Validate Schema"} Use Google's Rich Results Test tool to verify your structured data is properly formatted and recognized. ::
+::fix-step{number="5" title="Test and Validate Schema"} Use Google's Rich Results Test tool to verify your structured data is properly formatted and recognised. ::
 
 ::time-estimate{minutes="60" difficulty="medium"} ::
 

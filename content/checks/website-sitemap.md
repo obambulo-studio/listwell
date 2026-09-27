@@ -31,7 +31,7 @@ New pages and updates take longer for search engines to discover and include in 
 
 ### Poor Site Structure Understanding
 
-Search engines may not fully understand your website organization, potentially affecting how pages rank.
+Search engines may not fully understand your website organisation, potentially affecting how pages rank.
 
 ### Missed SEO Opportunities
 

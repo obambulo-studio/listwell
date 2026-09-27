@@ -78,4 +78,4 @@ Avoid duplicate content issues that can hurt your overall search performance
 - [Google Canonical URL Guide](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls) - Official implementation guide
 - [Canonical Tags Explained](https://moz.com/learn/seo/canonicalization) - SEO best practices
 - [WordPress SEO Plugins](https://wordpress.org/plugins/wordpress-seo/) - Automated canonical tag solutions
-- [Technical SEO Checklist](https://backlinko.com/technical-seo-guide) - Complete optimization guide
+- [Technical SEO Checklist](https://backlinko.com/technical-seo-guide) - Complete optimisation guide

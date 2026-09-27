@@ -5,6 +5,7 @@ import {
   fixStepsWithoutPayment,
   isPaymentsIntentionallyDisabled,
   reportShowsFixSteps,
+  sharedViewerEntitlementState,
 } from "./entitlements-access";
 import { entitlementStateSchema } from "./schema";
 
@@ -109,6 +110,32 @@ describe(reportShowsFixSteps, () => {
         })
       )
     ).toBeFalsy();
+  });
+});
+
+describe(sharedViewerEntitlementState, () => {
+  it("never exposes purchaser unlock or account hints", () => {
+    const viewer = sharedViewerEntitlementState(
+      access({
+        backendAvailable: false,
+        fixStepsWithoutPayment: false,
+        kind: "report_monthly",
+        maskedEmail: "o***@example.com",
+        unlocked: true,
+      })
+    );
+    expect(viewer.unlocked).toBeFalsy();
+    expect(viewer.kind).toBeNull();
+    expect(viewer.maskedEmail).toBeNull();
+    expect(viewer.backendAvailable).toBeTruthy();
+    expect(reportShowsFixSteps(viewer)).toBeFalsy();
+  });
+
+  it("still honours dev payment waivers for fix steps", () => {
+    const viewer = sharedViewerEntitlementState(
+      access({ fixStepsWithoutPayment: true, unlocked: true })
+    );
+    expect(reportShowsFixSteps(viewer)).toBeTruthy();
   });
 });
 

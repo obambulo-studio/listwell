@@ -28,7 +28,7 @@ export const sendSignInCode = async (
   const payload = {
     from,
     subject: "Your Listwell sign-in code",
-    text: `Your sign-in code is ${code}.\n\nThis code expires in 10 minutes.`,
+    text: `Your Listwell sign-in code is ${code}.\n\nThis code expires in 10 minutes. If you did not request it, you can ignore this email.`,
     to,
   };
 

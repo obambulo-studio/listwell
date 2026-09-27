@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 import { ListwellChat } from "@/components/listwell-chat";
+import { REPORT_ONCE_PRICE } from "@/lib/polar";
 
 export const metadata: Metadata = {
-  description:
-    "Chat-first local and website SEO audit. Answer a few questions, get a basic report, then upgrade for fixes and automation.",
+  description: `Check Google Business Profile, listings, and website SEO for your Australian business. Free basic report; full fix steps from ${REPORT_ONCE_PRICE}.`,
   title: "Check your listings",
 };
 

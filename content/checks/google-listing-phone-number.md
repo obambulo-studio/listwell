@@ -78,4 +78,4 @@ Fewer "I couldn't reach you" complaints and missed communication opportunities
 - [Google Business Profile Contact Info](https://support.google.com/business/answer/3038177) - Official contact update guide
 - [Local SEO Citations Guide](https://moz.com/learn/seo/local-citations) - Importance of consistent information
 - [Business Information Management](https://support.google.com/business/answer/3038063) - Best practices for accuracy
-- [NAP Consistency Guide](https://www.brightlocal.com/learn/nap-consistency-guide/) - Name, Address, Phone optimization
+- [NAP Consistency Guide](https://www.brightlocal.com/learn/nap-consistency-guide/) - Name, Address, Phone optimisation

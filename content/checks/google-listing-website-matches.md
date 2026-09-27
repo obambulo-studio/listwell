@@ -71,11 +71,11 @@ Consistent, working links build trust and credibility with potential customers
 
 Customers reaching the right website are more likely to make purchases or inquiries
 
-::example{type="good" title="Law Firm - Correct Link Drives Business"} Legal Advocates updated their Google website link to their new, mobile-optimized site with clear contact forms. Website visits from Google increased 45%, and online consultation requests doubled within one month of the correction. ::
+::example{type="good" title="Law Firm - Correct Link Drives Business"} Legal Advocates updated their Google website link to their new, mobile-optimised site with clear contact forms. Website visits from Google increased 45%, and online consultation requests doubled within one month of the correction. ::
 
 ## Learn More
 
 - [Google Business Website Settings](https://support.google.com/business/answer/3038177) - Official website update guide
-- [Website Link Best Practices](https://support.google.com/business/answer/9014586) - Optimizing your online presence
+- [Website Link Best Practices](https://support.google.com/business/answer/9014586) - Optimising your online presence
 - [Google Business Profile Management](https://support.google.com/business/answer/3038063) - Keeping information current
 - [Local SEO Website Tips](https://moz.com/learn/seo/local-seo-guide) - Connecting Google listings to websites

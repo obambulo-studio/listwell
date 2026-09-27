@@ -1899,10 +1899,90 @@ tbody:first-of-type .vbg-custom-channel-group th {
   min-width: 0;
 }
 
+.listwell-report__hero-top {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vbg-space-4);
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.listwell-report__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vbg-space-2);
+}
+
+.listwell-share-dialog__backdrop {
+  align-items: center;
+  background: rgb(10 10 10 / 0.45);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--vbg-space-4);
+  position: fixed;
+  z-index: 40;
+}
+
+.listwell-share-dialog {
+  background: var(--page);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: var(--vbg-space-4);
+  max-width: 32rem;
+  padding: var(--vbg-space-6);
+  width: 100%;
+}
+
+.listwell-share-dialog__head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.listwell-share-dialog__error {
+  color: var(--vbg-color-error);
+  margin: 0;
+}
+
+.listwell-share-dialog__url-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vbg-space-2);
+}
+
+.listwell-share-dialog__url {
+  flex: 1 1 12rem;
+  font: inherit;
+  min-width: 0;
+  padding: var(--vbg-space-2) var(--vbg-space-3);
+}
+
+.listwell-share-dialog__expiry {
+  border: 0;
+  display: grid;
+  gap: var(--vbg-space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.listwell-share-dialog__radio {
+  align-items: center;
+  display: flex;
+  gap: var(--vbg-space-2);
+}
+
+.listwell-report__print-footer {
+  display: none;
+}
+
 .listwell-report__hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   column-gap: var(--vbg-space-8);
   align-items: baseline;
   padding-bottom: var(--vbg-space-8);
@@ -1910,20 +1990,25 @@ tbody:first-of-type .vbg-custom-channel-group th {
 
 .listwell-report__hero .vbg-title {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: auto;
   min-width: 0;
+}
+
+.listwell-report__badge {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .listwell-report__score-value {
   grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
   justify-self: end;
   text-align: right;
 }
 
 .listwell-report__score-caption {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   justify-self: end;
   text-align: right;
 }
@@ -2223,8 +2308,12 @@ tbody:first-of-type .vbg-custom-channel-group th {
 @media (max-width: 720px) {
   .listwell-report__hero {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     row-gap: var(--vbg-space-4);
+  }
+
+  .listwell-report__hero-top {
+    grid-column: 1;
   }
 
   .listwell-report__score-value,
@@ -2235,11 +2324,11 @@ tbody:first-of-type .vbg-custom-channel-group th {
   }
 
   .listwell-report__score-value {
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .listwell-report__score-caption {
-    grid-row: 3;
+    grid-row: 4;
   }
 
   .listwell-report__stats {
@@ -2262,6 +2351,63 @@ tbody:first-of-type .vbg-custom-channel-group th {
   .listwell-report__filter:active,
   .listwell-report .vbg-table-wrap button:active {
     transform: none;
+  }
+}
+
+@media print {
+  @page {
+    margin: 14mm 12mm;
+  }
+
+  body {
+    background: #fff !important;
+    color: #0a0a0a !important;
+  }
+
+  .vbg-skip-link,
+  .listwell-page-controls,
+  .listwell-account-menu,
+  .listwell-share-dialog__backdrop,
+  .listwell-report__toolbar--screen,
+  .listwell-report__filters,
+  .listwell-report__notice,
+  .listwell-report__chapter .listwell-report__actions,
+  .listwell-report__button {
+    display: none !important;
+  }
+
+  .listwell-report {
+    max-width: none;
+    padding: 0;
+  }
+
+  .listwell-report__print-footer {
+    border-top: 1px solid #ddd;
+    display: block !important;
+    margin-top: var(--vbg-space-8);
+    padding-top: var(--vbg-space-4);
+  }
+
+  .listwell-report__chapter,
+  .listwell-report__hero,
+  .listwell-report__stats {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .listwell-report__ledger,
+  .vbg-table-wrap {
+    break-inside: auto;
+  }
+
+  .listwell-report a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.75rem;
+    word-break: break-all;
+  }
+
+  .listwell-report .vbg-table-wrap a[href^="http"]::after {
+    content: none;
   }
 }
 

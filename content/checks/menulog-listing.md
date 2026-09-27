@@ -8,7 +8,7 @@ businessCategories:
 
 # Menulog Listing
 
-Connect with hungry customers across Australia and New Zealand through Menulog - one of the region's most popular food delivery platforms with millions of active users.
+Menulog is a common delivery choice for restaurants and cafés in Australia and New Zealand. This check confirms you have a Menulog URL on file.
 
 ::tech-detail{summary="What we check for Menulog presence"} We verify if your business has an active Menulog URL stored in our system. This indicates whether you've set up and maintained a presence on the Menulog platform. Menulog operates primarily in Australia and New Zealand, serving over 17,000 restaurants and processing millions of orders monthly. ::
 
@@ -16,7 +16,7 @@ Connect with hungry customers across Australia and New Zealand through Menulog -
 
 We look for whether your restaurant or food business is listed and active on Menulog's delivery platform. Being on Menulog means customers can order your food for delivery or pickup through their app and website.
 
-::impact{type="money" severity="high"} **Restaurants on Menulog typically see 15-25% revenue increases** from delivery orders, with weekend evenings generating up to 50% more orders than traditional dine-in periods. ::
+::impact{type="money" severity="medium"} Many customers in Australia order through Menulog rather than calling direct. Without a listing, you miss those orders. ::
 
 ## Problems This Check Identifies
 
@@ -44,7 +44,7 @@ Delivery platforms become essential during events that limit dining out or foot 
 
 ::fix-step{number="2" title="Set Up Your Restaurant Profile"} Upload appetizing food photos, write compelling menu descriptions, and configure your delivery zones and operating hours. ::
 
-::fix-step{number="3" title="Optimize Menu for Delivery"} Price items to account for platform fees, create delivery-friendly packaging options, and highlight items that travel well. ::
+::fix-step{number="3" title="Optimise Menu for Delivery"} Price items to account for platform fees, create delivery-friendly packaging options, and highlight items that travel well. ::
 
 ::fix-step{number="4" title="Integrate Order Management"} Set up order notifications, train staff on delivery packaging, and establish efficient pickup procedures for drivers. ::
 

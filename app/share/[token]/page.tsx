@@ -1,0 +1,111 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+
+import { ReportClient } from "@/components/report-client";
+import { runBusinessCheckBatch } from "@/lib/audit-jobs";
+import { businessForPublicView } from "@/lib/business-public";
+import { checksForCategory } from "@/lib/checks/registry";
+import { pointsFor } from "@/lib/checks/types";
+import { getBusiness } from "@/lib/data";
+import { getSharedReportViewerAccess } from "@/lib/polar-server";
+import { getReportShareByToken } from "@/lib/report-share";
+import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
+
+export const dynamic = "force-dynamic";
+
+const paramsSchema = z.object({
+  token: z.string().min(16),
+});
+
+export const generateMetadata = async ({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> => {
+  const { token } = paramsSchema.parse(await params);
+  const share = await getReportShareByToken(token);
+  if (!share) {
+    return {
+      robots: { follow: false, index: false },
+      title: "Shared report",
+    };
+  }
+  const business = await getBusiness(share.businessId);
+  return {
+    robots: { follow: false, index: false },
+    title: business ? `${business.name} · shared report` : "Shared report",
+  };
+};
+
+const checkStatus = (value: boolean | null): "pass" | "fail" | "error" => {
+  if (value === true) {
+    return "pass";
+  }
+  if (value === false) {
+    return "fail";
+  }
+  return "error";
+};
+
+const SharedReportPage = async ({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) => {
+  const { token } = paramsSchema.parse(await params);
+  const share = await getReportShareByToken(token);
+  if (!share) {
+    notFound();
+  }
+
+  const business = await getBusiness(share.businessId);
+  if (!business) {
+    notFound();
+  }
+
+  const access = await getSharedReportViewerAccess();
+  const checks = checksForCategory(business.category);
+  const batch = await runBusinessCheckBatch(business, {
+    reuseStoredQueued: true,
+  });
+  const completedChecks = checks.flatMap((definition) => {
+    const result = batch.results[definition.id];
+    if (!result || result.queued) {
+      return [];
+    }
+    return [
+      completedCheckSchema.parse({
+        channelCategory: definition.channelCategory,
+        id: definition.id,
+        points: pointsFor(definition, business.category),
+        status: checkStatus(result.value),
+        title: definition.title,
+        ...(result.label ? { label: result.label } : {}),
+      }),
+    ];
+  });
+  const summary = buildFallbackSummary(
+    completedChecks,
+    completedChecks.length === 0 ? "no_completed_checks" : "ai_binding_missing"
+  );
+
+  return (
+    <ReportClient
+      variant="shared"
+      initialBusiness={businessForPublicView(business)}
+      checks={checks}
+      initialResults={batch.results}
+      initialSummary={summary}
+      access={access}
+      checkoutReturned={false}
+      purchasePending={false}
+      showKvExpiryNotice={false}
+      kvExpiryDays={7}
+      checkJobId={batch.pending.length > 0 ? batch.jobId : undefined}
+      shareExpiresAt={share.expiresAt}
+    />
+  );
+};
+
+export default SharedReportPage;
