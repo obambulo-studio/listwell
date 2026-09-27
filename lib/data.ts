@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Id } from "../convex/_generated/dataModel";
 import { getCloudflareEnv } from "./audit-env";
+import { runConvexRead } from "./convex-read";
 import {
   api,
   convexMutation,
@@ -36,7 +37,8 @@ export const idListQuerySchema = z.object({
 });
 
 export const MAX_BULK_IDS = 50;
-const BUSINESS_KV_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const BUSINESS_KV_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const BUSINESS_KV_TTL_DAYS = 7;
 const BUSINESS_MEMORY_MAX = 500;
 
 const mapLocations = (locations: CreateBusinessRequest["locations"]) =>
@@ -365,32 +367,34 @@ export const revokeEntitlements = async (input: {
   });
 };
 
+export type EntitlementOwnerSnapshot =
+  | { backendAvailable: false }
+  | {
+      backendAvailable: true;
+      unlocked: boolean;
+      kind: EntitlementKind | null;
+      ownerEmail: string | null;
+      ownerUserId: string | null;
+    };
+
 export const getActiveEntitlementOwner = async (
   businessId: string
-): Promise<{
-  unlocked: boolean;
-  kind: EntitlementKind | null;
-  ownerEmail: string | null;
-  ownerUserId: string | null;
-}> => {
-  const owner = await tryConvexQuery(() =>
+): Promise<EntitlementOwnerSnapshot> => {
+  const owner = await runConvexRead(() =>
     convexQuery(api.entitlements.getActiveOwner, {
       businessExternalId: businessId,
     })
   );
-  if (!owner) {
-    return {
-      kind: null,
-      ownerEmail: null,
-      ownerUserId: null,
-      unlocked: false,
-    };
+  if (owner.status === "unavailable") {
+    return { backendAvailable: false };
   }
+  const { value } = owner;
   return {
-    kind: owner.kind ? entitlementKindSchema.parse(owner.kind) : null,
-    ownerEmail: owner.ownerEmail,
-    ownerUserId: owner.ownerUserId,
-    unlocked: owner.unlocked,
+    backendAvailable: true,
+    kind: value.kind ? entitlementKindSchema.parse(value.kind) : null,
+    ownerEmail: value.ownerEmail,
+    ownerUserId: value.ownerUserId,
+    unlocked: value.unlocked,
   };
 };
 

@@ -114,8 +114,14 @@ const buildAccessNote = (
       : "Full report unlocked.";
   }
 
+  if (!access.backendAvailable) {
+    return "Account services are temporarily unavailable.";
+  }
+
   if (!access.paymentsEnabled) {
-    return "Payment coming soon.";
+    return access.fixStepsWithoutPayment
+      ? "Fix steps are included in this environment."
+      : "Payments are not configured yet.";
   }
 
   if (access.monthlyAvailable) {
@@ -150,7 +156,10 @@ export const ReportSummary = ({
   const ctaDisabled =
     !businessId ||
     redirecting !== null ||
-    (!access.unlocked && !access.paymentsEnabled);
+    !access.backendAvailable ||
+    (!access.unlocked &&
+      !access.paymentsEnabled &&
+      !access.fixStepsWithoutPayment);
   const ctaLabel = buildCtaLabel(access, redirecting, sessionRequired);
   const note = buildAccessNote(access, businessId);
 

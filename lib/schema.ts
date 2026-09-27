@@ -186,6 +186,8 @@ export type SessionRow = z.infer<typeof sessionRowSchema>;
 
 export const entitlementStateSchema = z.object({
   authEnabled: z.boolean().default(false),
+  backendAvailable: z.boolean().default(true),
+  fixStepsWithoutPayment: z.boolean().default(false),
   kind: entitlementKindSchema.nullable().default(null),
   maskedEmail: z.string().nullable().default(null),
   monthlyAvailable: z.boolean().default(false),

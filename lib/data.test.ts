@@ -36,14 +36,9 @@ describe("anonymous audit store", () => {
     expect(loaded?.websiteUrl).toBe("https://example.com");
   });
 
-  it("treats entitlements as locked when Convex is down", async () => {
+  it("marks entitlements unavailable when Convex is down", async () => {
     const owner = await getActiveEntitlementOwner("missing");
-    expect(owner).toStrictEqual({
-      kind: null,
-      ownerEmail: null,
-      ownerUserId: null,
-      unlocked: false,
-    });
+    expect(owner).toStrictEqual({ backendAvailable: false });
     await expect(probeConvexBusinesses()).resolves.toBe("error");
   });
 });
