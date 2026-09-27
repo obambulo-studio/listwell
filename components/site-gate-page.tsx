@@ -2,6 +2,17 @@
 
 import { useId, useReducer } from "react";
 
+import { PrimaryButton } from "@/components/listwell/actions";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { safeAppPath } from "@/lib/query-params";
 
 type GateSection = "access" | "interest";
@@ -187,169 +198,152 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
           stages.
         </p>
 
-        <div className="listwell-site-gate__tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={state.section === "access"}
-            className={
-              state.section === "access"
-                ? "listwell-site-gate__tab listwell-site-gate__tab--active"
-                : "listwell-site-gate__tab"
+        <Tabs
+          value={state.section}
+          onValueChange={(value) => {
+            if (value === "access" || value === "interest") {
+              dispatch({ section: value, type: "section" });
             }
-            onClick={() => {
-              dispatch({ section: "access", type: "section" });
-            }}
-          >
-            Enter password
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={state.section === "interest"}
-            className={
-              state.section === "interest"
-                ? "listwell-site-gate__tab listwell-site-gate__tab--active"
-                : "listwell-site-gate__tab"
-            }
-            onClick={() => {
-              dispatch({ section: "interest", type: "section" });
-            }}
-          >
-            Interested? Leave your details
-          </button>
-        </div>
-
-        {state.section === "access" ? (
-          <form
-            className="listwell-site-gate__form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void unlock();
-            }}
-          >
-            <div className="vbg-field">
-              <label className="vbg-label" htmlFor={passwordId}>
-                Password
-              </label>
-              <input
-                id={passwordId}
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                value={state.password}
+          }}
+          className="mt-6 w-full"
+        >
+          <TabsList variant="line" className="w-full justify-start">
+            <TabsTrigger value="access">Enter password</TabsTrigger>
+            <TabsTrigger value="interest">
+              Interested? Leave your details
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="access" className="mt-6">
+            <form
+              className="listwell-site-gate__form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void unlock();
+              }}
+            >
+              <FieldGroup>
+                <Field data-invalid={state.accessError ? true : undefined}>
+                  <FieldLabel htmlFor={passwordId}>Password</FieldLabel>
+                  <Input
+                    id={passwordId}
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={state.password}
+                    disabled={state.accessBusy}
+                    onChange={(event) => {
+                      dispatch({
+                        password: event.target.value,
+                        type: "password",
+                      });
+                    }}
+                  />
+                  {state.accessError ? (
+                    <FieldError>{state.accessError}</FieldError>
+                  ) : null}
+                </Field>
+              </FieldGroup>
+              <PrimaryButton
+                type="submit"
                 disabled={state.accessBusy}
-                onChange={(event) => {
-                  dispatch({
-                    password: event.target.value,
-                    type: "password",
-                  });
-                }}
-              />
-            </div>
-            {state.accessError ? (
-              <p className="listwell-site-gate__error" role="alert">
-                {state.accessError}
-              </p>
-            ) : null}
-            <button
-              className="listwell-report__button listwell-report__button--primary"
-              type="submit"
-              disabled={state.accessBusy}
+                className="mt-4"
+              >
+                {state.accessBusy ? "Checking…" : "Enter site"}
+              </PrimaryButton>
+            </form>
+          </TabsContent>
+          <TabsContent value="interest" className="mt-6">
+            <form
+              className="listwell-site-gate__form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submitInterest();
+              }}
             >
-              {state.accessBusy ? "Checking…" : "Enter site"}
-            </button>
-          </form>
-        ) : (
-          <form
-            className="listwell-site-gate__form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submitInterest();
-            }}
-          >
-            <div className="vbg-field">
-              <label className="vbg-label" htmlFor={emailId}>
-                Email
-              </label>
-              <input
-                id={emailId}
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={state.interestEmail}
+              <FieldGroup>
+                <Field data-invalid={state.interestError ? true : undefined}>
+                  <FieldLabel htmlFor={emailId}>Email</FieldLabel>
+                  <Input
+                    id={emailId}
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={state.interestEmail}
+                    disabled={state.interestBusy}
+                    onChange={(event) => {
+                      dispatch({
+                        field: "email",
+                        type: "interest-field",
+                        value: event.target.value,
+                      });
+                    }}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={nameId}>
+                    Name{" "}
+                    <span className="text-muted-foreground font-normal">
+                      (optional)
+                    </span>
+                  </FieldLabel>
+                  <Input
+                    id={nameId}
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    value={state.interestName}
+                    disabled={state.interestBusy}
+                    onChange={(event) => {
+                      dispatch({
+                        field: "name",
+                        type: "interest-field",
+                        value: event.target.value,
+                      });
+                    }}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={noteId}>
+                    Business or website{" "}
+                    <span className="text-muted-foreground font-normal">
+                      (optional)
+                    </span>
+                  </FieldLabel>
+                  <Textarea
+                    id={noteId}
+                    name="note"
+                    rows={3}
+                    value={state.interestNote}
+                    disabled={state.interestBusy}
+                    onChange={(event) => {
+                      dispatch({
+                        field: "note",
+                        type: "interest-field",
+                        value: event.target.value,
+                      });
+                    }}
+                  />
+                </Field>
+                {state.interestError ? (
+                  <FieldError>{state.interestError}</FieldError>
+                ) : null}
+              </FieldGroup>
+              {state.interestMessage ? (
+                <Alert variant="success" className="mt-4">
+                  <AlertDescription>{state.interestMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+              <PrimaryButton
+                type="submit"
                 disabled={state.interestBusy}
-                onChange={(event) => {
-                  dispatch({
-                    field: "email",
-                    type: "interest-field",
-                    value: event.target.value,
-                  });
-                }}
-              />
-            </div>
-            <div className="vbg-field">
-              <label className="vbg-label" htmlFor={nameId}>
-                Name{" "}
-                <span className="listwell-site-gate__optional">(optional)</span>
-              </label>
-              <input
-                id={nameId}
-                name="name"
-                type="text"
-                autoComplete="name"
-                value={state.interestName}
-                disabled={state.interestBusy}
-                onChange={(event) => {
-                  dispatch({
-                    field: "name",
-                    type: "interest-field",
-                    value: event.target.value,
-                  });
-                }}
-              />
-            </div>
-            <div className="vbg-field">
-              <label className="vbg-label" htmlFor={noteId}>
-                Business or website{" "}
-                <span className="listwell-site-gate__optional">(optional)</span>
-              </label>
-              <textarea
-                id={noteId}
-                name="note"
-                rows={3}
-                className="listwell-site-gate__textarea"
-                value={state.interestNote}
-                disabled={state.interestBusy}
-                onChange={(event) => {
-                  dispatch({
-                    field: "note",
-                    type: "interest-field",
-                    value: event.target.value,
-                  });
-                }}
-              />
-            </div>
-            {state.interestError ? (
-              <p className="listwell-site-gate__error" role="alert">
-                {state.interestError}
-              </p>
-            ) : null}
-            {state.interestMessage ? (
-              <output className="listwell-site-gate__success">
-                {state.interestMessage}
-              </output>
-            ) : null}
-            <button
-              className="listwell-report__button listwell-report__button--primary"
-              type="submit"
-              disabled={state.interestBusy}
-            >
-              {state.interestBusy ? "Sending…" : "Join the waitlist"}
-            </button>
-          </form>
-        )}
+                className="mt-4"
+              >
+                {state.interestBusy ? "Sending…" : "Join the waitlist"}
+              </PrimaryButton>
+            </form>
+          </TabsContent>
+        </Tabs>
       </div>
     </section>
   );

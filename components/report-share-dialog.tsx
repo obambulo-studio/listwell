@@ -3,8 +3,30 @@
 import { useId, useState } from "react";
 import useSWR from "swr";
 
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { reportShareStateSchema } from "@/lib/schema";
 import type { ReportShareState } from "@/lib/schema";
+import { cn } from "@/lib/utils";
 
 const fetchShareState = async (
   businessId: string
@@ -85,7 +107,7 @@ export const ReportShareDialog = ({
   businessId: string;
   onClose: () => void;
 }) => {
-  const titleId = useId();
+  const urlFieldId = useId();
   const {
     data: state,
     error: loadError,
@@ -149,55 +171,55 @@ export const ReportShareDialog = ({
   };
 
   return (
-    <div className="listwell-share-dialog__backdrop" role="presentation">
-      <dialog className="listwell-share-dialog" open aria-labelledby={titleId}>
-        <header className="listwell-share-dialog__head">
-          <h2 className="vbg-heading-20" id={titleId}>
-            Share report
-          </h2>
-          <button
-            className="listwell-report__button listwell-report__button--quiet"
-            type="button"
-            onClick={onClose}
-          >
-            Close
-          </button>
-        </header>
-        <p className="vbg-caption">
-          Anyone with the link can view a read-only copy. Fix steps and account
-          details stay hidden.
-        </p>
-        {error ? <p className="listwell-share-dialog__error">{error}</p> : null}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Share report</DialogTitle>
+          <DialogDescription>
+            Anyone with the link can view a read-only copy. Fix steps and
+            account details stay hidden.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
         {state?.active && state.url ? (
-          <div className="listwell-share-dialog__active">
-            <label className="vbg-label" htmlFor={`${titleId}-url`}>
-              Share link
-            </label>
-            <div className="listwell-share-dialog__url-row">
-              <input
-                className="listwell-share-dialog__url"
-                id={`${titleId}-url`}
-                readOnly
-                type="url"
-                value={state.url}
-              />
-              <button
-                className="listwell-report__button"
-                disabled={busy}
-                type="button"
-                onClick={() => {
-                  void handleCopy();
-                }}
-              >
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <p className="vbg-meta">
+          <div className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel htmlFor={urlFieldId}>Share link</FieldLabel>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  id={urlFieldId}
+                  readOnly
+                  type="url"
+                  value={state.url}
+                  className={cn("min-w-0 flex-1 font-mono text-xs")}
+                />
+                <PrimaryButton
+                  disabled={busy}
+                  type="button"
+                  onClick={() => {
+                    void handleCopy();
+                  }}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </PrimaryButton>
+              </div>
+            </Field>
+            <p className="text-muted-foreground text-xs">
               Expires {formatExpiry(state.expiresAt)} · Created{" "}
               {state.createdAt ? formatExpiry(state.createdAt) : "—"}
             </p>
-            <button
-              className="listwell-report__button listwell-report__button--quiet"
+            <QuietButton
               disabled={busy}
               type="button"
               onClick={() => {
@@ -205,42 +227,36 @@ export const ReportShareDialog = ({
               }}
             >
               Revoke link
-            </button>
+            </QuietButton>
           </div>
         ) : (
-          <div className="listwell-share-dialog__create">
-            <fieldset className="listwell-share-dialog__expiry">
-              <legend className="vbg-label">Link expiry</legend>
-              <label className="listwell-share-dialog__radio">
-                <input
-                  checked={expiryChoice === "none"}
-                  name="share-expiry"
-                  type="radio"
-                  onChange={() => setExpiryChoice("none")}
-                />
-                No expiry
-              </label>
-              <label className="listwell-share-dialog__radio">
-                <input
-                  checked={expiryChoice === "7"}
-                  name="share-expiry"
-                  type="radio"
-                  onChange={() => setExpiryChoice("7")}
-                />
-                7 days
-              </label>
-              <label className="listwell-share-dialog__radio">
-                <input
-                  checked={expiryChoice === "30"}
-                  name="share-expiry"
-                  type="radio"
-                  onChange={() => setExpiryChoice("30")}
-                />
-                30 days
-              </label>
-            </fieldset>
-            <button
-              className="listwell-report__button"
+          <div className="flex flex-col gap-4">
+            <FieldSet>
+              <FieldLegend variant="label">Link expiry</FieldLegend>
+              <FieldGroup className="gap-2">
+                {(
+                  [
+                    ["none", "No expiry"],
+                    ["7", "7 days"],
+                    ["30", "30 days"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <input
+                      checked={expiryChoice === value}
+                      name="share-expiry"
+                      type="radio"
+                      onChange={() => setExpiryChoice(value)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </FieldGroup>
+            </FieldSet>
+            <PrimaryButton
               disabled={busy}
               type="button"
               onClick={() => {
@@ -248,10 +264,15 @@ export const ReportShareDialog = ({
               }}
             >
               Create share link
-            </button>
+            </PrimaryButton>
           </div>
         )}
-      </dialog>
-    </div>
+        <FormActions className="justify-end pt-0">
+          <QuietButton type="button" onClick={onClose}>
+            Close
+          </QuietButton>
+        </FormActions>
+      </DialogContent>
+    </Dialog>
   );
 };

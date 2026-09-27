@@ -2,9 +2,13 @@
 
 import { useRef, useState } from "react";
 
+import { Button } from "@/components/atoms/button";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { CATEGORY_CONFIG } from "@/lib/category";
 import { lookupResponseSchema } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
+import { cn } from "@/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -32,7 +36,7 @@ export const ListingChoices = ({
   }
 
   return (
-    <ul className="vbg-custom-choices">
+    <ul className="mt-2 flex flex-col gap-2">
       {candidates.map((candidate) => {
         const pressed =
           selected?.id === candidate.id && selected.source === candidate.source;
@@ -41,17 +45,22 @@ export const ListingChoices = ({
           : null;
         return (
           <li key={`${candidate.source}-${candidate.id}`}>
-            <button
-              className="vbg-custom-choice"
+            <Button
               type="button"
+              variant={pressed ? "primary" : "secondary"}
+              className={cn(
+                "h-auto w-full flex-col items-start gap-0.5 px-3 py-2 text-left whitespace-normal"
+              )}
               aria-pressed={pressed}
               onClick={() => onSelect(candidate)}
             >
-              <span>{candidate.name}</span>
+              <span className="font-medium">{candidate.name}</span>
               {candidate.address ? (
-                <span className="vbg-meta">{candidate.address}</span>
+                <span className="text-muted-foreground text-sm font-normal">
+                  {candidate.address}
+                </span>
               ) : null}
-              <span className="vbg-meta">
+              <span className="text-muted-foreground text-xs font-normal">
                 {[
                   candidate.suburb,
                   categoryLabel,
@@ -60,7 +69,7 @@ export const ListingChoices = ({
                   .filter(Boolean)
                   .join(" · ")}
               </span>
-            </button>
+            </Button>
           </li>
         );
       })}
@@ -134,18 +143,16 @@ export const PlaceSearch = ({
   };
 
   return (
-    <div className="vbg-field">
-      <label className="vbg-label" htmlFor={`${source}-search`}>
-        {label}
-      </label>
-      <input
+    <Field>
+      <FieldLabel htmlFor={`${source}-search`}>{label}</FieldLabel>
+      <Input
         id={`${source}-search`}
         value={query}
         onChange={(event) => handleQueryChange(event.target.value)}
         autoComplete="off"
         placeholder="Search by name"
       />
-      {status ? <p className="vbg-helper">{status}</p> : null}
+      {status ? <FieldDescription>{status}</FieldDescription> : null}
       <ListingChoices
         candidates={candidates}
         selected={selected}
@@ -154,6 +161,6 @@ export const PlaceSearch = ({
           onSelect(candidate);
         }}
       />
-    </div>
+    </Field>
   );
 };

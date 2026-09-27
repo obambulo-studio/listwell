@@ -8,7 +8,17 @@ import { z } from "zod";
 
 import { CheckBody } from "@/components/check-body";
 import { ListingReviewSection } from "@/components/listing-review-section";
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
+import { CheckStatusBadge } from "@/components/listwell/report-ui";
 import { ReportShareDialog } from "@/components/report-share-dialog";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -54,6 +64,7 @@ import {
   completedCheckSchema,
 } from "@/lib/summaries";
 import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
+import { cn } from "@/lib/utils";
 
 const initialResultsSchema = z.record(z.string(), checkResultSchema);
 const JOB_POLL_INTERVAL_MS = 2000;
@@ -410,53 +421,46 @@ const UnlockCodeForm = ({
     <form className="listwell-report__unlock" action={verifyUnlockCode}>
       <h2 className="vbg-heading-24">Full report with fix steps</h2>
       <p className="vbg-lede">{lede}</p>
-      <div className="vbg-field">
-        <label className="vbg-label" htmlFor="unlock-email">
-          Email
-        </label>
-        <input
-          id="unlock-email"
-          type="email"
-          name="email"
-          autoComplete="email"
-          value={state.email}
-          onChange={(event) =>
-            dispatch({ email: event.target.value, type: "email" })
-          }
-          required
-        />
-      </div>
-      <div className="vbg-field">
-        <label className="vbg-label" htmlFor="unlock-code">
-          Code
-        </label>
-        <input
-          id="unlock-code"
-          className="vbg-mono"
-          name="code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          value={state.code}
-          onChange={(event) =>
-            dispatch({
-              code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
-              type: "code",
-            })
-          }
-          required
-        />
-      </div>
-      <div className="listwell-report__unlock-actions">
-        <button
-          className="listwell-report__button"
-          type="submit"
-          disabled={state.busy !== null}
-        >
+      <FieldGroup className="gap-4 py-2">
+        <Field>
+          <FieldLabel htmlFor="unlock-email">Email</FieldLabel>
+          <Input
+            id="unlock-email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={state.email}
+            onChange={(event) =>
+              dispatch({ email: event.target.value, type: "email" })
+            }
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="unlock-code">Code</FieldLabel>
+          <Input
+            id="unlock-code"
+            className={cn("font-mono tracking-widest")}
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={state.code}
+            onChange={(event) =>
+              dispatch({
+                code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+                type: "code",
+              })
+            }
+            required
+          />
+        </Field>
+      </FieldGroup>
+      <FormActions>
+        <PrimaryButton type="submit" disabled={state.busy !== null}>
           {state.busy === "verify" ? "Checking…" : "Unlock report"}
-        </button>
-        <button
-          className="listwell-report__button listwell-report__button--quiet"
+        </PrimaryButton>
+        <QuietButton
           type="button"
           disabled={state.busy !== null || state.email.trim().length === 0}
           onClick={() => {
@@ -464,9 +468,13 @@ const UnlockCodeForm = ({
           }}
         >
           {state.busy === "resend" ? "Sending…" : "Send a new code"}
-        </button>
-      </div>
-      {state.error ? <p className="vbg-error">{state.error}</p> : null}
+        </QuietButton>
+      </FormActions>
+      {state.error ? (
+        <Alert variant="destructive" className="mt-3">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      ) : null}
       {state.resent && !state.error ? (
         <p className="vbg-caption">
           If that email has a Listwell account, we sent a new code.
@@ -603,9 +611,8 @@ const ReportPaywallSection = ({
       <div className="listwell-report__unlock">
         <h2 className="vbg-heading-24">Full report with fix steps</h2>
         <p className="vbg-lede">{lede}</p>
-        <div className="listwell-report__unlock-actions">
-          <button
-            className="listwell-report__button listwell-report__button--quiet"
+        <FormActions>
+          <QuietButton
             type="button"
             disabled={redirecting !== null}
             onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
@@ -613,10 +620,9 @@ const ReportPaywallSection = ({
             {redirecting === "once"
               ? "Redirecting…"
               : `Full report · ${REPORT_ONCE_PRICE} once`}
-          </button>
+          </QuietButton>
           {access.yearlyAvailable ? (
-            <button
-              className="listwell-report__button"
+            <PrimaryButton
               type="button"
               disabled={redirecting !== null}
               onClick={() => onCheckout(checkoutPlanSchema.parse("yearly"))}
@@ -624,11 +630,10 @@ const ReportPaywallSection = ({
               {redirecting === "yearly"
                 ? "Redirecting…"
                 : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
-            </button>
+            </PrimaryButton>
           ) : null}
           {access.monthlyAvailable ? (
-            <button
-              className="listwell-report__button listwell-report__button--quiet"
+            <QuietButton
               type="button"
               disabled={redirecting !== null}
               onClick={() => onCheckout(checkoutPlanSchema.parse("monthly"))}
@@ -636,9 +641,9 @@ const ReportPaywallSection = ({
               {redirecting === "monthly"
                 ? "Redirecting…"
                 : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
-            </button>
+            </QuietButton>
           ) : null}
-        </div>
+        </FormActions>
         {checkoutError ? <p className="vbg-caption">{checkoutError}</p> : null}
       </div>
     </section>
@@ -727,8 +732,7 @@ const OnceRescanSection = ({
         {access.onceRescan.remaining === 1 ? "" : "s"} within 30 days of
         purchase.
       </p>
-      <button
-        className="listwell-report__button"
+      <PrimaryButton
         type="button"
         disabled={busy}
         onClick={() => {
@@ -766,7 +770,7 @@ const OnceRescanSection = ({
         }}
       >
         {busy ? "Re-scanning…" : "Re-scan now"}
-      </button>
+      </PrimaryButton>
       {error ? <p className="vbg-caption">{error}</p> : null}
     </section>
   );
@@ -837,24 +841,20 @@ const ChecksLedgerSection = ({
   <section className="listwell-report__chapter listwell-report__ledger">
     <div className="listwell-report__ledger-head">
       <h2 className="vbg-heading-24">Checks</h2>
-      <fieldset className="listwell-report__filters" aria-label="Check filter">
-        <button
-          className="listwell-report__filter"
-          type="button"
-          aria-pressed={filter === "failures"}
-          onClick={() => onFilterChange("failures")}
-        >
-          Failures first
-        </button>
-        <button
-          className="listwell-report__filter"
-          type="button"
-          aria-pressed={filter === "all"}
-          onClick={() => onFilterChange("all")}
-        >
-          All checks
-        </button>
-      </fieldset>
+      <Tabs
+        value={filter}
+        onValueChange={(value) => {
+          if (value === "failures" || value === "all") {
+            onFilterChange(value);
+          }
+        }}
+        aria-label="Check filter"
+      >
+        <TabsList variant="line" className="h-auto">
+          <TabsTrigger value="failures">Failures first</TabsTrigger>
+          <TabsTrigger value="all">All checks</TabsTrigger>
+        </TabsList>
+      </Tabs>
     </div>
     <div className="vbg-table-wrap">
       <table className="vbg-custom-checks-table">
@@ -893,7 +893,7 @@ const ChecksLedgerSection = ({
                   </button>
                 </th>
                 <td className={`vbg-custom-status-${item.status}`}>
-                  {statusLabel(item.status)}
+                  <CheckStatusBadge status={item.status} />
                 </td>
                 <td className="vbg-numeric">
                   {pointsFor(item.definition, businessCategory)}
@@ -1320,21 +1320,13 @@ export const ReportClient = ({
           <h1 className="vbg-title">{business.name}</h1>
           <div className="listwell-report__toolbar listwell-report__toolbar--screen">
             {isOwner ? (
-              <button
-                className="listwell-report__button listwell-report__button--quiet"
-                type="button"
-                onClick={() => setShareOpen(true)}
-              >
+              <QuietButton type="button" onClick={() => setShareOpen(true)}>
                 Share
-              </button>
+              </QuietButton>
             ) : null}
-            <button
-              className="listwell-report__button"
-              type="button"
-              onClick={() => window.print()}
-            >
+            <PrimaryButton type="button" onClick={() => window.print()}>
               Download PDF / Print
-            </button>
+            </PrimaryButton>
           </div>
         </div>
         {isOwner && access.kind === "report_monthly" ? (

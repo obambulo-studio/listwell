@@ -10,20 +10,13 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import type { KeyboardEvent } from "react";
 
 import GlideMenu from "@/components/primitives/glide-menu";
 import { authClient } from "@/lib/auth-client";
 import { clearChatSession } from "@/lib/storage";
-import {
-  applyTheme,
-  resolveTheme,
-  subscribeTheme,
-  toggleTheme,
-} from "@/lib/theme";
-import type { ThemePreference } from "@/lib/theme";
+import { applyTheme } from "@/lib/theme";
 
 export const LISTWELL_LOGOUT_EVENT = "listwell:logout";
 export const LISTWELL_RESET_EVENT = "listwell:reset";
@@ -57,39 +50,6 @@ const ResetIcon = () => (
     <path d="M21 3v5h-5" />
     <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
     <path d="M3 21v-5h5" />
-  </svg>
-);
-
-const SunIcon = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-  </svg>
-);
-
-const MoonIcon = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   </svg>
 );
 
@@ -398,15 +358,10 @@ export const AccountControl = ({
 export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
   const { push } = useRouter();
   const pathname = usePathname();
-  const theme = useSyncExternalStore(
-    subscribeTheme,
-    resolveTheme,
-    (): ThemePreference => "light"
-  );
 
   useLayoutEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme();
+  }, []);
 
   const handleReset = useCallback(() => {
     if (onReset) {
@@ -419,16 +374,6 @@ export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
       push("/");
     }
   }, [onReset, pathname, push]);
-
-  const handleToggleTheme = useCallback(() => {
-    toggleTheme(theme);
-  }, [theme]);
-
-  const themeLabel = theme === "dark" ? "Light mode" : "Dark mode";
-  const themeDescription =
-    theme === "dark"
-      ? "Switch to a light background"
-      : "Switch to a dark background";
 
   return (
     <div
@@ -453,26 +398,6 @@ export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
         <span className="listwell-page-controls__popover" aria-hidden="true">
           <span className="listwell-page-controls__popover-label">
             Reset chat
-          </span>
-        </span>
-      </button>
-      <button
-        type="button"
-        className="listwell-page-controls__btn"
-        onClick={handleToggleTheme}
-        aria-label={themeLabel}
-        aria-describedby="page-controls-theme-desc"
-      >
-        {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-        <span
-          id="page-controls-theme-desc"
-          className="listwell-page-controls__popover-sr"
-        >
-          {themeLabel}. {themeDescription}.
-        </span>
-        <span className="listwell-page-controls__popover" aria-hidden="true">
-          <span className="listwell-page-controls__popover-label">
-            {themeLabel}
           </span>
         </span>
       </button>

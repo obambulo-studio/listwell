@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { ConvexClientProvider } from "@/components/convex-client-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { getToken } from "@/lib/auth-server";
 import { listwellSiteUrl } from "@/lib/site-metadata";
 import { ThemeBootstrapScript } from "@/lib/theme";
@@ -41,7 +42,8 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
   return (
     <html
       lang="en-AU"
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${geistSans.variable} ${geistMono.variable} light`}
+      style={{ colorScheme: "light" }}
       suppressHydrationWarning
     >
       <head>
@@ -65,6 +67,7 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
       <body>
         <ConvexClientProvider initialToken={token}>
           <AppShell>{children}</AppShell>
+          <Toaster position="top-center" richColors closeButton />
         </ConvexClientProvider>
       </body>
     </html>

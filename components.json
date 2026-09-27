@@ -1,6 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "new-york",
+  "style": "base-nova",
   "rsc": true,
   "tsx": true,
   "tailwind": {
@@ -17,6 +17,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@beautifului": "https://www.beautifului.dev/r/{name}.json"
+    "@beautifului": "https://www.beautifului.dev/r/{name}.json",
+    "@reui": "https://reui.io/r/{style}/{name}.json"
   }
 }

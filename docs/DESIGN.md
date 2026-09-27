@@ -368,3 +368,9 @@ Use landmarks, one descriptive `h1`, ordered headings, a skip link, native contr
 Do not conceal page overflow. Give grid and flex children `min-width: 0`; reflow before shrinking. Preserve readable type and control sizes. Short comparisons may stack; long ledgers may scroll locally when reordering and simplification cannot preserve lookup. The page must remain usable in light and dark and across desktop and narrow screens without a visible theme switcher.
 
 The target is Vercel judgment, not Vercel decoration.
+
+## Listwell product UI (2026)
+
+- **Component library:** [ReUI](https://reui.io) on shadcn (Base UI, `base-nova` style) via the `@reui` registry and shared primitives in `components/ui/`. ReUI semantic tokens (`--success`, `--warning`, `--info`, and so on) live in `app/beautifui/foundation.css` alongside Beautiful UI surfaces.
+- **Theme:** Light mode only. No theme toggle; Geist Sans for UI copy, Geist Mono for code, URLs, IDs, and timestamps.
+- **Shell:** Listwell wordmark only (never Vercel triangle or wordmark in product chrome). Keep one focal point per screen and spacing before boxes, per the rules above.
