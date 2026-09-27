@@ -45,7 +45,6 @@ const toShareRecord = (doc: {
 
 export const getByToken = query({
   args: { token: v.string() },
-  returns: v.union(shareRecordValidator, v.null()),
   handler: async (ctx, args) => {
     const doc = await ctx.db
       .query("reportShares")
@@ -56,11 +55,11 @@ export const getByToken = query({
     }
     return toShareRecord(doc);
   },
+  returns: v.union(shareRecordValidator, v.null()),
 });
 
 export const getActiveForBusiness = query({
   args: { businessExternalId: v.string() },
-  returns: v.union(shareRecordValidator, v.null()),
   handler: async (ctx, args) => {
     const rows = await ctx.db
       .query("reportShares")
@@ -74,6 +73,7 @@ export const getActiveForBusiness = query({
     }
     return toShareRecord(active);
   },
+  returns: v.union(shareRecordValidator, v.null()),
 });
 
 export const upsertActive = mutation({
@@ -83,7 +83,6 @@ export const upsertActive = mutation({
     secret: v.string(),
     token: v.string(),
   },
-  returns: shareRecordValidator,
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
     const timestamp = nowIso();
@@ -93,14 +92,19 @@ export const upsertActive = mutation({
         q.eq("businessExternalId", args.businessExternalId)
       )
       .collect();
-    for (const row of existing) {
-      if (!row.revokedAt) {
-        await ctx.db.patch("reportShares", row._id, {
-          revokedAt: timestamp,
-          updatedAt: timestamp,
-        });
-      }
-    }
+    await Promise.all(
+      existing.flatMap((row) => {
+        if (row.revokedAt) {
+          return [];
+        }
+        return [
+          ctx.db.patch("reportShares", row._id, {
+            revokedAt: timestamp,
+            updatedAt: timestamp,
+          }),
+        ];
+      })
+    );
     const id = await ctx.db.insert("reportShares", {
       businessExternalId: args.businessExternalId,
       createdAt: timestamp,
@@ -114,6 +118,7 @@ export const upsertActive = mutation({
     }
     return toShareRecord(doc);
   },
+  returns: shareRecordValidator,
 });
 
 export const revoke = mutation({
@@ -122,7 +127,6 @@ export const revoke = mutation({
     secret: v.string(),
     token: v.string(),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
     const doc = await ctx.db
@@ -132,13 +136,15 @@ export const revoke = mutation({
     if (!doc || doc.businessExternalId !== args.businessExternalId) {
       return null;
     }
-    if (!doc.revokedAt) {
-      const timestamp = nowIso();
-      await ctx.db.patch("reportShares", doc._id, {
-        revokedAt: timestamp,
-        updatedAt: timestamp,
-      });
+    if (doc.revokedAt) {
+      return null;
     }
+    const timestamp = nowIso();
+    await ctx.db.patch("reportShares", doc._id, {
+      revokedAt: timestamp,
+      updatedAt: timestamp,
+    });
     return null;
   },
+  returns: v.null(),
 });

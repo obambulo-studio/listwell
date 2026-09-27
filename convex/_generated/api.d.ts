@@ -15,7 +15,7 @@ import type * as claims from "../claims.js";
 import type * as crons from "../crons.js";
 import type * as entitlements from "../entitlements.js";
 import type * as http from "../http.js";
-import type * as reportShares from "../reportShares.js";
+import type * as report_shares from "../report-shares.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_internal from "../lib/internal.js";
 import type * as lib_validators from "../lib/validators.js";
@@ -36,7 +36,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   entitlements: typeof entitlements;
   http: typeof http;
-  reportShares: typeof reportShares;
+  "report-shares": typeof report_shares;
   "lib/email": typeof lib_email;
   "lib/internal": typeof lib_internal;
   "lib/validators": typeof lib_validators;

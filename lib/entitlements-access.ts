@@ -1,4 +1,5 @@
-import { entitlementStateSchema, type EntitlementState } from "./schema";
+import type { EntitlementState } from "./schema";
+import { entitlementStateSchema } from "./schema";
 
 const truthyEnv = (value: string | undefined): boolean =>
   value === "1" || value?.toLowerCase() === "true";

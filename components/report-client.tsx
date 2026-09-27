@@ -1118,7 +1118,7 @@ export const ReportClient = ({
   const [pickedId, setPickedId] = useState<string | undefined>();
   const [filter, setFilter] = useState<"failures" | "all">("failures");
   const [shareOpen, setShareOpen] = useState(false);
-  const isShared = variant === "shared";
+  const isOwner = variant === "owner";
 
   const selectedId = pickedId ?? recommendedCheckId(summary, liveChecks);
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
@@ -1164,137 +1164,239 @@ export const ReportClient = ({
   };
 
   return (
-    <article
-      className={
-        isShared ? "listwell-report listwell-report--shared" : "listwell-report"
-      }
-    >
-      {shareOpen ? (
-        <ReportShareDialog
-          businessId={business.id}
-          onClose={() => setShareOpen(false)}
-        />
-      ) : null}
-      {isShared ? <ReportSharedBanner expiresAt={shareExpiresAt} /> : null}
-      {!isShared && showKvExpiryNotice ? (
-        <ReportKvExpiryNotice days={kvExpiryDays} />
-      ) : null}
-      {!isShared && !access.backendAvailable ? (
-        <ReportBackendUnavailableNotice />
-      ) : null}
-      {!isShared && purchasePending ? (
-        <ReportPurchasePendingNotice
-          businessId={business.id}
-          checkoutRetryId={checkoutRetryId}
-        />
-      ) : null}
-      <header className="listwell-report__hero">
-        <div className="listwell-report__hero-top">
-          <h1 className="vbg-title">{business.name}</h1>
-          <div className="listwell-report__toolbar listwell-report__toolbar--screen">
-            {!isShared ? (
-              <button
-                className="listwell-report__button listwell-report__button--quiet"
-                type="button"
-                onClick={() => setShareOpen(true)}
-              >
-                Share
-              </button>
-            ) : null}
-            <button
-              className="listwell-report__button"
-              type="button"
-              onClick={() => window.print()}
-            >
-              Download PDF / Print
-            </button>
-          </div>
-        </div>
-        {!isShared && access.kind === "report_monthly" ? (
-          <p className="vbg-caption listwell-report__badge">
-            Monthly scans active
-          </p>
-        ) : null}
-        <p className="vbg-display listwell-report__score-value">{`${visibilityScore}%`}</p>
-        <p className="vbg-caption listwell-report__score-caption">
-          of scored checks
-        </p>
-      </header>
-
-      <dl className="listwell-report__stats">
-        <div className="listwell-report__stat">
-          <dt className="vbg-stat-label">Passing</dt>
-          <dd className="vbg-stat-value">{counts.pass}</dd>
-        </div>
-        <div className="listwell-report__stat">
-          <dt className="vbg-stat-label">Need work</dt>
-          <dd className="vbg-stat-value">{counts.fail}</dd>
-        </div>
-        <div className="listwell-report__stat">
-          <dt className="vbg-stat-label">Skipped</dt>
-          <dd className="vbg-stat-value">{counts.error}</dd>
-        </div>
-      </dl>
-
-      <ReportOverviewSection
-        summary={summary}
-        citationChecks={citationChecks}
-        briefCaption={briefCaption}
-        onSelectCheck={setPickedId}
-      />
-
-      {!isShared ? (
-        <ReportAccessSection
-          access={access}
-          checkoutReturned={checkoutReturned}
-          summary={summary}
-          citationChecks={citationChecks}
-          redirecting={redirecting}
-          checkoutError={checkoutError}
-          onSelectCheck={setPickedId}
-          onCheckout={(plan) => {
-            void startCheckout(plan);
-          }}
-          onUnlocked={() => {
-            window.location.replace(`/${business.id}`);
-          }}
-        />
-      ) : null}
-
-      {!isShared && access.kind === "report_monthly" && scanHistory.length > 0 ? (
-        <ScanHistorySection scans={scanHistory} />
-      ) : null}
-
-      <ChecksLedgerSection
-        groupedChecks={groupedChecks}
-        checksCaption={checksCaption}
-        filter={filter}
-        selectedId={selectedId}
-        businessCategory={business.category}
-        onFilterChange={setFilter}
-        onSelectCheck={setPickedId}
-      />
-
-      {selected ? (
-        <SelectedCheckSection
-          selected={selected}
-          selectedDetail={selectedDetail}
-          businessCategory={business.category}
-          showFixSteps={showFixSteps}
-        />
-      ) : null}
-
-      <ListingsSection
-        businessId={business.id}
-        profiles={profiles}
-        listingsCaption={listingsCaption}
-        showEditLink={!isShared}
-      />
-      <footer aria-hidden="true" className="listwell-report__print-footer">
-        <p className="vbg-caption">
-          Listwell · listwell.dev · local SEO audit for Australian businesses
-        </p>
-      </footer>
-    </article>
+    <ReportClientView
+      access={access}
+      briefCaption={briefCaption}
+      business={business}
+      checkoutError={checkoutError}
+      checkoutReturned={checkoutReturned}
+      checkoutRetryId={checkoutRetryId}
+      checksCaption={checksCaption}
+      citationChecks={citationChecks}
+      counts={counts}
+      filter={filter}
+      groupedChecks={groupedChecks}
+      isOwner={isOwner}
+      kvExpiryDays={kvExpiryDays}
+      listingsCaption={listingsCaption}
+      profiles={profiles}
+      purchasePending={purchasePending}
+      redirecting={redirecting}
+      scanHistory={scanHistory}
+      selected={selected}
+      selectedDetail={selectedDetail}
+      selectedId={selectedId}
+      shareExpiresAt={shareExpiresAt}
+      shareOpen={shareOpen}
+      showFixSteps={showFixSteps}
+      showKvExpiryNotice={showKvExpiryNotice}
+      summary={summary}
+      visibilityScore={visibilityScore}
+      onCheckout={(plan) => {
+        void startCheckout(plan);
+      }}
+      onFilterChange={setFilter}
+      onSelectCheck={setPickedId}
+      onShareClose={() => setShareOpen(false)}
+      onShareOpen={() => setShareOpen(true)}
+    />
   );
 };
+
+const ReportClientView = ({
+  access,
+  briefCaption,
+  business,
+  checkoutError,
+  checkoutReturned,
+  checkoutRetryId,
+  checksCaption,
+  citationChecks,
+  counts,
+  filter,
+  groupedChecks,
+  isOwner,
+  kvExpiryDays,
+  listingsCaption,
+  profiles,
+  purchasePending,
+  redirecting,
+  scanHistory,
+  selected,
+  selectedDetail,
+  selectedId,
+  shareExpiresAt,
+  shareOpen,
+  showFixSteps,
+  showKvExpiryNotice,
+  summary,
+  visibilityScore,
+  onCheckout,
+  onFilterChange,
+  onSelectCheck,
+  onShareClose,
+  onShareOpen,
+}: {
+  access: EntitlementState;
+  briefCaption: string | null;
+  business: Business;
+  checkoutError: string | null;
+  checkoutReturned: boolean;
+  checkoutRetryId?: string;
+  checksCaption: string;
+  citationChecks: { id: string; title: string }[];
+  counts: ReturnType<typeof visibilityCounts>;
+  filter: "failures" | "all";
+  groupedChecks: { category: string; items: LiveCheck[] }[];
+  isOwner: boolean;
+  kvExpiryDays: number;
+  listingsCaption: string;
+  profiles: ReturnType<typeof businessToProfiles>;
+  purchasePending: boolean;
+  redirecting: CheckoutPlan | null;
+  scanHistory: ScanSummary[];
+  selected: LiveCheck | undefined;
+  selectedDetail: string | undefined;
+  selectedId: string | undefined;
+  shareExpiresAt?: string | null;
+  shareOpen: boolean;
+  showFixSteps: boolean;
+  showKvExpiryNotice: boolean;
+  summary: AuditSummaryResult;
+  visibilityScore: number;
+  onCheckout: (plan: CheckoutPlan) => void;
+  onFilterChange: (filter: "failures" | "all") => void;
+  onSelectCheck: (id: string) => void;
+  onShareClose: () => void;
+  onShareOpen: () => void;
+}) => (
+  <article
+    className={
+      isOwner ? "listwell-report" : "listwell-report listwell-report--shared"
+    }
+  >
+    {shareOpen ? (
+      <ReportShareDialog businessId={business.id} onClose={onShareClose} />
+    ) : null}
+    {isOwner ? null : <ReportSharedBanner expiresAt={shareExpiresAt} />}
+    {isOwner && showKvExpiryNotice ? (
+      <ReportKvExpiryNotice days={kvExpiryDays} />
+    ) : null}
+    {isOwner && !access.backendAvailable ? (
+      <ReportBackendUnavailableNotice />
+    ) : null}
+    {isOwner && purchasePending ? (
+      <ReportPurchasePendingNotice
+        businessId={business.id}
+        checkoutRetryId={checkoutRetryId}
+      />
+    ) : null}
+    <header className="listwell-report__hero">
+      <div className="listwell-report__hero-top">
+        <h1 className="vbg-title">{business.name}</h1>
+        <div className="listwell-report__toolbar listwell-report__toolbar--screen">
+          {isOwner ? (
+            <button
+              className="listwell-report__button listwell-report__button--quiet"
+              type="button"
+              onClick={onShareOpen}
+            >
+              Share
+            </button>
+          ) : null}
+          <button
+            className="listwell-report__button"
+            type="button"
+            onClick={() => window.print()}
+          >
+            Download PDF / Print
+          </button>
+        </div>
+      </div>
+      {isOwner && access.kind === "report_monthly" ? (
+        <p className="vbg-caption listwell-report__badge">
+          Monthly scans active
+        </p>
+      ) : null}
+      <p className="vbg-display listwell-report__score-value">{`${visibilityScore}%`}</p>
+      <p className="vbg-caption listwell-report__score-caption">
+        of scored checks
+      </p>
+    </header>
+
+    <dl className="listwell-report__stats">
+      <div className="listwell-report__stat">
+        <dt className="vbg-stat-label">Passing</dt>
+        <dd className="vbg-stat-value">{counts.pass}</dd>
+      </div>
+      <div className="listwell-report__stat">
+        <dt className="vbg-stat-label">Need work</dt>
+        <dd className="vbg-stat-value">{counts.fail}</dd>
+      </div>
+      <div className="listwell-report__stat">
+        <dt className="vbg-stat-label">Skipped</dt>
+        <dd className="vbg-stat-value">{counts.error}</dd>
+      </div>
+    </dl>
+
+    <ReportOverviewSection
+      summary={summary}
+      citationChecks={citationChecks}
+      briefCaption={briefCaption}
+      onSelectCheck={onSelectCheck}
+    />
+
+    {isOwner ? (
+      <ReportAccessSection
+        access={access}
+        checkoutReturned={checkoutReturned}
+        summary={summary}
+        citationChecks={citationChecks}
+        redirecting={redirecting}
+        checkoutError={checkoutError}
+        onSelectCheck={onSelectCheck}
+        onCheckout={onCheckout}
+        onUnlocked={() => {
+          window.location.replace(`/${business.id}`);
+        }}
+      />
+    ) : null}
+
+    {isOwner &&
+    access.kind === "report_monthly" &&
+    scanHistory.length > 0 ? (
+      <ScanHistorySection scans={scanHistory} />
+    ) : null}
+
+    <ChecksLedgerSection
+      groupedChecks={groupedChecks}
+      checksCaption={checksCaption}
+      filter={filter}
+      selectedId={selectedId}
+      businessCategory={business.category}
+      onFilterChange={onFilterChange}
+      onSelectCheck={onSelectCheck}
+    />
+
+    {selected ? (
+      <SelectedCheckSection
+        selected={selected}
+        selectedDetail={selectedDetail}
+        businessCategory={business.category}
+        showFixSteps={showFixSteps}
+      />
+    ) : null}
+
+    <ListingsSection
+      businessId={business.id}
+      profiles={profiles}
+      listingsCaption={listingsCaption}
+      showEditLink={isOwner}
+    />
+    <footer aria-hidden="true" className="listwell-report__print-footer">
+      <p className="vbg-caption">
+        Listwell · listwell.dev · local SEO audit for Australian businesses
+      </p>
+    </footer>
+  </article>
+);

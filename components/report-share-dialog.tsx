@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
+import useSWR from "swr";
 
 import { reportShareStateSchema } from "@/lib/schema";
 import type { ReportShareState } from "@/lib/schema";
@@ -65,6 +66,16 @@ const formatExpiry = (iso: string | null): string => {
   });
 };
 
+const expiryDaysFromChoice = (choice: "none" | "7" | "30"): 7 | 30 | null => {
+  if (choice === "7") {
+    return 7;
+  }
+  if (choice === "30") {
+    return 30;
+  }
+  return null;
+};
+
 export const ReportShareDialog = ({
   businessId,
   onClose,
@@ -73,69 +84,55 @@ export const ReportShareDialog = ({
   onClose: () => void;
 }) => {
   const titleId = useId();
-  const [state, setState] = useState<ReportShareState | null>(null);
+  const {
+    data: state,
+    error: loadError,
+    mutate,
+  } = useSWR(["share", businessId] as const, ([, id]) => fetchShareState(id));
   const [expiryChoice, setExpiryChoice] = useState<"none" | "7" | "30">("none");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const next = await fetchShareState(businessId);
-      setState(next);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Could not load share link"
-      );
-    }
-  }, [businessId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const error =
+    actionError ??
+    (loadError instanceof Error ? loadError.message : null);
 
   const handleCreate = async () => {
     setBusy(true);
-    setError(null);
+    setActionError(null);
     setCopied(false);
     try {
-      const expiresInDays =
-        expiryChoice === "none" ? null : Number.parseInt(expiryChoice, 10);
       const next = await createShare(
         businessId,
-        expiresInDays === 7 || expiresInDays === 30 ? expiresInDays : null
+        expiryDaysFromChoice(expiryChoice)
       );
-      setState(next);
+      await mutate(next, { revalidate: false });
     } catch (createError) {
-      setError(
+      setActionError(
         createError instanceof Error
           ? createError.message
           : "Could not create share link"
       );
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
 
   const handleRevoke = async () => {
     setBusy(true);
-    setError(null);
+    setActionError(null);
     setCopied(false);
     try {
       const next = await revokeShare(businessId);
-      setState(next);
+      await mutate(next, { revalidate: false });
     } catch (revokeError) {
-      setError(
+      setActionError(
         revokeError instanceof Error
           ? revokeError.message
           : "Could not revoke share link"
       );
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
 
   const handleCopy = async () => {
@@ -146,17 +143,13 @@ export const ReportShareDialog = ({
       await navigator.clipboard.writeText(state.url);
       setCopied(true);
     } catch {
-      setError("Could not copy link");
+      setActionError("Could not copy link");
     }
   };
 
   return (
     <div className="listwell-share-dialog__backdrop" role="presentation">
-      <div
-        aria-labelledby={titleId}
-        className="listwell-share-dialog"
-        role="dialog"
-      >
+      <dialog className="listwell-share-dialog" open aria-labelledby={titleId}>
         <header className="listwell-share-dialog__head">
           <h2 className="vbg-heading-20" id={titleId}>
             Share report
@@ -257,7 +250,7 @@ export const ReportShareDialog = ({
             </button>
           </div>
         )}
-      </div>
+      </dialog>
     </div>
   );
 };

@@ -30,11 +30,11 @@ globalThis.listwellActiveShareByBusiness = activeShareMemory;
 
 const writeShareToMemory = (record: ReportShareRecord): void => {
   shareMemory.set(record.token, record);
-  if (!record.revokedAt) {
-    activeShareMemory.set(record.businessId, record.token);
-  } else {
+  if (record.revokedAt) {
     activeShareMemory.delete(record.businessId);
+    return;
   }
+  activeShareMemory.set(record.businessId, record.token);
 };
 
 const readShareFromMemory = (token: string): ReportShareRecord | null =>
@@ -46,10 +46,13 @@ const readActiveTokenFromMemory = (businessId: string): string | null =>
 const base64UrlFromBytes = (bytes: Uint8Array): string => {
   let binary = "";
   for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
+    binary += String.fromCodePoint(byte);
   }
   const base64 = btoa(binary);
-  return base64.replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, "");
+  return base64
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/u, "");
 };
 
 export const generateReportShareToken = (): string => {
@@ -173,7 +176,7 @@ const syncShareToConvex = async (input: {
   token: string;
 }): Promise<void> => {
   try {
-    await convexMutation(api.reportShares.upsertActive, {
+    await convexMutation(api["report-shares"].upsertActive, {
       businessExternalId: input.businessExternalId,
       expiresAt: input.expiresAt,
       token: input.token,
@@ -188,7 +191,7 @@ const revokeShareInConvex = async (input: {
   token: string;
 }): Promise<void> => {
   try {
-    await convexMutation(api.reportShares.revoke, {
+    await convexMutation(api["report-shares"].revoke, {
       businessExternalId: input.businessExternalId,
       token: input.token,
     });
@@ -201,7 +204,7 @@ const readShareFromConvex = async (
   token: string
 ): Promise<ReportShareRecord | null> => {
   const result = await runConvexRead(() =>
-    convexPublicQuery(api.reportShares.getByToken, { token })
+    convexPublicQuery(api["report-shares"].getByToken, { token })
   );
   if (result.status === "unavailable" || !result.value) {
     return null;
@@ -213,7 +216,7 @@ const readActiveShareFromConvex = async (
   businessId: string
 ): Promise<ReportShareRecord | null> => {
   const result = await runConvexRead(() =>
-    convexPublicQuery(api.reportShares.getActiveForBusiness, {
+    convexPublicQuery(api["report-shares"].getActiveForBusiness, {
       businessExternalId: businessId,
     })
   );
@@ -269,44 +272,6 @@ export const getActiveReportShare = async (
   return null;
 };
 
-export const createReportShare = async (input: {
-  businessId: string;
-  expiresInDays?: CreateReportShareRequest["expiresInDays"];
-  origin: string;
-}): Promise<z.infer<typeof reportShareStateSchema>> => {
-  const expiresAt = resolveShareExpiresAt({
-    expiresInDays: input.expiresInDays,
-  });
-  const existing = await getActiveReportShare(input.businessId);
-  if (existing) {
-    await revokeReportShare(input.businessId, existing.token);
-  }
-
-  const record = reportShareRecordSchema.parse({
-    businessId: input.businessId,
-    createdAt: new Date().toISOString(),
-    expiresAt,
-    revokedAt: null,
-    token: generateReportShareToken(),
-  });
-
-  await writeShareToKv(record);
-  await syncShareToConvex({
-    businessExternalId: record.businessId,
-    expiresAt: record.expiresAt,
-    token: record.token,
-  });
-
-  const url = `${input.origin.replace(/\/$/u, "")}/share/${record.token}`;
-  return reportShareStateSchema.parse({
-    active: true,
-    createdAt: record.createdAt,
-    expiresAt: record.expiresAt,
-    token: record.token,
-    url,
-  });
-};
-
 const readShareRecordRaw = async (
   token: string
 ): Promise<ReportShareRecord | null> =>
@@ -348,6 +313,44 @@ export const revokeReportShare = async (
     expiresAt: revoked.expiresAt,
     token: null,
     url: null,
+  });
+};
+
+export const createReportShare = async (input: {
+  businessId: string;
+  expiresInDays?: CreateReportShareRequest["expiresInDays"];
+  origin: string;
+}): Promise<z.infer<typeof reportShareStateSchema>> => {
+  const expiresAt = resolveShareExpiresAt({
+    expiresInDays: input.expiresInDays,
+  });
+  const existing = await getActiveReportShare(input.businessId);
+  if (existing) {
+    await revokeReportShare(input.businessId, existing.token);
+  }
+
+  const record = reportShareRecordSchema.parse({
+    businessId: input.businessId,
+    createdAt: new Date().toISOString(),
+    expiresAt,
+    revokedAt: null,
+    token: generateReportShareToken(),
+  });
+
+  await writeShareToKv(record);
+  await syncShareToConvex({
+    businessExternalId: record.businessId,
+    expiresAt: record.expiresAt,
+    token: record.token,
+  });
+
+  const url = `${input.origin.replace(/\/$/u, "")}/share/${record.token}`;
+  return reportShareStateSchema.parse({
+    active: true,
+    createdAt: record.createdAt,
+    expiresAt: record.expiresAt,
+    token: record.token,
+    url,
   });
 };
 
