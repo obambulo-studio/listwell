@@ -56,6 +56,26 @@ export const polarCheckoutSchema = z.object({
 
 export const REPORT_ONCE_PRICE = "A$9.99";
 export const REPORT_MONTHLY_PRICE = "A$4.99/mo per business";
+export const REPORT_YEARLY_PRICE = "A$49/yr";
+export const REPORT_YEARLY_VALUE_NOTE = "about two months free";
+
+export const unlockPricingNote = (access: {
+  monthlyAvailable: boolean;
+  yearlyAvailable: boolean;
+}): string | null => {
+  if (access.yearlyAvailable) {
+    return `Unlock with ${REPORT_ONCE_PRICE} once, ${REPORT_YEARLY_PRICE} (${REPORT_YEARLY_VALUE_NOTE}), or ${REPORT_MONTHLY_PRICE}.`;
+  }
+  if (access.monthlyAvailable) {
+    return `Unlock with ${REPORT_ONCE_PRICE} once or ${REPORT_MONTHLY_PRICE}.`;
+  }
+  return null;
+};
+
+export interface PolarProductIds {
+  monthlyProductId?: string;
+  yearlyProductId?: string;
+}
 
 const WEBHOOK_TOLERANCE_SECONDS = 300;
 
@@ -115,16 +135,25 @@ export const entitlementKindFromCheckout = (
     subscriptionId?: string | null;
     metadata?: Record<string, unknown>;
   },
-  monthlyProductId: string | undefined
+  products: PolarProductIds
 ): EntitlementKind => {
   if (checkout.subscriptionId) {
     return entitlementKindSchema.parse("report_monthly");
   }
-  if (monthlyProductId && checkout.productId === monthlyProductId) {
+  if (
+    products.yearlyProductId &&
+    checkout.productId === products.yearlyProductId
+  ) {
+    return entitlementKindSchema.parse("report_monthly");
+  }
+  if (
+    products.monthlyProductId &&
+    checkout.productId === products.monthlyProductId
+  ) {
     return entitlementKindSchema.parse("report_monthly");
   }
   const plan = checkout.metadata?.plan;
-  if (plan === "monthly") {
+  if (plan === "monthly" || plan === "yearly") {
     return entitlementKindSchema.parse("report_monthly");
   }
   return entitlementKindSchema.parse("report_once");
@@ -132,7 +161,7 @@ export const entitlementKindFromCheckout = (
 
 export const entitlementKindFromPolarData = (
   data: PolarWebhookEvent["data"],
-  monthlyProductId: string | undefined
+  products: PolarProductIds
 ): EntitlementKind =>
   entitlementKindFromCheckout(
     {
@@ -140,7 +169,7 @@ export const entitlementKindFromPolarData = (
       productId: data.product_id,
       subscriptionId: data.subscription_id,
     },
-    monthlyProductId
+    products
   );
 
 export type PolarEntitlementAction =
@@ -162,7 +191,7 @@ export type PolarEntitlementAction =
 
 export const entitlementActionFromPolarEvent = (
   event: PolarWebhookEvent,
-  monthlyProductId?: string
+  products: PolarProductIds = {}
 ): PolarEntitlementAction => {
   const businessId = businessIdFromMetadata(event.data.metadata);
   const polarSubscriptionId = event.data.subscription_id ?? undefined;
@@ -178,7 +207,7 @@ export const entitlementActionFromPolarEvent = (
     return {
       businessId,
       email,
-      kind: entitlementKindFromPolarData(event.data, monthlyProductId),
+      kind: entitlementKindFromPolarData(event.data, products),
       polarOrderId,
       polarSubscriptionId,
       type: "grant",

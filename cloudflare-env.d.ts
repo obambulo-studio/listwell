@@ -119,6 +119,7 @@ interface CloudflareEnv {
   POLAR_ACCESS_TOKEN?: string;
   POLAR_PRODUCT_REPORT_MONTHLY?: string;
   POLAR_PRODUCT_REPORT_ONCE?: string;
+  POLAR_PRODUCT_REPORT_YEARLY?: string;
   POLAR_SERVER?: string;
   POLAR_WEBHOOK_SECRET?: string;
   SITE_PASSWORD?: string;
