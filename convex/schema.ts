@@ -64,4 +64,15 @@ export default defineSchema({
     status: scanStatusValidator,
     trigger: scanTriggerValidator,
   }).index("by_businessExternalId", ["businessExternalId"]),
+
+  reportShares: defineTable({
+    businessExternalId: v.string(),
+    createdAt: v.string(),
+    expiresAt: v.optional(v.string()),
+    revokedAt: v.optional(v.string()),
+    token: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_token", ["token"])
+    .index("by_businessExternalId", ["businessExternalId"]),
 });

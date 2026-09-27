@@ -1,4 +1,4 @@
-import type { EntitlementState } from "./schema";
+import { entitlementStateSchema, type EntitlementState } from "./schema";
 
 const truthyEnv = (value: string | undefined): boolean =>
   value === "1" || value?.toLowerCase() === "true";
@@ -24,6 +24,19 @@ export const fixStepsWithoutPayment = (input: {
 
 export const reportShowsFixSteps = (access: EntitlementState): boolean =>
   access.fixStepsWithoutPayment || (access.unlocked && !access.sessionRequired);
+
+/** Read-only share links never inherit the purchaser's unlock state. */
+export const sharedViewerEntitlementState = (
+  access: EntitlementState
+): EntitlementState =>
+  entitlementStateSchema.parse({
+    ...access,
+    backendAvailable: true,
+    kind: null,
+    maskedEmail: null,
+    sessionRequired: false,
+    unlocked: false,
+  });
 
 export const entitlementCheckoutRetryPath = (
   checkoutId: string,
