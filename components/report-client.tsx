@@ -194,7 +194,7 @@ const ReportPurchasePendingNotice = ({
     <ReportSystemNotice>
       Payment received, but we could not activate fix steps yet.{" "}
       {typeof retryHref === "string" ? (
-        <Link href={retryHref}>Retry activation</Link>
+        <a href={retryHref}>Retry activation</a>
       ) : (
         "Refresh this page in a minute"
       )}{" "}
