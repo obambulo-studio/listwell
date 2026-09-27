@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
 
 import {
   buildScanEmail,
@@ -13,15 +13,15 @@ describe("scan email helpers", () => {
   it("detects score drop and newly failing checks", () => {
     const previous = {
       results: {
-        website: { value: true },
         "google-hours": { value: true },
+        website: { value: true },
       },
       score: 80,
     };
     const current = {
       results: {
-        website: { value: true },
         "google-hours": { value: false },
+        website: { value: true },
       },
       score: 65,
     };
@@ -36,7 +36,8 @@ describe("scan email helpers", () => {
       current: { results: { website: { value: true } }, score: 72 },
       previous: { results: { website: { value: true } }, score: 70 },
       reportUrl: "https://listwell.dev/demo-cafe",
-      unsubscribeUrl: "https://listwell.dev/api/notifications/unsubscribe?token=abc",
+      unsubscribeUrl:
+        "https://listwell.dev/api/notifications/unsubscribe?token=abc",
     });
     expect(email.kind).toBe("monthly_summary");
     expect(email.subject).toContain("Harbour Cafe");
@@ -49,37 +50,48 @@ describe("scan email helpers", () => {
       businessName: "Harbour Cafe",
       current: {
         results: {
-          website: { value: false },
           "google-hours": { value: false },
+          website: { value: false },
         },
         score: 58,
       },
       previous: {
         results: {
-          website: { value: true },
           "google-hours": { value: true },
+          website: { value: true },
         },
         score: 72,
       },
       reportUrl: "https://listwell.dev/demo-cafe",
-      unsubscribeUrl: "https://listwell.dev/api/notifications/unsubscribe?token=sample",
+      unsubscribeUrl:
+        "https://listwell.dev/api/notifications/unsubscribe?token=sample",
     });
     expect(email.kind).toBe("score_alert");
-    const artifactDir = "/opt/cursor/artifacts";
-    writeFileSync(
-      join(artifactDir, "monthly-scan-alert-sample.html"),
-      email.html,
-      "utf8"
-    );
-    writeFileSync(
-      join(artifactDir, "monthly-scan-summary-sample.html"),
-      buildScanEmail({
-        businessName: "Harbour Cafe",
-        current: { results: { website: { value: true } }, score: 72 },
-        previous: { results: { website: { value: true } }, score: 70 },
-        reportUrl: "https://listwell.dev/demo-cafe",
-      }).html,
-      "utf8"
-    );
+    const summaryHtml = buildScanEmail({
+      businessName: "Harbour Cafe",
+      current: { results: { website: { value: true } }, score: 72 },
+      previous: { results: { website: { value: true } }, score: 70 },
+      reportUrl: "https://listwell.dev/demo-cafe",
+    }).html;
+    for (const artifactDir of [
+      "/opt/cursor/artifacts",
+      path.join(process.cwd(), "artifacts"),
+    ]) {
+      try {
+        writeFileSync(
+          path.join(artifactDir, "monthly-scan-alert-sample.html"),
+          email.html,
+          "utf-8"
+        );
+        writeFileSync(
+          path.join(artifactDir, "monthly-scan-summary-sample.html"),
+          summaryHtml,
+          "utf-8"
+        );
+        break;
+      } catch {
+        // Try next directory.
+      }
+    }
   });
 });

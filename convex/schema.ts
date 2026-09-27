@@ -51,6 +51,15 @@ export default defineSchema({
     .index("by_polarSubscriptionId", ["polarSubscriptionId"])
     .index("by_status_and_nextScanAt", ["status", "nextScanAt"]),
 
+  notificationPreferences: defineTable({
+    monthlyScanEmails: v.boolean(),
+    unsubscribeToken: v.string(),
+    updatedAt: v.string(),
+    userId: v.string(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_unsubscribeToken", ["unsubscribeToken"]),
+
   scans: defineTable({
     businessExternalId: v.string(),
     createdAt: v.string(),
@@ -65,13 +74,4 @@ export default defineSchema({
     status: scanStatusValidator,
     trigger: scanTriggerValidator,
   }).index("by_businessExternalId", ["businessExternalId"]),
-
-  notificationPreferences: defineTable({
-    monthlyScanEmails: v.boolean(),
-    unsubscribeToken: v.string(),
-    updatedAt: v.string(),
-    userId: v.string(),
-  })
-    .index("by_userId", ["userId"])
-    .index("by_unsubscribeToken", ["unsubscribeToken"]),
 });

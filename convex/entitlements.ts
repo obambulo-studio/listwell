@@ -144,7 +144,7 @@ export const grant = mutation({
       await claimBusiness(ctx, args.businessExternalId, args.userId);
       await ctx.scheduler.runAfter(
         0,
-        internal.notificationPreferences.ensureForUser,
+        internal["notification-preferences"].ensureForUser,
         { userId: args.userId }
       );
     }

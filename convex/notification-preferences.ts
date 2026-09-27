@@ -5,7 +5,7 @@ import { requireInternalSecret } from "./lib/internal";
 
 const nowIso = (): string => new Date().toISOString();
 
-const randomToken = (): string => crypto.randomUUID().replace(/-/gu, "");
+const randomToken = (): string => crypto.randomUUID().replaceAll("-", "");
 
 export const ensureForUser = internalMutation({
   args: { userId: v.string() },

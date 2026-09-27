@@ -439,20 +439,20 @@ export const setNextScanAt = async (
   });
 };
 
-export const reserveDueMonthlyScan = async (
+export const reserveDueMonthlyScan = (
   entitlementId: Id<"entitlements">,
   now: Date
-): Promise<{ reserved: boolean; businessExternalId: string | null }> =>
+): Promise<{ businessExternalId: string | null; reserved: boolean }> =>
   convexMutation(api.entitlements.reserveDueMonthlyScan, {
     entitlementId,
     nowIso: now.toISOString(),
   });
 
-export type ScanEmailRecipient = {
+export interface ScanEmailRecipient {
   email: string;
   monthlyScanEmails: boolean;
   unsubscribeToken: string | null;
-};
+}
 
 export const getScanEmailRecipient = async (
   businessId: string
@@ -466,10 +466,8 @@ export const getScanEmailRecipient = async (
   return row;
 };
 
-export const ensureNotificationPrefs = async (
-  userId: string
-): Promise<string> =>
-  convexMutation(api.notificationPreferences.ensureForUserInternal, {
+export const ensureNotificationPrefs = (userId: string): Promise<string> =>
+  convexMutation(api["notification-preferences"].ensureForUserInternal, {
     userId,
   });
 
@@ -497,19 +495,17 @@ export const getLatestCompleteScanDetails = async (
   };
 };
 
-export const tryConsumeOnceRescan = async (
+export const tryConsumeOnceRescan = (
   businessId: string,
   now: Date
 ): Promise<{
   allowed: boolean;
-  reason: "no_active_once_entitlement" | "window_expired" | "limit_reached" | null;
-}> => {
-  const result = await convexMutation(api.entitlements.tryConsumeOnceRescan, {
+  reason: "limit_reached" | "no_active_once_entitlement" | "window_expired" | null;
+}> =>
+  convexMutation(api.entitlements.tryConsumeOnceRescan, {
     businessExternalId: businessId,
     nowIso: now.toISOString(),
   });
-  return result;
-};
 
 export const getOnceRescanStatus = (businessId: string, now: Date) =>
   convexPublicQuery(api.entitlements.getOnceRescanStatus, {

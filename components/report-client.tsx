@@ -747,12 +747,14 @@ const OnceRescanSection = ({
                   typeof payload.error === "string"
                     ? payload.error
                     : "Re-scan failed";
-                throw new Error(message);
+                setError(message);
+                setBusy(false);
+                return;
               }
               window.location.reload();
-            } catch (caught) {
+            } catch (error) {
               setError(
-                caught instanceof Error ? caught.message : "Re-scan failed"
+                error instanceof Error ? error.message : "Re-scan failed"
               );
               setBusy(false);
             }

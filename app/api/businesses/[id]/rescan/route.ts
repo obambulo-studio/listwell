@@ -66,12 +66,12 @@ export const POST = async (
   }
 
   if (!consumed.allowed) {
-    const message =
-      consumed.reason === "window_expired"
-        ? "The free re-scan window has ended"
-        : consumed.reason === "limit_reached"
-          ? "You have already used your free re-scan"
-          : "Re-scan is not available for this report";
+    let message = "Re-scan is not available for this report";
+    if (consumed.reason === "window_expired") {
+      message = "The free re-scan window has ended";
+    } else if (consumed.reason === "limit_reached") {
+      message = "You have already used your free re-scan";
+    }
     return NextResponse.json({ error: message }, { status: 400 });
   }
 

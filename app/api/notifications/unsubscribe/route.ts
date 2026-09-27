@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getConvexClient } from "@/lib/convex/server";
-import { api } from "@/lib/convex/server";
+import { api, getConvexClient } from "@/lib/convex/server";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +20,7 @@ export const GET = async (request: Request) => {
 
   try {
     const result = await getConvexClient().mutation(
-      api.notificationPreferences.unsubscribeByToken,
+      api["notification-preferences"].unsubscribeByToken,
       { token: parsed.data.token }
     );
     if (!result.ok) {

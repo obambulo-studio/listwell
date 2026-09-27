@@ -1,17 +1,16 @@
 import { getCloudflareEnv } from "./audit-env";
-import type { ScanRow } from "./schema";
-import { buildScanEmail, type ScanSnapshot } from "./scan-email";
 import {
   ensureNotificationPrefs,
-  getScanEmailRecipient,
   getActiveEntitlementOwner,
-  type ScanEmailRecipient,
+  getScanEmailRecipient,
 } from "./data";
+import type { ScanRow } from "./schema";
+import { buildScanEmail, type ScanSnapshot } from "./scan-email";
 import { readUseSendConfig, sendUseSendEmail } from "./usesend";
 
 const toSnapshot = (scan: {
-  score: number | null;
   results: ScanRow["results"];
+  score: number | null;
 }): ScanSnapshot => ({
   results: scan.results,
   score: scan.score,
@@ -20,7 +19,7 @@ const toSnapshot = (scan: {
 export const notifyScheduledScanComplete = async (input: {
   businessId: string;
   businessName: string;
-  previousComplete: Pick<ScanRow, "score" | "results"> | null;
+  previousComplete: Pick<ScanRow, "results" | "score"> | null;
   scan: ScanRow;
   siteUrl: string;
 }): Promise<{ sent: boolean; skipped: boolean }> => {
@@ -28,7 +27,7 @@ export const notifyScheduledScanComplete = async (input: {
     return { sent: false, skipped: true };
   }
 
-  let recipient: ScanEmailRecipient | null = null;
+  let recipient = null;
   try {
     recipient = await getScanEmailRecipient(input.businessId);
   } catch (error) {
@@ -40,7 +39,7 @@ export const notifyScheduledScanComplete = async (input: {
     return { sent: false, skipped: true };
   }
 
-  let unsubscribeToken = recipient.unsubscribeToken;
+  let { unsubscribeToken } = recipient;
   if (!unsubscribeToken) {
     const owner = await getActiveEntitlementOwner(input.businessId);
     if (owner.backendAvailable && owner.ownerUserId) {
@@ -72,9 +71,10 @@ export const notifyScheduledScanComplete = async (input: {
     return { sent: false, skipped: true };
   }
 
-  const reportUrl = `${input.siteUrl.replace(/\/$/u, "")}/${input.businessId}`;
+  const siteBase = input.siteUrl.replace(/\/$/u, "");
+  const reportUrl = `${siteBase}/${input.businessId}`;
   const unsubscribeUrl = unsubscribeToken
-    ? `${input.siteUrl.replace(/\/$/u, "")}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`
+    ? `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`
     : undefined;
   const email = buildScanEmail({
     businessName: input.businessName,

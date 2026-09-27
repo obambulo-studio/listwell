@@ -11,16 +11,16 @@ const emailsUrl = (base: string): string => {
   return `${trimmed}/api/v1/emails`;
 };
 
-export type UseSendConfig = {
+export interface UseSendConfig {
   apiKey: string;
-  from: string;
   baseUrl?: string;
-};
+  from: string;
+}
 
 export const readUseSendConfig = (env: {
   USESEND_API_KEY?: string;
-  USESEND_FROM?: string;
   USESEND_BASE_URL?: string;
+  USESEND_FROM?: string;
 }): UseSendConfig | null => {
   const apiKey = env.USESEND_API_KEY?.trim();
   const from = env.USESEND_FROM?.trim();
@@ -37,10 +37,10 @@ export const readUseSendConfig = (env: {
 export const sendUseSendEmail = async (
   config: UseSendConfig,
   input: {
-    to: string;
+    html?: string;
     subject: string;
     text: string;
-    html?: string;
+    to: string;
   }
 ): Promise<boolean> => {
   const payload: Record<string, string> = {
@@ -54,14 +54,17 @@ export const sendUseSendEmail = async (
   }
 
   try {
-    const response = await fetch(emailsUrl(config.baseUrl ?? USESEND_DEFAULT_BASE), {
-      body: JSON.stringify(payload),
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
+    const response = await fetch(
+      emailsUrl(config.baseUrl ?? USESEND_DEFAULT_BASE),
+      {
+        body: JSON.stringify(payload),
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }
+    );
     if (!response.ok) {
       const body = await response.text();
       console.error("sendUseSendEmail: request failed", {

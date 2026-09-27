@@ -6,7 +6,7 @@ import {
 } from "./data";
 import { notifyScheduledScanComplete } from "./scheduled-scan-notify";
 import type { ScanRow } from "./schema";
-import { runScanForBusiness } from "./scans";
+import { runScanForBusiness } from "./run-business-scan";
 
 const readSiteUrl = (): string | null => {
   const url =
@@ -37,7 +37,12 @@ export const runReservedMonthlyScan = async (input: {
   const businessId = reserved.businessExternalId ?? input.businessId;
   const business = await getBusiness(businessId);
   if (!business) {
-    return { ok: false, error: "Business not found", scan: null, skipped: false };
+    return {
+      error: "Business not found",
+      ok: false,
+      scan: null,
+      skipped: false,
+    };
   }
 
   const previousComplete = await getLatestCompleteScanDetails(businessId);
@@ -75,7 +80,12 @@ export const runReservedMonthlyScan = async (input: {
   }
 
   if (scan.status === "error") {
-    return { ok: false, scan, skipped: false, error: scan.error ?? "Scan failed" };
+    return {
+      error: scan.error ?? "Scan failed",
+      ok: false,
+      scan,
+      skipped: false,
+    };
   }
   return { ok: true, scan, skipped: false };
 };
