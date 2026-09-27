@@ -10,6 +10,7 @@ import {
 } from "./_generated/server";
 import { requireInternalSecret, siteUrl } from "./lib/internal";
 import {
+  checkResultResponseValidator,
   latestCompleteScanValidator,
   scanResponseValidator,
   scanSummaryValidator,
@@ -22,7 +23,7 @@ const nowIso = (): string => new Date().toISOString();
 const toScanResponse = (doc: {
   _id: string;
   businessExternalId: string;
-  trigger: "baseline" | "schedule";
+  trigger: "baseline" | "schedule" | "rescan";
   status: "queued" | "running" | "complete" | "error";
   score?: number;
   passCount: number;
@@ -56,7 +57,7 @@ const toScanResponse = (doc: {
 const toScanSummary = (doc: {
   _id: string;
   businessExternalId: string;
-  trigger: "baseline" | "schedule";
+  trigger: "baseline" | "schedule" | "rescan";
   status: "queued" | "running" | "complete" | "error";
   score?: number;
   passCount: number;
@@ -179,6 +180,47 @@ export const listForBusiness = query({
   returns: v.array(scanSummaryValidator),
 });
 
+export const getLatestCompleteDetails = query({
+  args: { businessExternalId: v.string(), secret: v.string() },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const rows = await ctx.db
+      .query("scans")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .order("desc")
+      .take(50);
+
+    const complete = rows
+      .filter((row) => row.status === "complete")
+      .toSorted((left, right) =>
+        (right.finishedAt ?? "").localeCompare(left.finishedAt ?? "")
+      );
+
+    const [latest] = complete;
+    if (!latest) {
+      return null;
+    }
+    return {
+      finishedAt: latest.finishedAt ?? null,
+      results: parseScanResultsJson(latest.resultsJson),
+      score: latest.score ?? null,
+    };
+  },
+  returns: v.union(
+    v.object({
+      finishedAt: v.union(v.string(), v.null()),
+      results: v.union(
+        v.record(v.string(), checkResultResponseValidator),
+        v.null()
+      ),
+      score: v.union(v.number(), v.null()),
+    }),
+    v.null()
+  ),
+});
+
 export const getLatestComplete = query({
   args: { businessExternalId: v.string() },
   handler: async (ctx, args) => {
@@ -245,7 +287,15 @@ export const runDue = internalAction({
   handler: async (ctx): Promise<{ failed: number; ran: number }> => {
     const secret = process.env.INTERNAL_API_SECRET;
     if (!secret) {
-      throw new Error("INTERNAL_API_SECRET is not configured");
+      console.error("runDue: INTERNAL_API_SECRET is not configured");
+      return { failed: 0, ran: 0 };
+    }
+    let baseUrl: string;
+    try {
+      baseUrl = siteUrl();
+    } catch {
+      console.error("runDue: SITE_URL is not configured");
+      return { failed: 0, ran: 0 };
     }
 
     const due: {
@@ -261,20 +311,17 @@ export const runDue = internalAction({
     for (const entitlement of due) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        const response = await fetch(
-          `${siteUrl()}/api/internal/scans/run-one`,
-          {
-            body: JSON.stringify({
-              businessId: entitlement.businessExternalId,
-              entitlementId: entitlement.id,
-            }),
-            headers: {
-              authorization: `Bearer ${secret}`,
-              "content-type": "application/json",
-            },
-            method: "POST",
-          }
-        );
+        const response = await fetch(`${baseUrl}/api/internal/scans/run-one`, {
+          body: JSON.stringify({
+            businessId: entitlement.businessExternalId,
+            entitlementId: entitlement.id,
+          }),
+          headers: {
+            authorization: `Bearer ${secret}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        });
         outcomes.push(response.ok);
       } catch {
         outcomes.push(false);

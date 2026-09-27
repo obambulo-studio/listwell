@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { GenericId } from "convex/values";
 
+import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
@@ -141,6 +142,11 @@ export const grant = mutation({
 
     if (args.userId) {
       await claimBusiness(ctx, args.businessExternalId, args.userId);
+      await ctx.scheduler.runAfter(
+        0,
+        internal["notification-preferences"].ensureForUser,
+        { userId: args.userId }
+      );
     }
 
     const existingRows = await ctx.db
@@ -338,4 +344,189 @@ export const setNextScanAtInternal = mutation({
     });
   },
   returns: v.null(),
+});
+
+export const reserveDueMonthlyScan = mutation({
+  args: {
+    entitlementId: v.id("entitlements"),
+    nowIso: v.string(),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const row = await ctx.db.get("entitlements", args.entitlementId);
+    if (
+      !row ||
+      row.status !== "active" ||
+      row.kind !== "report_monthly" ||
+      !row.nextScanAt
+    ) {
+      return { businessExternalId: null, reserved: false as const };
+    }
+    const nowMs = Date.parse(args.nowIso);
+    const dueMs = Date.parse(row.nextScanAt);
+    if (Number.isNaN(nowMs) || Number.isNaN(dueMs) || dueMs > nowMs) {
+      return { businessExternalId: null, reserved: false as const };
+    }
+    const newNext = nextScanAtFrom(new Date(nowMs));
+    await ctx.db.patch("entitlements", args.entitlementId, {
+      nextScanAt: newNext,
+      updatedAt: nowIso(),
+    });
+    return {
+      businessExternalId: row.businessExternalId,
+      reserved: true as const,
+    };
+  },
+  returns: v.object({
+    businessExternalId: v.union(v.string(), v.null()),
+    reserved: v.boolean(),
+  }),
+});
+
+const ONCE_RESCAN_FREE_LIMIT = 1;
+const ONCE_RESCAN_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const tryConsumeOnceRescan = mutation({
+  args: {
+    businessExternalId: v.string(),
+    nowIso: v.string(),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .collect();
+    const active = rows.find(
+      (row) => row.status === "active" && row.kind === "report_once"
+    );
+    if (!active) {
+      return {
+        allowed: false as const,
+        reason: "no_active_once_entitlement" as const,
+      };
+    }
+    const nowMs = Date.parse(args.nowIso);
+    const grantedMs = Date.parse(active.createdAt);
+    if (
+      Number.isNaN(nowMs) ||
+      Number.isNaN(grantedMs) ||
+      nowMs - grantedMs > ONCE_RESCAN_WINDOW_MS
+    ) {
+      return {
+        allowed: false as const,
+        reason: "window_expired" as const,
+      };
+    }
+    const used = active.onceRescansUsed ?? 0;
+    if (used >= ONCE_RESCAN_FREE_LIMIT) {
+      return {
+        allowed: false as const,
+        reason: "limit_reached" as const,
+      };
+    }
+    await ctx.db.patch("entitlements", active._id, {
+      onceRescansUsed: used + 1,
+      updatedAt: nowIso(),
+    });
+    return { allowed: true as const, reason: null };
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.union(
+      v.literal("no_active_once_entitlement"),
+      v.literal("window_expired"),
+      v.literal("limit_reached"),
+      v.null()
+    ),
+  }),
+});
+
+export const getScanNotificationRecipient = query({
+  args: { businessExternalId: v.string(), secret: v.string() },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const entitlements = await ctx.db
+      .query("entitlements")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .collect();
+    const active = entitlements.find(
+      (row) =>
+        row.status === "active" &&
+        (row.kind === "report_monthly" || row.kind === "report_once")
+    );
+    if (!active?.userId) {
+      return null;
+    }
+    const user = await authComponent.getAnyUserById(ctx, active.userId);
+    if (!user?.email) {
+      return null;
+    }
+    const prefs = await ctx.db
+      .query("notificationPreferences")
+      .withIndex("by_userId", (q) => q.eq("userId", active.userId as string))
+      .unique();
+    return {
+      email: user.email,
+      monthlyScanEmails: prefs?.monthlyScanEmails ?? true,
+      unsubscribeToken: prefs?.unsubscribeToken ?? null,
+    };
+  },
+  returns: v.union(
+    v.object({
+      email: v.string(),
+      monthlyScanEmails: v.boolean(),
+      unsubscribeToken: v.union(v.string(), v.null()),
+    }),
+    v.null()
+  ),
+});
+
+export const getOnceRescanStatus = query({
+  args: { businessExternalId: v.string(), nowIso: v.string() },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .collect();
+    const active = rows.find(
+      (row) => row.status === "active" && row.kind === "report_once"
+    );
+    if (!active) {
+      return {
+        available: false,
+        remaining: 0,
+        windowEndsAt: null,
+      };
+    }
+    const nowMs = Date.parse(args.nowIso);
+    const grantedMs = Date.parse(active.createdAt);
+    const windowEndsAt = new Date(
+      grantedMs + ONCE_RESCAN_WINDOW_MS
+    ).toISOString();
+    const used = active.onceRescansUsed ?? 0;
+    const remaining = Math.max(0, ONCE_RESCAN_FREE_LIMIT - used);
+    const inWindow =
+      !Number.isNaN(nowMs) &&
+      !Number.isNaN(grantedMs) &&
+      nowMs - grantedMs <= ONCE_RESCAN_WINDOW_MS;
+    return {
+      available: inWindow && remaining > 0,
+      remaining: inWindow ? remaining : 0,
+      windowEndsAt: inWindow ? windowEndsAt : null,
+    };
+  },
+  returns: v.object({
+    available: v.boolean(),
+    remaining: v.number(),
+    windowEndsAt: v.union(v.string(), v.null()),
+  }),
 });

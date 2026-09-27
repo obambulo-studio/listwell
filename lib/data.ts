@@ -439,6 +439,84 @@ export const setNextScanAt = async (
   });
 };
 
+export const reserveDueMonthlyScan = (
+  entitlementId: Id<"entitlements">,
+  now: Date
+): Promise<{ businessExternalId: string | null; reserved: boolean }> =>
+  convexMutation(api.entitlements.reserveDueMonthlyScan, {
+    entitlementId,
+    nowIso: now.toISOString(),
+  });
+
+export interface ScanEmailRecipient {
+  email: string;
+  monthlyScanEmails: boolean;
+  unsubscribeToken: string | null;
+}
+
+export const getScanEmailRecipient = async (
+  businessId: string
+): Promise<ScanEmailRecipient | null> => {
+  const row = await convexQuery(api.entitlements.getScanNotificationRecipient, {
+    businessExternalId: businessId,
+  });
+  if (!row) {
+    return null;
+  }
+  return row;
+};
+
+export const ensureNotificationPrefs = (userId: string): Promise<string> =>
+  convexMutation(api["notification-preferences"].ensureForUserInternal, {
+    userId,
+  });
+
+export const getLatestCompleteScanDetails = async (
+  businessId: string
+): Promise<{
+  score: number | null;
+  results: ScanRow["results"];
+  finishedAt: string | null;
+} | null> => {
+  const row = await convexQuery(api.scans.getLatestCompleteDetails, {
+    businessExternalId: businessId,
+  });
+  if (!row) {
+    return null;
+  }
+  const results =
+    row.results && typeof row.results === "object"
+      ? z.record(z.string(), checkResultSchema).parse(row.results)
+      : null;
+  return {
+    finishedAt: row.finishedAt,
+    results,
+    score: row.score,
+  };
+};
+
+export const tryConsumeOnceRescan = (
+  businessId: string,
+  now: Date
+): Promise<{
+  allowed: boolean;
+  reason:
+    | "limit_reached"
+    | "no_active_once_entitlement"
+    | "window_expired"
+    | null;
+}> =>
+  convexMutation(api.entitlements.tryConsumeOnceRescan, {
+    businessExternalId: businessId,
+    nowIso: now.toISOString(),
+  });
+
+export const getOnceRescanStatus = (businessId: string, now: Date) =>
+  convexPublicQuery(api.entitlements.getOnceRescanStatus, {
+    businessExternalId: businessId,
+    nowIso: now.toISOString(),
+  });
+
 const parseScanRow = (row: {
   id: string;
   businessId: string;

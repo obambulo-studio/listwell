@@ -1,48 +1,12 @@
-import { checkIdSchema, runChecks } from "@listwell/audit-engine";
-
-import {
-  getAuditEngineEnv,
-  getFetchWebsiteOptions,
-  toBusinessSnapshot,
-} from "./audit-env";
-import { scorePercent, statusFromResult } from "./chat-onboarding";
-import { checksForCategory } from "./checks/registry";
-import {
-  getBusiness,
-  getLatestCompleteScan,
-  insertScan,
-  listDueMonthlyEntitlements,
-  setNextScanAt,
-  updateScan,
-} from "./data";
-import { checkResultSchema, nextScanAtFrom, scanSummarySchema } from "./schema";
-import type { ScanRow, ScanSummary, ScanTrigger } from "./schema";
+import { getLatestCompleteScan, listDueMonthlyEntitlements } from "./data";
+import { runScanForBusiness } from "./run-business-scan";
+import { runReservedMonthlyScan } from "./scheduled-scan-run";
+import { scanSummarySchema } from "./schema";
+import type { ScanRow, ScanSummary } from "./schema";
 
 const BASELINE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-const countsFromResults = (
-  results: Record<string, { value: boolean | null; queued?: boolean }>
-) => {
-  let passCount = 0;
-  let failCount = 0;
-  let errorCount = 0;
-  for (const result of Object.values(results)) {
-    const status = statusFromResult(result);
-    if (status === "pass") {
-      passCount += 1;
-    } else if (status === "fail") {
-      failCount += 1;
-    } else if (status === "error") {
-      errorCount += 1;
-    }
-  }
-  return {
-    errorCount,
-    failCount,
-    passCount,
-    score: scorePercent({ fail: failCount, pass: passCount }),
-  };
-};
+export { runScanForBusiness } from "./run-business-scan";
 
 export const toScanSummary = (row: ScanRow): ScanSummary =>
   scanSummarySchema.parse({
@@ -57,71 +21,23 @@ export const toScanSummary = (row: ScanRow): ScanSummary =>
     trigger: row.trigger,
   });
 
-export const runScanForBusiness = async (
-  businessId: string,
-  trigger: ScanTrigger
-): Promise<ScanRow> => {
-  const business = await getBusiness(businessId);
-  if (!business) {
-    throw new Error("Business not found");
-  }
-
-  const startedAt = new Date().toISOString();
-  const scan = await insertScan({
-    businessId,
-    startedAt,
-    status: "running",
-    trigger,
-  });
-
+const processDueEntitlement = async (entitlement: {
+  businessId: string;
+  id: string;
+}): Promise<"failed" | "ok"> => {
   try {
-    const checkIds = checksForCategory(business.category).map((definition) =>
-      checkIdSchema.parse(definition.id)
-    );
-    const snapshot = toBusinessSnapshot(business);
-    const rawResults = await runChecks(snapshot, checkIds, {
-      ...(await getFetchWebsiteOptions()),
-      env: await getAuditEngineEnv(),
-      includeQueued: true,
+    const outcome = await runReservedMonthlyScan({
+      businessId: entitlement.businessId,
+      entitlementId: entitlement.id,
     });
-
-    const results: Record<
-      string,
-      ReturnType<typeof checkResultSchema.parse>
-    > = {};
-    for (const [id, result] of Object.entries(rawResults)) {
-      if (!result) {
-        continue;
-      }
-      results[id] = checkResultSchema.parse(result);
+    if (outcome.skipped) {
+      return "ok";
     }
-
-    const counts = countsFromResults(results);
-    return updateScan(scan.id, {
-      ...counts,
-      finishedAt: new Date().toISOString(),
-      results,
-      status: "complete",
-    });
-  } catch (error) {
-    return updateScan(scan.id, {
-      error: error instanceof Error ? error.message : "Scan failed",
-      finishedAt: new Date().toISOString(),
-      status: "error",
-    });
-  }
-};
-
-const processDueEntitlement = async (
-  entitlement: { businessId: string; id: string },
-  now: Date
-): Promise<"failed" | "ok"> => {
-  try {
-    const scan = await runScanForBusiness(entitlement.businessId, "schedule");
-    await setNextScanAt(entitlement.id, nextScanAtFrom(now));
-    return scan.status === "error" ? "failed" : "ok";
+    if (!outcome.ok) {
+      return "failed";
+    }
+    return outcome.scan.status === "error" ? "failed" : "ok";
   } catch {
-    await setNextScanAt(entitlement.id, nextScanAtFrom(now));
     return "failed";
   }
 };
@@ -133,16 +49,13 @@ export const runDueScans = async (
   } = {}
 ): Promise<{ ran: number; failed: number }> => {
   const now = input.now ?? new Date();
-  // Keep browser concurrency low on Workers: process due scans in small
-  // sequential batches instead of one wide Promise.all.
   const limit = Math.min(input.limit ?? 2, 5);
   const due = await listDueMonthlyEntitlements(now, limit);
 
   const outcomes: ("failed" | "ok")[] = [];
-  // Sequential on purpose: avoids concurrent Chromium bursts on Workers.
   for (const entitlement of due) {
     // eslint-disable-next-line no-await-in-loop
-    outcomes.push(await processDueEntitlement(entitlement, now));
+    outcomes.push(await processDueEntitlement(entitlement));
   }
 
   return {

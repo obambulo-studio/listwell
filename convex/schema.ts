@@ -38,6 +38,7 @@ export default defineSchema({
     createdAt: v.string(),
     kind: entitlementKindValidator,
     nextScanAt: v.optional(v.string()),
+    onceRescansUsed: v.optional(v.number()),
     polarOrderId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
     status: entitlementStatusValidator,
@@ -49,6 +50,15 @@ export default defineSchema({
     .index("by_polarOrderId", ["polarOrderId"])
     .index("by_polarSubscriptionId", ["polarSubscriptionId"])
     .index("by_status_and_nextScanAt", ["status", "nextScanAt"]),
+
+  notificationPreferences: defineTable({
+    monthlyScanEmails: v.boolean(),
+    unsubscribeToken: v.string(),
+    updatedAt: v.string(),
+    userId: v.string(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_unsubscribeToken", ["unsubscribeToken"]),
 
   reportShares: defineTable({
     businessExternalId: v.string(),

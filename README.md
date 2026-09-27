@@ -24,7 +24,13 @@ Worker bindings:
 
 The project does not use D1 or Drizzle. Discover does not need a D1 database. If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
 
-A Convex cron runs due monthly scans each hour (`internal.scans.runDue`). OpenNext config is `open-next.config.ts`.
+Scheduled monthly scans use a **Convex cron** (`convex/crons.ts` → `internal.scans.runDue` hourly at `:00` UTC). Convex owns entitlement due dates (`nextScanAt` on active `report_monthly` rows). Each due job calls the Worker at `POST /api/internal/scans/run-one`, which runs Chromium checks and writes Convex `scans` history. Scan execution stays on the Worker because Browser Rendering does not run in Convex. There is no Cloudflare Worker cron for scans (avoid duplicating schedulers).
+
+After a scheduled scan completes, the Worker may send a UseSend email (monthly summary or alert if the score drops or a listing breaks). Users can opt out via the link in the email (`GET /api/notifications/unsubscribe`).
+
+One-off buyers get **one free re-scan within 30 days** of purchase (`lib/scan-config.ts`: `ONCE_RESCAN_FREE_LIMIT`, `ONCE_RESCAN_WINDOW_DAYS`), enforced server-side at `POST /api/businesses/{id}/rescan`.
+
+OpenNext config is `open-next.config.ts`.
 
 ## Stack
 
@@ -142,7 +148,7 @@ Payments and email:
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar API and webhooks
 - `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, `POLAR_PRODUCT_REPORT_YEARLY` - Polar product IDs (create products in Polar at the amounts in `lib/polar.ts`; IDs are not hardcoded in the app). Yearly checkout is hidden when `POLAR_PRODUCT_REPORT_YEARLY` is unset.
 - `POLAR_SERVER` - `sandbox` or `production`
-- `USESEND_API_KEY`, `USESEND_FROM` - email one-time codes (required for production sign-in)
+- `USESEND_API_KEY`, `USESEND_FROM` - sign-in codes (Convex) and optional monthly scan emails (Worker; set as Worker secrets via `bun run cf:sync-secrets` / dashboard)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
 
 Local:

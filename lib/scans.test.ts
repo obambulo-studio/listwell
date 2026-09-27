@@ -1,131 +1,60 @@
-import type * as AuditEngine from "@listwell/audit-engine";
-import { runChecks } from "@listwell/audit-engine";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runDueScans } from "./scans";
-import type { Business, ScanRow } from "./schema";
+import type { ScanRow } from "./schema";
 
-const {
-  getBusiness,
-  insertScan,
-  listDueMonthlyEntitlements,
-  setNextScanAt,
-  updateScan,
-} = vi.hoisted(() => ({
-  getBusiness: vi.fn<() => Promise<Business | null>>(),
-  insertScan:
-    vi.fn<
-      (input: {
-        businessId: string;
-        startedAt: string;
-        status: ScanRow["status"];
-        trigger: ScanRow["trigger"];
-      }) => Promise<ScanRow>
-    >(),
-  listDueMonthlyEntitlements:
-    vi.fn<
-      (
-        now: Date,
-        limit: number
-      ) => Promise<
-        { businessId: string; id: string; nextScanAt: string | null }[]
-      >
-    >(),
-  setNextScanAt: vi.fn<() => Promise<void>>(),
-  updateScan:
-    vi.fn<(scanId: string, patch: Partial<ScanRow>) => Promise<ScanRow>>(),
-}));
+const { listDueMonthlyEntitlements, runReservedMonthlyScan } = vi.hoisted(
+  () => ({
+    listDueMonthlyEntitlements:
+      vi.fn<
+        (
+          now: Date,
+          limit: number
+        ) => Promise<
+          { businessId: string; id: string; nextScanAt: string | null }[]
+        >
+      >(),
+    runReservedMonthlyScan:
+      vi.fn<
+        () => Promise<
+          | { ok: true; skipped: true }
+          | { ok: true; skipped: false; scan: ScanRow }
+          | { ok: false; skipped: false; scan: ScanRow | null; error: string }
+        >
+      >(),
+  })
+);
 
-vi.mock(import("@listwell/audit-engine"), async (importOriginal) => {
-  const original = await importOriginal<typeof AuditEngine>();
-  return {
-    ...original,
-    runChecks: vi.fn<typeof runChecks>(),
-  };
-});
-
-vi.mock(import("./audit-env"), () => ({
-  getAuditEngineEnv: vi.fn<() => Promise<Record<string, never>>>(() =>
-    Promise.resolve({})
-  ),
-  getFetchWebsiteOptions: vi.fn<() => Promise<Record<string, never>>>(() =>
-    Promise.resolve({})
-  ),
-  toBusinessSnapshot: vi.fn<(business: Business) => Business>(
-    (business) => business
-  ),
+vi.mock(import("./scheduled-scan-run"), () => ({
+  runReservedMonthlyScan,
 }));
 
 vi.mock(import("./data"), () => ({
-  getBusiness,
-  insertScan,
   listDueMonthlyEntitlements,
-  setNextScanAt,
-  updateScan,
 }));
-
-const mockedRunChecks = vi.mocked(runChecks);
 
 describe(runDueScans, () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedRunChecks.mockResolvedValue({
-      website: { label: "Pass", type: "check", value: true },
-    });
-    getBusiness.mockResolvedValue({
-      category: "food",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      deliverooUrl: null,
-      doorDashUrl: null,
-      facebookUsername: null,
-      id: "biz-scan-due",
-      instagramUsername: null,
-      linkedinUrl: null,
-      locations: [],
-      menulogUrl: null,
-      name: "Due cafe",
-      tiktokUsername: null,
-      uberEatsUrl: null,
-      updatedAt: "2026-01-01T00:00:00.000Z",
-      userId: null,
-      websiteUrl: null,
-      xUsername: null,
-      youtubeUrl: null,
-    });
-    insertScan.mockImplementation((input) =>
-      Promise.resolve({
-        businessId: input.businessId,
-        createdAt: input.startedAt,
+    runReservedMonthlyScan.mockResolvedValue({
+      ok: true,
+      scan: {
+        businessId: "biz-scan-due",
+        createdAt: "2026-09-02T02:00:00.000Z",
         error: null,
         errorCount: 0,
         failCount: 0,
-        finishedAt: null,
+        finishedAt: "2026-09-02T02:05:00.000Z",
         id: "scan-1",
         passCount: 1,
         results: null,
         score: 100,
-        startedAt: input.startedAt,
-        status: "running",
-        trigger: input.trigger,
-      })
-    );
-    updateScan.mockImplementation((_scanId, patch) =>
-      Promise.resolve({
-        businessId: "biz-scan-due",
-        createdAt: "2026-09-02T02:00:00.000Z",
-        error: patch.error ?? null,
-        errorCount: patch.errorCount ?? 0,
-        failCount: patch.failCount ?? 0,
-        finishedAt: patch.finishedAt ?? null,
-        id: "scan-1",
-        passCount: patch.passCount ?? 1,
-        results: patch.results ?? null,
-        score: patch.score ?? 100,
         startedAt: "2026-09-02T02:00:00.000Z",
-        status: patch.status ?? "complete",
+        status: "complete",
         trigger: "schedule",
-      })
-    );
+      },
+      skipped: false,
+    });
   });
 
   it("runs only due active monthly entitlements and rolls nextScanAt forward", async () => {
@@ -141,15 +70,35 @@ describe(runDueScans, () => {
     const result = await runDueScans({ limit: 5, now });
     expect(result.ran).toBe(1);
     expect(result.failed).toBe(0);
-    expect(mockedRunChecks).toHaveBeenCalledOnce();
-    expect(setNextScanAt).toHaveBeenCalledWith("ent-1", expect.any(String));
+    expect(runReservedMonthlyScan).toHaveBeenCalledOnce();
   });
 
   it("continues after a scan error", async () => {
-    mockedRunChecks
-      .mockRejectedValueOnce(new Error("scan failed"))
+    runReservedMonthlyScan
       .mockResolvedValueOnce({
-        website: { label: "Fail", type: "check", value: false },
+        error: "scan failed",
+        ok: false,
+        scan: null,
+        skipped: false,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        scan: {
+          businessId: "biz-scan-error-2",
+          createdAt: "2026-09-02T03:00:00.000Z",
+          error: null,
+          errorCount: 0,
+          failCount: 1,
+          finishedAt: "2026-09-02T03:05:00.000Z",
+          id: "scan-2",
+          passCount: 1,
+          results: null,
+          score: 50,
+          startedAt: "2026-09-02T03:00:00.000Z",
+          status: "complete",
+          trigger: "schedule",
+        },
+        skipped: false,
       });
 
     const now = new Date("2026-09-02T03:00:00.000Z");
@@ -169,7 +118,6 @@ describe(runDueScans, () => {
     const result = await runDueScans({ limit: 5, now });
     expect(result.ran).toBe(2);
     expect(result.failed).toBe(1);
-    expect(mockedRunChecks).toHaveBeenCalledTimes(2);
-    expect(setNextScanAt).toHaveBeenCalledTimes(2);
+    expect(runReservedMonthlyScan).toHaveBeenCalledTimes(2);
   });
 });
