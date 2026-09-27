@@ -272,7 +272,10 @@ export const reportShareRecordSchema = z.object({
 export type ReportShareRecord = z.infer<typeof reportShareRecordSchema>;
 
 export const createReportShareRequestSchema = z.object({
-  expiresInDays: z.union([z.literal(7), z.literal(30)]).nullable().optional(),
+  expiresInDays: z
+    .union([z.literal(7), z.literal(30)])
+    .nullable()
+    .optional(),
 });
 export type CreateReportShareRequest = z.infer<
   typeof createReportShareRequestSchema

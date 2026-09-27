@@ -6,7 +6,9 @@ import useSWR from "swr";
 import { reportShareStateSchema } from "@/lib/schema";
 import type { ReportShareState } from "@/lib/schema";
 
-const fetchShareState = async (businessId: string): Promise<ReportShareState> => {
+const fetchShareState = async (
+  businessId: string
+): Promise<ReportShareState> => {
   const response = await fetch(`/api/businesses/${businessId}/share`, {
     credentials: "same-origin",
   });
@@ -95,8 +97,7 @@ export const ReportShareDialog = ({
   const [copied, setCopied] = useState(false);
 
   const error =
-    actionError ??
-    (loadError instanceof Error ? loadError.message : null);
+    actionError ?? (loadError instanceof Error ? loadError.message : null);
 
   const handleCreate = async () => {
     setBusy(true);

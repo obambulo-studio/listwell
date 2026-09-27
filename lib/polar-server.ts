@@ -90,20 +90,36 @@ const readPaymentsDisabledFlag = async (): Promise<boolean> => {
   });
 };
 
-export const getSharedReportViewerAccess = async (): Promise<EntitlementState> => {
-  const [config, authEnabled, paymentsDisabledFlag] = await Promise.all([
-    getPolarConfig(),
-    isAuthEnabled(),
-    readPaymentsDisabledFlag(),
-  ]);
-  const polarConfigured = Boolean(config);
-  const waived = fixStepsWithoutPayment({
-    intentionallyDisabled: paymentsDisabledFlag,
-    nodeEnv: process.env.NODE_ENV ?? "development",
-    polarConfigured,
-  });
+export const getSharedReportViewerAccess =
+  async (): Promise<EntitlementState> => {
+    const [config, authEnabled, paymentsDisabledFlag] = await Promise.all([
+      getPolarConfig(),
+      isAuthEnabled(),
+      readPaymentsDisabledFlag(),
+    ]);
+    const polarConfigured = Boolean(config);
+    const waived = fixStepsWithoutPayment({
+      intentionallyDisabled: paymentsDisabledFlag,
+      nodeEnv: process.env.NODE_ENV ?? "development",
+      polarConfigured,
+    });
 
-  if (!config) {
+    if (!config) {
+      return sharedViewerEntitlementState(
+        entitlementStateSchema.parse({
+          authEnabled,
+          backendAvailable: true,
+          fixStepsWithoutPayment: waived,
+          kind: null,
+          maskedEmail: null,
+          monthlyAvailable: false,
+          paymentsEnabled: false,
+          sessionRequired: false,
+          unlocked: false,
+        })
+      );
+    }
+
     return sharedViewerEntitlementState(
       entitlementStateSchema.parse({
         authEnabled,
@@ -111,28 +127,13 @@ export const getSharedReportViewerAccess = async (): Promise<EntitlementState> =
         fixStepsWithoutPayment: waived,
         kind: null,
         maskedEmail: null,
-        monthlyAvailable: false,
-        paymentsEnabled: false,
+        monthlyAvailable: Boolean(config.productReportMonthly),
+        paymentsEnabled: true,
         sessionRequired: false,
         unlocked: false,
       })
     );
-  }
-
-  return sharedViewerEntitlementState(
-    entitlementStateSchema.parse({
-      authEnabled,
-      backendAvailable: true,
-      fixStepsWithoutPayment: waived,
-      kind: null,
-      maskedEmail: null,
-      monthlyAvailable: Boolean(config.productReportMonthly),
-      paymentsEnabled: true,
-      sessionRequired: false,
-      unlocked: false,
-    })
-  );
-};
+  };
 
 export const getReportAccess = async (
   businessId: string

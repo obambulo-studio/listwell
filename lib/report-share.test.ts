@@ -27,7 +27,9 @@ describe(resolveShareExpiresAt, () => {
     const after = Date.now();
     expect(expiresAt).not.toBeNull();
     const parsed = Date.parse(expiresAt ?? "");
-    expect(parsed).toBeGreaterThanOrEqual(before + 7 * 24 * 60 * 60 * 1000 - 1000);
+    expect(parsed).toBeGreaterThanOrEqual(
+      before + 7 * 24 * 60 * 60 * 1000 - 1000
+    );
     expect(parsed).toBeLessThanOrEqual(after + 7 * 24 * 60 * 60 * 1000 + 1000);
   });
 });

@@ -3,12 +3,12 @@ import { ZodError, z } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { consumeRateLimit } from "@/lib/rate-limit-kv";
-import { canManageReportShare } from "@/lib/report-share-auth";
 import {
   createReportShare,
   reportShareStateForBusiness,
   revokeReportShare,
 } from "@/lib/report-share";
+import { canManageReportShare } from "@/lib/report-share-auth";
 import { createReportShareRequestSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +30,18 @@ export const GET = async (
     const { id } = paramsSchema.parse(await context.params);
     const access = await canManageReportShare(id);
     if (access.reason === "not_found") {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 }
+      );
     }
     if (!access.allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    const state = await reportShareStateForBusiness(id, originFromRequest(request));
+    const state = await reportShareStateForBusiness(
+      id,
+      originFromRequest(request)
+    );
     return NextResponse.json(state);
   } catch (error) {
     if (error instanceof ZodError) {
@@ -71,7 +77,10 @@ export const POST = async (
     const { id } = paramsSchema.parse(await context.params);
     const manage = await canManageReportShare(id);
     if (manage.reason === "not_found") {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 }
+      );
     }
     if (!manage.allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -104,7 +113,10 @@ export const DELETE = async (
     const { id } = paramsSchema.parse(await context.params);
     const manage = await canManageReportShare(id);
     if (manage.reason === "not_found") {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Business not found" },
+        { status: 404 }
+      );
     }
     if (!manage.allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

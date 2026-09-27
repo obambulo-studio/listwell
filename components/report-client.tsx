@@ -1060,10 +1060,48 @@ const ReportSharedBanner = ({
   return (
     <ReportSystemNotice>
       Read-only shared report
-      {expiryLabel ? ` · link expires ${expiryLabel}` : ""}. Paid fix steps
-      and account details are not shown.
+      {expiryLabel ? ` · link expires ${expiryLabel}` : ""}. Paid fix steps and
+      account details are not shown.
     </ReportSystemNotice>
   );
+};
+
+const ReportTopNotices = ({
+  access,
+  businessId,
+  checkoutRetryId,
+  isOwner,
+  kvExpiryDays,
+  purchasePending,
+  shareExpiresAt,
+  showKvExpiryNotice,
+}: {
+  access: EntitlementState;
+  businessId: string;
+  checkoutRetryId?: string;
+  isOwner: boolean;
+  kvExpiryDays: number;
+  purchasePending: boolean;
+  shareExpiresAt?: string | null;
+  showKvExpiryNotice: boolean;
+}) => {
+  if (isOwner) {
+    return (
+      <>
+        {showKvExpiryNotice ? (
+          <ReportKvExpiryNotice days={kvExpiryDays} />
+        ) : null}
+        {access.backendAvailable ? null : <ReportBackendUnavailableNotice />}
+        {purchasePending ? (
+          <ReportPurchasePendingNotice
+            businessId={businessId}
+            checkoutRetryId={checkoutRetryId}
+          />
+        ) : null}
+      </>
+    );
+  }
+  return <ReportSharedBanner expiresAt={shareExpiresAt} />;
 };
 
 export const ReportClient = ({
@@ -1164,239 +1202,134 @@ export const ReportClient = ({
   };
 
   return (
-    <ReportClientView
-      access={access}
-      briefCaption={briefCaption}
-      business={business}
-      checkoutError={checkoutError}
-      checkoutReturned={checkoutReturned}
-      checkoutRetryId={checkoutRetryId}
-      checksCaption={checksCaption}
-      citationChecks={citationChecks}
-      counts={counts}
-      filter={filter}
-      groupedChecks={groupedChecks}
-      isOwner={isOwner}
-      kvExpiryDays={kvExpiryDays}
-      listingsCaption={listingsCaption}
-      profiles={profiles}
-      purchasePending={purchasePending}
-      redirecting={redirecting}
-      scanHistory={scanHistory}
-      selected={selected}
-      selectedDetail={selectedDetail}
-      selectedId={selectedId}
-      shareExpiresAt={shareExpiresAt}
-      shareOpen={shareOpen}
-      showFixSteps={showFixSteps}
-      showKvExpiryNotice={showKvExpiryNotice}
-      summary={summary}
-      visibilityScore={visibilityScore}
-      onCheckout={(plan) => {
-        void startCheckout(plan);
-      }}
-      onFilterChange={setFilter}
-      onSelectCheck={setPickedId}
-      onShareClose={() => setShareOpen(false)}
-      onShareOpen={() => setShareOpen(true)}
-    />
-  );
-};
-
-const ReportClientView = ({
-  access,
-  briefCaption,
-  business,
-  checkoutError,
-  checkoutReturned,
-  checkoutRetryId,
-  checksCaption,
-  citationChecks,
-  counts,
-  filter,
-  groupedChecks,
-  isOwner,
-  kvExpiryDays,
-  listingsCaption,
-  profiles,
-  purchasePending,
-  redirecting,
-  scanHistory,
-  selected,
-  selectedDetail,
-  selectedId,
-  shareExpiresAt,
-  shareOpen,
-  showFixSteps,
-  showKvExpiryNotice,
-  summary,
-  visibilityScore,
-  onCheckout,
-  onFilterChange,
-  onSelectCheck,
-  onShareClose,
-  onShareOpen,
-}: {
-  access: EntitlementState;
-  briefCaption: string | null;
-  business: Business;
-  checkoutError: string | null;
-  checkoutReturned: boolean;
-  checkoutRetryId?: string;
-  checksCaption: string;
-  citationChecks: { id: string; title: string }[];
-  counts: ReturnType<typeof visibilityCounts>;
-  filter: "failures" | "all";
-  groupedChecks: { category: string; items: LiveCheck[] }[];
-  isOwner: boolean;
-  kvExpiryDays: number;
-  listingsCaption: string;
-  profiles: ReturnType<typeof businessToProfiles>;
-  purchasePending: boolean;
-  redirecting: CheckoutPlan | null;
-  scanHistory: ScanSummary[];
-  selected: LiveCheck | undefined;
-  selectedDetail: string | undefined;
-  selectedId: string | undefined;
-  shareExpiresAt?: string | null;
-  shareOpen: boolean;
-  showFixSteps: boolean;
-  showKvExpiryNotice: boolean;
-  summary: AuditSummaryResult;
-  visibilityScore: number;
-  onCheckout: (plan: CheckoutPlan) => void;
-  onFilterChange: (filter: "failures" | "all") => void;
-  onSelectCheck: (id: string) => void;
-  onShareClose: () => void;
-  onShareOpen: () => void;
-}) => (
-  <article
-    className={
-      isOwner ? "listwell-report" : "listwell-report listwell-report--shared"
-    }
-  >
-    {shareOpen ? (
-      <ReportShareDialog businessId={business.id} onClose={onShareClose} />
-    ) : null}
-    {isOwner ? null : <ReportSharedBanner expiresAt={shareExpiresAt} />}
-    {isOwner && showKvExpiryNotice ? (
-      <ReportKvExpiryNotice days={kvExpiryDays} />
-    ) : null}
-    {isOwner && !access.backendAvailable ? (
-      <ReportBackendUnavailableNotice />
-    ) : null}
-    {isOwner && purchasePending ? (
-      <ReportPurchasePendingNotice
+    <article
+      className={
+        isOwner ? "listwell-report" : "listwell-report listwell-report--shared"
+      }
+    >
+      {shareOpen ? (
+        <ReportShareDialog
+          businessId={business.id}
+          onClose={() => setShareOpen(false)}
+        />
+      ) : null}
+      <ReportTopNotices
+        access={access}
         businessId={business.id}
         checkoutRetryId={checkoutRetryId}
+        isOwner={isOwner}
+        kvExpiryDays={kvExpiryDays}
+        purchasePending={purchasePending}
+        shareExpiresAt={shareExpiresAt}
+        showKvExpiryNotice={showKvExpiryNotice}
       />
-    ) : null}
-    <header className="listwell-report__hero">
-      <div className="listwell-report__hero-top">
-        <h1 className="vbg-title">{business.name}</h1>
-        <div className="listwell-report__toolbar listwell-report__toolbar--screen">
-          {isOwner ? (
+      <header className="listwell-report__hero">
+        <div className="listwell-report__hero-top">
+          <h1 className="vbg-title">{business.name}</h1>
+          <div className="listwell-report__toolbar listwell-report__toolbar--screen">
+            {isOwner ? (
+              <button
+                className="listwell-report__button listwell-report__button--quiet"
+                type="button"
+                onClick={() => setShareOpen(true)}
+              >
+                Share
+              </button>
+            ) : null}
             <button
-              className="listwell-report__button listwell-report__button--quiet"
+              className="listwell-report__button"
               type="button"
-              onClick={onShareOpen}
+              onClick={() => window.print()}
             >
-              Share
+              Download PDF / Print
             </button>
-          ) : null}
-          <button
-            className="listwell-report__button"
-            type="button"
-            onClick={() => window.print()}
-          >
-            Download PDF / Print
-          </button>
+          </div>
         </div>
-      </div>
-      {isOwner && access.kind === "report_monthly" ? (
-        <p className="vbg-caption listwell-report__badge">
-          Monthly scans active
+        {isOwner && access.kind === "report_monthly" ? (
+          <p className="vbg-caption listwell-report__badge">
+            Monthly scans active
+          </p>
+        ) : null}
+        <p className="vbg-display listwell-report__score-value">{`${visibilityScore}%`}</p>
+        <p className="vbg-caption listwell-report__score-caption">
+          of scored checks
         </p>
-      ) : null}
-      <p className="vbg-display listwell-report__score-value">{`${visibilityScore}%`}</p>
-      <p className="vbg-caption listwell-report__score-caption">
-        of scored checks
-      </p>
-    </header>
+      </header>
 
-    <dl className="listwell-report__stats">
-      <div className="listwell-report__stat">
-        <dt className="vbg-stat-label">Passing</dt>
-        <dd className="vbg-stat-value">{counts.pass}</dd>
-      </div>
-      <div className="listwell-report__stat">
-        <dt className="vbg-stat-label">Need work</dt>
-        <dd className="vbg-stat-value">{counts.fail}</dd>
-      </div>
-      <div className="listwell-report__stat">
-        <dt className="vbg-stat-label">Skipped</dt>
-        <dd className="vbg-stat-value">{counts.error}</dd>
-      </div>
-    </dl>
+      <dl className="listwell-report__stats">
+        <div className="listwell-report__stat">
+          <dt className="vbg-stat-label">Passing</dt>
+          <dd className="vbg-stat-value">{counts.pass}</dd>
+        </div>
+        <div className="listwell-report__stat">
+          <dt className="vbg-stat-label">Need work</dt>
+          <dd className="vbg-stat-value">{counts.fail}</dd>
+        </div>
+        <div className="listwell-report__stat">
+          <dt className="vbg-stat-label">Skipped</dt>
+          <dd className="vbg-stat-value">{counts.error}</dd>
+        </div>
+      </dl>
 
-    <ReportOverviewSection
-      summary={summary}
-      citationChecks={citationChecks}
-      briefCaption={briefCaption}
-      onSelectCheck={onSelectCheck}
-    />
-
-    {isOwner ? (
-      <ReportAccessSection
-        access={access}
-        checkoutReturned={checkoutReturned}
+      <ReportOverviewSection
         summary={summary}
         citationChecks={citationChecks}
-        redirecting={redirecting}
-        checkoutError={checkoutError}
-        onSelectCheck={onSelectCheck}
-        onCheckout={onCheckout}
-        onUnlocked={() => {
-          window.location.replace(`/${business.id}`);
-        }}
+        briefCaption={briefCaption}
+        onSelectCheck={setPickedId}
       />
-    ) : null}
 
-    {isOwner &&
-    access.kind === "report_monthly" &&
-    scanHistory.length > 0 ? (
-      <ScanHistorySection scans={scanHistory} />
-    ) : null}
+      {isOwner ? (
+        <ReportAccessSection
+          access={access}
+          checkoutReturned={checkoutReturned}
+          summary={summary}
+          citationChecks={citationChecks}
+          redirecting={redirecting}
+          checkoutError={checkoutError}
+          onSelectCheck={setPickedId}
+          onCheckout={(plan) => {
+            void startCheckout(plan);
+          }}
+          onUnlocked={() => {
+            window.location.replace(`/${business.id}`);
+          }}
+        />
+      ) : null}
 
-    <ChecksLedgerSection
-      groupedChecks={groupedChecks}
-      checksCaption={checksCaption}
-      filter={filter}
-      selectedId={selectedId}
-      businessCategory={business.category}
-      onFilterChange={onFilterChange}
-      onSelectCheck={onSelectCheck}
-    />
+      {isOwner && access.kind === "report_monthly" && scanHistory.length > 0 ? (
+        <ScanHistorySection scans={scanHistory} />
+      ) : null}
 
-    {selected ? (
-      <SelectedCheckSection
-        selected={selected}
-        selectedDetail={selectedDetail}
+      <ChecksLedgerSection
+        groupedChecks={groupedChecks}
+        checksCaption={checksCaption}
+        filter={filter}
+        selectedId={selectedId}
         businessCategory={business.category}
-        showFixSteps={showFixSteps}
+        onFilterChange={setFilter}
+        onSelectCheck={setPickedId}
       />
-    ) : null}
 
-    <ListingsSection
-      businessId={business.id}
-      profiles={profiles}
-      listingsCaption={listingsCaption}
-      showEditLink={isOwner}
-    />
-    <footer aria-hidden="true" className="listwell-report__print-footer">
-      <p className="vbg-caption">
-        Listwell · listwell.dev · local SEO audit for Australian businesses
-      </p>
-    </footer>
-  </article>
-);
+      {selected ? (
+        <SelectedCheckSection
+          selected={selected}
+          selectedDetail={selectedDetail}
+          businessCategory={business.category}
+          showFixSteps={showFixSteps}
+        />
+      ) : null}
+
+      <ListingsSection
+        businessId={business.id}
+        profiles={profiles}
+        listingsCaption={listingsCaption}
+        showEditLink={isOwner}
+      />
+      <footer aria-hidden="true" className="listwell-report__print-footer">
+        <p className="vbg-caption">
+          Listwell · listwell.dev · local SEO audit for Australian businesses
+        </p>
+      </footer>
+    </article>
+  );
+};

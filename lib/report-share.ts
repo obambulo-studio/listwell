@@ -1,15 +1,17 @@
-import { z } from "zod";
-
 import { getCloudflareEnv } from "./audit-env";
-import { api, convexMutation, convexPublicQuery } from "./convex/server";
 import { runConvexRead } from "./convex-read";
+import { api, convexMutation, convexPublicQuery } from "./convex/server";
 import { BUSINESS_KV_TTL_SECONDS } from "./data";
 import {
   createReportShareRequestSchema,
   reportShareRecordSchema,
   reportShareStateSchema,
 } from "./schema";
-import type { CreateReportShareRequest, ReportShareRecord } from "./schema";
+import type {
+  CreateReportShareRequest,
+  ReportShareRecord,
+  ReportShareState,
+} from "./schema";
 
 const shareTokenKey = (token: string): string => `report-share:token:${token}`;
 const shareActiveKey = (businessId: string): string =>
@@ -49,10 +51,7 @@ const base64UrlFromBytes = (bytes: Uint8Array): string => {
     binary += String.fromCodePoint(byte);
   }
   const base64 = btoa(binary);
-  return base64
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+  return base64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
 };
 
 export const generateReportShareToken = (): string => {
@@ -93,9 +92,7 @@ const kvTtlForShare = (
   return Math.min(...caps);
 };
 
-const writeShareToKv = async (
-  record: ReportShareRecord
-): Promise<void> => {
+const writeShareToKv = async (record: ReportShareRecord): Promise<void> => {
   writeShareToMemory(record);
   const env = await getCloudflareEnv();
   const kv = env?.AUDIT_KV;
@@ -282,7 +279,7 @@ const readShareRecordRaw = async (
 export const revokeReportShare = async (
   businessId: string,
   token?: string
-): Promise<z.infer<typeof reportShareStateSchema>> => {
+): Promise<ReportShareState> => {
   const active = token
     ? await readShareRecordRaw(token)
     : await getActiveReportShare(businessId);
@@ -320,7 +317,7 @@ export const createReportShare = async (input: {
   businessId: string;
   expiresInDays?: CreateReportShareRequest["expiresInDays"];
   origin: string;
-}): Promise<z.infer<typeof reportShareStateSchema>> => {
+}): Promise<ReportShareState> => {
   const expiresAt = resolveShareExpiresAt({
     expiresInDays: input.expiresInDays,
   });
@@ -357,7 +354,7 @@ export const createReportShare = async (input: {
 export const reportShareStateForBusiness = async (
   businessId: string,
   origin: string
-): Promise<z.infer<typeof reportShareStateSchema>> => {
+): Promise<ReportShareState> => {
   const active = await getActiveReportShare(businessId);
   if (!active) {
     return reportShareStateSchema.parse({
