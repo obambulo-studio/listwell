@@ -3,6 +3,15 @@ interface KVNamespace {
     key: string,
     type?: "text" | "json"
   ) => Promise<string | null | unknown>;
+  list: (options?: {
+    prefix?: string;
+    limit?: number;
+    cursor?: string;
+  }) => Promise<{
+    keys: { name: string }[];
+    list_complete: boolean;
+    cursor?: string;
+  }>;
   put: (
     key: string,
     value: string,
@@ -111,6 +120,7 @@ interface CloudflareEnv {
   POLAR_PRODUCT_REPORT_ONCE?: string;
   POLAR_SERVER?: string;
   POLAR_WEBHOOK_SECRET?: string;
+  SITE_PASSWORD?: string;
   SITE_URL?: string;
   TYPESAFE_API_KEY?: string;
   TYPESAFE_MODEL?: string;

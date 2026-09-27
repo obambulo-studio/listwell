@@ -125,6 +125,7 @@ App and auth:
 - `NEXT_PUBLIC_SITE_URL`, `SITE_URL` - public app URL, for example `http://localhost:3000`
 - `BETTER_AUTH_SECRET` - session signing (generate a long random string)
 - `INTERNAL_API_SECRET` - shared secret for Next.js and Convex scan callbacks
+- `SITE_PASSWORD` - optional Worker secret that enables the public site password gate (leave unset locally)
 
 Lookups:
 
@@ -190,7 +191,7 @@ Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC
 
 Bindings:
 
-- `AUDIT_KV` - KV namespace for audit jobs
+- `AUDIT_KV` - KV namespace for audit jobs and early-access sign-ups (`site-interest:by-email:*`)
 - `NEXT_INC_CACHE_R2_BUCKET` - OpenNext incremental cache (`listwell-next-cache`)
 - `NEXT_CACHE_DO_QUEUE` - OpenNext ISR revalidation queue
 - `BROWSER` - Cloudflare Browser Rendering
@@ -198,6 +199,40 @@ Bindings:
 - `IMAGES` - Cloudflare Images for Next.js image optimization
 
 Set remaining Worker secrets with `wrangler secret put` or `bun run cf:sync-env`. See `.env.example`.
+
+### Public site password gate
+
+When `SITE_PASSWORD` is set on the Worker, visitors see an early-access landing page with:
+
+- a password field (sets an HttpOnly cookie for 30 days on success), and
+- a waitlist form (email required; name and a short business or website note optional).
+
+If `SITE_PASSWORD` is unset, the gate is off (default for local development). Production should set it before launch:
+
+```bash
+npx wrangler secret put SITE_PASSWORD --config wrangler.jsonc
+# or add SITE_PASSWORD to .env.local and run:
+bun run cf:sync-env
+```
+
+Health checks, `robots.txt`, `sitemap.xml`, static assets, Better Auth (`/api/auth/*`), Polar webhooks, and the gate APIs stay reachable without the cookie.
+
+Waitlist rows are stored in `AUDIT_KV` under `site-interest:by-email:<email>` (easy to migrate into Convex later).
+
+Export sign-ups:
+
+```bash
+# JSON via authenticated API (uses INTERNAL_API_SECRET)
+curl -sS -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  "https://listwell.dev/api/internal/site-interest" | jq .
+
+# CSV download
+curl -sS -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  "https://listwell.dev/api/internal/site-interest?format=csv" -o listwell-site-interest.csv
+
+# Or read KV directly with Wrangler
+bash scripts/export-site-interest.sh site-interest-export.json
+```
 
 - `GOOGLE_API_KEY` - required for full Google Business Profile quality
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - social and website discovery
