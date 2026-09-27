@@ -8,11 +8,12 @@ import {
   PrimaryButton,
   QuietButton,
 } from "@/components/listwell/actions";
-import { fieldControlClassName } from "@/components/listwell/form-controls";
+import { ListwellSelect } from "@/components/listwell/select-field";
 import { PlaceSearch } from "@/components/place-search";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SelectItem } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -228,29 +229,26 @@ const AddListingForm = ({
   const mapsChannel = channelId === "google-maps" || channelId === "apple-maps";
   return (
     <form className="flex flex-col gap-4" action={onSubmitListing}>
-      <Field>
-        <FieldLabel htmlFor="channel">Channel</FieldLabel>
-        <select
-          id="channel"
-          name="channel"
-          className={fieldControlClassName}
-          value={channelId}
-          onChange={(event) => {
-            onChannelChange(
-              event.target.value === ""
-                ? ""
-                : channelIdSchema.parse(event.target.value)
-            );
-          }}
-        >
-          <option value="">Select a channel</option>
-          {available.map((id) => (
-            <option key={id} value={id}>
-              {CHANNEL_CONFIG[id].name}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <ListwellSelect
+        id="channel"
+        label="Channel"
+        value={channelId === "" ? "__none__" : channelId}
+        onValueChange={(next) => {
+          if (!next || next === "__none__") {
+            onChannelChange("");
+            return;
+          }
+          onChannelChange(channelIdSchema.parse(next));
+        }}
+        placeholder="Select a channel"
+      >
+        <SelectItem value="__none__">Select a channel</SelectItem>
+        {available.map((id) => (
+          <SelectItem key={id} value={id}>
+            {CHANNEL_CONFIG[id].name}
+          </SelectItem>
+        ))}
+      </ListwellSelect>
       {channelId === "google-maps" ? (
         <>
           <PlaceSearch
@@ -455,26 +453,23 @@ export const NewAuditForm = ({
               autoComplete="street-address"
             />
           </Field>
-          <Field>
-            <FieldLabel htmlFor="category">Business category</FieldLabel>
-            <select
-              id="category"
-              className={fieldControlClassName}
-              value={category}
-              onChange={(event) =>
-                dispatch({
-                  category: categoryIdSchema.parse(event.target.value),
-                  type: "category",
-                })
-              }
-            >
-              {Object.values(CATEGORY_CONFIG).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <ListwellSelect
+            id="category"
+            label="Business category"
+            value={category}
+            onValueChange={(next) =>
+              dispatch({
+                category: categoryIdSchema.parse(next),
+                type: "category",
+              })
+            }
+          >
+            {Object.values(CATEGORY_CONFIG).map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </ListwellSelect>
         </FieldGroup>
       </section>
 

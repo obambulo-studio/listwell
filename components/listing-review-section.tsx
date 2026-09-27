@@ -2,8 +2,17 @@
 
 import useSWR from "swr";
 
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { listingReviewResultSchema } from "@/lib/listing-review";
 import type { ListingReviewResult } from "@/lib/listing-review";
+import { cn } from "@/lib/utils";
 
 const fetchListingReview = async (
   businessId: string
@@ -41,7 +50,26 @@ const degradedCaption = (result: ListingReviewResult): string | null => {
 };
 
 const SourceBadge = () => (
-  <span className="listwell-report__ai-badge">AI suggestion</span>
+  <Badge variant="secondary" className="ml-2 align-middle font-normal">
+    AI suggestion
+  </Badge>
+);
+
+const CopyBlock = ({
+  children,
+  className,
+}: {
+  children: string;
+  className?: string;
+}) => (
+  <pre
+    className={cn(
+      "bg-muted/50 rounded-lg border px-3 py-2 font-mono text-sm leading-relaxed whitespace-pre-wrap",
+      className
+    )}
+  >
+    {children}
+  </pre>
 );
 
 const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
@@ -49,7 +77,7 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
   const { content } = result;
 
   return (
-    <div className="listwell-report__listing-review">
+    <div className="flex flex-col gap-4">
       <p className="vbg-caption">{result.disclaimer}</p>
       {caption ? <p className="vbg-caption">{caption}</p> : null}
       {result.cached ? (
@@ -57,90 +85,118 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
       ) : null}
 
       {content.businessDescription ? (
-        <div className="listwell-report__listing-block">
-          <h3 className="vbg-heading-20">
-            Suggested business description <SourceBadge />
-          </h3>
-          <pre className="listwell-report__copy-block">
-            {content.businessDescription.suggestedText}
-          </pre>
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Suggested business description
+              <SourceBadge />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CopyBlock>{content.businessDescription.suggestedText}</CopyBlock>
+          </CardContent>
+        </Card>
       ) : null}
 
       {content.categories ? (
-        <div className="listwell-report__listing-block">
-          <h3 className="vbg-heading-20">
-            Suggested categories <SourceBadge />
-          </h3>
-          <p className="vbg-lede">
-            Primary: <strong>{content.categories.primary}</strong>
-          </p>
-          {content.categories.secondary.length > 0 ? (
-            <ul className="listwell-report__actions">
-              {content.categories.secondary.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Suggested categories
+              <SourceBadge />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <p className="vbg-lede">
+              Primary: <strong>{content.categories.primary}</strong>
+            </p>
+            {content.categories.secondary.length > 0 ? (
+              <ul className="listwell-report__actions">
+                {content.categories.secondary.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </CardContent>
+        </Card>
       ) : null}
 
       {content.photoChecklistGaps.length > 0 ? (
-        <div className="listwell-report__listing-block">
-          <h3 className="vbg-heading-20">Photo checklist</h3>
-          <ul className="listwell-report__actions">
-            {content.photoChecklistGaps.map((gap) => (
-              <li key={gap.item}>
-                <strong>{gap.item}</strong>
-                <span className="vbg-meta"> — {gap.reason}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base">Photo checklist</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="listwell-report__actions">
+              {content.photoChecklistGaps.map((gap) => (
+                <li key={gap.item}>
+                  <strong>{gap.item}</strong>
+                  <span className="text-muted-foreground text-sm">
+                    {" "}
+                    — {gap.reason}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       ) : null}
 
       {content.napMismatches.length > 0 ? (
-        <div className="listwell-report__listing-block">
-          <h3 className="vbg-heading-20">NAP mismatches</h3>
-          <ul className="listwell-report__actions">
-            {content.napMismatches.map((row) => (
-              <li key={row.field}>
-                <strong>{row.field}</strong>
-                <ul>
-                  {row.values.map((entry) => (
-                    <li key={`${entry.sourceId}-${entry.value}`}>
-                      {entry.sourceId}: {entry.value}
-                    </li>
-                  ))}
-                </ul>
-                <p className="vbg-meta">{row.suggestedFix}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base">NAP mismatches</CardTitle>
+            <CardDescription>
+              Name, address and phone should match across listings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="listwell-report__actions">
+              {content.napMismatches.map((row) => (
+                <li key={row.field}>
+                  <strong>{row.field}</strong>
+                  <ul className="mt-1 font-mono text-sm">
+                    {row.values.map((entry) => (
+                      <li key={`${entry.sourceId}-${entry.value}`}>
+                        {entry.sourceId}: {entry.value}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    {row.suggestedFix}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       ) : null}
 
       {content.reviewReplyTemplates.length > 0 ? (
-        <div className="listwell-report__listing-block">
-          <h3 className="vbg-heading-20">
-            Suggested review replies <SourceBadge />
-          </h3>
-          {content.reviewReplyTemplates.map((template) => (
-            <div
-              key={template.reviewSnippet}
-              className="listwell-report__reply-template"
-            >
-              <p className="vbg-meta">Review excerpt</p>
-              <blockquote className="listwell-report__copy-block">
-                {template.reviewSnippet}
-              </blockquote>
-              <p className="vbg-meta">Suggested reply</p>
-              <pre className="listwell-report__copy-block">
-                {template.suggestedReply}
-              </pre>
-            </div>
-          ))}
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Suggested review replies
+              <SourceBadge />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {content.reviewReplyTemplates.map((template) => (
+              <div key={template.reviewSnippet}>
+                <p className="text-muted-foreground text-sm">Review excerpt</p>
+                <CopyBlock className="mt-1 italic">
+                  {template.reviewSnippet}
+                </CopyBlock>
+                <p className="text-muted-foreground mt-3 text-sm">
+                  Suggested reply
+                </p>
+                <CopyBlock className="mt-1">
+                  {template.suggestedReply}
+                </CopyBlock>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );
@@ -149,15 +205,20 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
 export const ListingReviewSection = ({
   businessId,
   showContent,
+  listingReviewOverride,
 }: {
   businessId: string;
   showContent: boolean;
+  listingReviewOverride?: ListingReviewResult;
 }) => {
   const { data, error, isLoading } = useSWR(
-    showContent ? (["listing-review", businessId] as const) : null,
+    showContent && listingReviewOverride === undefined
+      ? (["listing-review", businessId] as const)
+      : null,
     ([, id]) => fetchListingReview(id),
     { revalidateOnFocus: false }
   );
+  const resolved = listingReviewOverride ?? data;
 
   return (
     <section
@@ -173,15 +234,15 @@ export const ListingReviewSection = ({
 
       {showContent ? (
         <>
-          {isLoading ? (
+          {isLoading && listingReviewOverride === undefined ? (
             <p className="vbg-caption">Generating listing suggestions…</p>
           ) : null}
-          {error ? (
+          {error && listingReviewOverride === undefined ? (
             <p className="vbg-caption">
               Listing suggestions could not be loaded. Try refreshing the page.
             </p>
           ) : null}
-          {data ? <ListingReviewBody result={data} /> : null}
+          {resolved ? <ListingReviewBody result={resolved} /> : null}
         </>
       ) : (
         <p className="vbg-caption">

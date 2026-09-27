@@ -18,6 +18,15 @@ import { ReportShareDialog } from "@/components/report-share-dialog";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
@@ -32,6 +41,7 @@ import {
   entitlementCheckoutRetryPath,
   reportShowsFixSteps,
 } from "@/lib/entitlements-access";
+import type { ListingReviewResult } from "@/lib/listing-review";
 import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
@@ -783,40 +793,38 @@ const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
   return (
     <section className="listwell-report__chapter">
       <h2 className="vbg-heading-24">Scan history</h2>
-      <div className="vbg-table-wrap">
-        <table>
-          <caption className="vbg-caption">
-            Monthly visibility scores over time.
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Date</th>
-              <th scope="col">Score</th>
-              <th scope="col">Change</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scans.map((scan, index) => {
-              const previous = scans[index + 1];
-              const delta =
-                scan.score !== null &&
-                previous?.score !== null &&
-                previous?.score !== undefined
-                  ? scan.score - previous.score
-                  : null;
-              return (
-                <tr key={scan.id}>
-                  <th scope="row">
-                    {formatScanDate(scan.finishedAt ?? scan.startedAt)}
-                  </th>
-                  <td>{scan.score === null ? "—" : `${scan.score}%`}</td>
-                  <td>{formatScanDelta(delta)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <TableCaption>Monthly visibility scores over time.</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">Date</TableHead>
+            <TableHead scope="col">Score</TableHead>
+            <TableHead scope="col">Change</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {scans.map((scan, index) => {
+            const previous = scans[index + 1];
+            const delta =
+              scan.score !== null &&
+              previous?.score !== null &&
+              previous?.score !== undefined
+                ? scan.score - previous.score
+                : null;
+            return (
+              <TableRow key={scan.id}>
+                <TableCell className="font-medium">
+                  {formatScanDate(scan.finishedAt ?? scan.startedAt)}
+                </TableCell>
+                <TableCell>
+                  {scan.score === null ? "—" : `${scan.score}%`}
+                </TableCell>
+                <TableCell>{formatScanDelta(delta)}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </section>
   );
 };
@@ -856,54 +864,57 @@ const ChecksLedgerSection = ({
         </TabsList>
       </Tabs>
     </div>
-    <div className="vbg-table-wrap">
-      <table className="vbg-custom-checks-table">
-        <caption className="vbg-caption">{checksCaption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Check</th>
-            <th scope="col">Status</th>
-            <th scope="col" className="vbg-numeric">
-              Points
-            </th>
-          </tr>
-        </thead>
-        {groupedChecks.map((group) => (
-          <tbody key={group.category}>
-            <tr className="vbg-custom-channel-group">
-              <th scope="colgroup" colSpan={3}>
-                {group.category}
-              </th>
-            </tr>
-            {group.items.map((item) => (
-              <tr
-                key={item.definition.id}
-                className={
-                  item.definition.id === selectedId
-                    ? "vbg-custom-row-selected"
-                    : undefined
-                }
-              >
-                <th scope="row">
-                  <button
-                    type="button"
-                    onClick={() => onSelectCheck(item.definition.id)}
-                  >
-                    {item.definition.title}
-                  </button>
-                </th>
-                <td className={`vbg-custom-status-${item.status}`}>
-                  <CheckStatusBadge status={item.status} />
-                </td>
-                <td className="vbg-numeric">
-                  {pointsFor(item.definition, businessCategory)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        ))}
-      </table>
-    </div>
+    <Table className="listwell-report__checks-table">
+      <TableCaption>{checksCaption}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Check</TableHead>
+          <TableHead scope="col">Status</TableHead>
+          <TableHead scope="col" className="text-right">
+            Points
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      {groupedChecks.map((group) => (
+        <TableBody key={group.category}>
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableCell
+              colSpan={3}
+              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+            >
+              {group.category}
+            </TableCell>
+          </TableRow>
+          {group.items.map((item) => (
+            <TableRow
+              key={item.definition.id}
+              data-state={
+                item.definition.id === selectedId ? "selected" : undefined
+              }
+              className={
+                item.definition.id === selectedId ? "bg-muted/60" : undefined
+              }
+            >
+              <TableCell className="font-medium">
+                <button
+                  type="button"
+                  className="text-left hover:underline"
+                  onClick={() => onSelectCheck(item.definition.id)}
+                >
+                  {item.definition.title}
+                </button>
+              </TableCell>
+              <TableCell>
+                <CheckStatusBadge status={item.status} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {pointsFor(item.definition, businessCategory)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      ))}
+    </Table>
   </section>
 );
 
@@ -954,30 +965,30 @@ const ListingsSection = ({
         <Link href={`/${businessId}/edit`}>Edit listings</Link>
       </p>
     ) : null}
-    <div className="vbg-table-wrap">
-      <table>
-        <caption className="vbg-caption">{listingsCaption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Channel</th>
-            <th scope="col">Listing</th>
-          </tr>
-        </thead>
-        <tbody>
-          {profiles.map((profile) => (
-            <tr key={`${profile.type}-${profile.title}`}>
-              <td>{CHANNEL_CONFIG[profile.type].name}</td>
-              <td>
-                {profile.title}
-                {profile.subtitle ? (
-                  <div className="vbg-meta">{profile.subtitle}</div>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table>
+      <TableCaption>{listingsCaption}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Channel</TableHead>
+          <TableHead scope="col">Listing</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {profiles.map((profile) => (
+          <TableRow key={`${profile.type}-${profile.title}`}>
+            <TableCell>{CHANNEL_CONFIG[profile.type].name}</TableCell>
+            <TableCell>
+              {profile.title}
+              {profile.subtitle ? (
+                <div className="text-muted-foreground text-sm">
+                  {profile.subtitle}
+                </div>
+              ) : null}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   </section>
 );
 
@@ -1041,6 +1052,7 @@ const useReportLiveData = ({
   checks,
   initialResults,
   initialSummary,
+  scanHistoryOverride,
   serverAccess,
   variant,
 }: {
@@ -1049,6 +1061,7 @@ const useReportLiveData = ({
   checks: CheckDefinition[];
   initialResults: Record<string, CheckResult>;
   initialSummary: AuditSummaryResult;
+  scanHistoryOverride?: ScanSummary[];
   serverAccess: EntitlementState;
   variant: "owner" | "shared";
 }) => {
@@ -1123,17 +1136,48 @@ const useReportLiveData = ({
   const summary =
     refinedSummary?.available === true ? refinedSummary : parsedInitialSummary;
 
-  const { data: scanHistory = [] } = useSWR(
+  let scanHistoryUrl: string | null = null;
+  if (
+    scanHistoryOverride === undefined &&
     variant === "owner" &&
-      (access.kind === "report_monthly" || access.kind === "report_once") &&
-      showFixSteps
-      ? `/api/businesses/${business.id}/scans`
-      : null,
+    showFixSteps &&
+    (access.kind === "report_monthly" || access.kind === "report_once")
+  ) {
+    scanHistoryUrl = `/api/businesses/${business.id}/scans`;
+  }
+  const { data: fetchedScanHistory = [] } = useSWR(
+    scanHistoryUrl,
     fetchScanHistory,
     { revalidateOnFocus: false }
   );
+  const scanHistory = scanHistoryOverride ?? fetchedScanHistory;
 
   return { access, liveChecks, scanHistory, showFixSteps, summary };
+};
+
+const shouldShowScanHistory = ({
+  access,
+  isOwner,
+  scanCount,
+  scanHistoryOverride,
+  showFixSteps,
+}: {
+  access: EntitlementState;
+  isOwner: boolean;
+  scanCount: number;
+  scanHistoryOverride: ScanSummary[] | undefined;
+  showFixSteps: boolean;
+}): boolean => {
+  if (!isOwner || scanCount === 0) {
+    return false;
+  }
+  if (scanHistoryOverride !== undefined) {
+    return true;
+  }
+  return (
+    (access.kind === "report_monthly" || access.kind === "report_once") &&
+    showFixSteps
+  );
 };
 
 const ReportSharedBanner = ({
@@ -1210,6 +1254,8 @@ export const ReportClient = ({
   checkJobId,
   variant = "owner",
   shareExpiresAt,
+  listingReviewOverride,
+  scanHistoryOverride,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
@@ -1224,6 +1270,10 @@ export const ReportClient = ({
   checkJobId?: string;
   variant?: "owner" | "shared";
   shareExpiresAt?: string | null;
+  /** Dev UI fixture only — skips listing review fetch when set. */
+  listingReviewOverride?: ListingReviewResult;
+  /** Dev UI fixture only — skips scan history fetch when set. */
+  scanHistoryOverride?: ScanSummary[];
 }) => {
   const business = useMemo(
     () => businessSchema.parse(initialBusiness),
@@ -1240,6 +1290,7 @@ export const ReportClient = ({
       checks,
       initialResults,
       initialSummary,
+      scanHistoryOverride,
       serverAccess,
       variant,
     });
@@ -1383,15 +1434,20 @@ export const ReportClient = ({
       <ListingReviewSection
         businessId={business.id}
         showContent={showFixSteps}
+        listingReviewOverride={listingReviewOverride}
       />
 
       {isOwner ? (
         <OnceRescanSection access={access} businessId={business.id} />
       ) : null}
 
-      {isOwner &&
-      scanHistory.length > 0 &&
-      (access.kind === "report_monthly" || access.kind === "report_once") ? (
+      {shouldShowScanHistory({
+        access,
+        isOwner,
+        scanCount: scanHistory.length,
+        scanHistoryOverride,
+        showFixSteps,
+      }) ? (
         <ScanHistorySection scans={scanHistory} />
       ) : null}
 

@@ -2372,7 +2372,10 @@ tbody:first-of-type .vbg-custom-channel-group th {
   .listwell-report__filters,
   .listwell-report__notice,
   .listwell-report__chapter .listwell-report__actions,
-  .listwell-report__button {
+  .listwell-report__button,
+  .listwell-report__ledger-head [data-slot="tabs-list"],
+  .listwell-chat__composer,
+  [data-sonner-toaster] {
     display: none !important;
   }
 
@@ -2396,8 +2399,16 @@ tbody:first-of-type .vbg-custom-channel-group th {
   }
 
   .listwell-report__ledger,
-  .vbg-table-wrap {
+  .vbg-table-wrap,
+  [data-slot="table-container"] {
     break-inside: auto;
+  }
+
+  .listwell-report [data-slot="card"],
+  .listwell-report__listing-review [data-slot="card"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none;
   }
 
   .listwell-report a[href^="http"]::after {
@@ -2406,8 +2417,14 @@ tbody:first-of-type .vbg-custom-channel-group th {
     word-break: break-all;
   }
 
-  .listwell-report .vbg-table-wrap a[href^="http"]::after {
+  .listwell-report .vbg-table-wrap a[href^="http"]::after,
+  .listwell-report [data-slot="table"] a[href^="http"]::after {
     content: none;
+  }
+
+  .listwell-report [data-slot="table"] button {
+    font-weight: inherit;
+    text-decoration: none;
   }
 }
 
