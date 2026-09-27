@@ -237,6 +237,7 @@ describe("Listwell copy", () => {
   it("names Listwell and never Visimate in the model prompt", () => {
     const prompt = buildListwellPrompt("Smith & Sons", checks);
     expect(prompt).toContain("Listwell");
+    expect(prompt).toMatch(/Australian English spelling/u);
     expect(prompt).toMatch(/Do not mention Visimate/u);
     expect(prompt).not.toMatch(/You are Visimate/iu);
   });

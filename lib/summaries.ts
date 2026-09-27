@@ -142,7 +142,9 @@ export const buildListwellPrompt = (
     "- You may mention a check's provided points value. Do not add those points into a new score.",
     "- Do not mention Visimate.",
     "- Product name is Listwell.",
-    "- Plain language for a business owner.",
+    "- Plain language for an Australian small business owner.",
+    "- Use Australian English spelling (e.g. optimise, colour, organisation).",
+    "- Do not use hype or invented statistics.",
     "- Prioritise next actions by the provided points, highest first.",
     "- Return JSON only, no markdown.",
     "",
@@ -297,7 +299,7 @@ export const summarizeAuditChecks = async (input: {
       messages: [
         {
           content:
-            "You return valid JSON only. You never invent scores. You write for Listwell.",
+            "You return valid JSON only. You never invent scores. You write for Listwell in Australian English.",
           role: "system",
         },
         {

@@ -54,7 +54,7 @@ We measure how long our test browser waits before the main content is visible. T
 ::fix-step{number="1" title="Test your current speed"}
 
 1. Visit [PageSpeed Insights](https://pagespeed.web.dev)
-2. Enter your website URL and click "Analyze"
+2. Enter your website URL and click "Analyse"
 3. Look for your Performance score (aim for 90+)
 4. Check the "Largest Contentful Paint" metric specifically ::
 
@@ -67,19 +67,19 @@ We measure how long our test browser waits before the main content is visible. T
 
 ::fix-step{number="3" title="Upgrade your hosting"} Cheap hosting = slow website. Consider:
 
-- **Business hosting** (from $20-50/month) vs shared hosting ($5/month)
+- **Business hosting** (from about $20–50 AUD/month) vs shared hosting (about $5 AUD/month)
 - **SSD storage** for 3x faster file loading
 - **CDN service** like Cloudflare (free tier available)
 - **Server location** close to your customers ::
 
-::fix-step{number="4" title="Optimize the code"} Have your developer:
+::fix-step{number="4" title="Optimise the code"} Have your developer:
 
 - **Minify CSS/JavaScript** (removes unnecessary characters)
 - **Enable compression** (GZIP reduces file sizes by 70%)
 - **Remove unused plugins** and scripts
 - **Enable browser caching** so repeat visitors load faster ::
 
-::time-estimate{minutes="240" difficulty="medium"} Basic optimizations: 2-4 hours Full optimization with hosting change: 1-2 days ::
+::time-estimate{minutes="240" difficulty="medium"} Basic optimisations: 2-4 hours Full optimisation with hosting change: 1-2 days ::
 
 ## What is the positive impact?
 
@@ -101,16 +101,16 @@ We measure how long our test browser waits before the main content is visible. T
 - Positive reviews mention "easy to use" website
 - Increased trust and professional image
 
-::example{type="good" title="Speed optimization success"} Tony's Pizza improved their site speed from 7.2 to 2.1 seconds:
+::example{type="good" title="Speed optimisation success"} Tony's Pizza improved their site speed from 7.2 to 2.1 seconds:
 
 - **Mobile orders increased 45%** in 2 months
 - Jumped from page 2 to **top 3 in Google** for "pizza delivery [city]"
 - Customer complaints about the website dropped to zero
-- Investment of $500 in optimization returned $3,200 monthly revenue increase ::
+- Investment of $500 in optimisation returned $3,200 monthly revenue increase ::
 
 ## Learn more
 
 - [Google's Web Vitals guide](https://web.dev/vitals/) - Official documentation
 - [GTmetrix speed test](https://gtmetrix.com/) - Alternative testing tool
-- [Image optimization guide](https://web.dev/fast/#optimize-your-images) - Detailed image tips
+- [Image optimisation guide](https://web.dev/fast/#optimise-your-images) - Detailed image tips
 - [Choosing web hosting](https://web.dev/reliable/#use-a-good-web-host) - Hosting comparison guide

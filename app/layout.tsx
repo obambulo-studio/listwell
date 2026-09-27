@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   description:
-    "Chat-first local and website SEO audit. Answer a few questions, get a basic report, then upgrade for fixes and automation.",
+    "Local and website SEO audit for Australian businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
   title: {
     default: "Listwell",
     template: "%s · Listwell",

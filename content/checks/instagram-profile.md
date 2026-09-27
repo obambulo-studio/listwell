@@ -60,7 +60,7 @@ We look for whether your business has established an Instagram profile where you
 4. Switch to a Professional account (free)
 5. Select "Business" and your category ::
 
-::fix-step{number="2" title="Optimize your profile"}
+::fix-step{number="2" title="Optimise your profile"}
 
 - **Profile photo**: Use your logo or storefront
 - **Bio**: 150 characters to describe what you offer

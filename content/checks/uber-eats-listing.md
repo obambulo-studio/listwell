@@ -8,28 +8,28 @@ businessCategories:
 
 # Uber Eats Listing
 
-Join Uber Eats and tap into their massive global network - the world's largest food delivery platform operating in over 6,000 cities.
+Uber Eats is widely used for food delivery in Australia, alongside Menulog and DoorDash. A listing lets customers order from your menu in the app.
 
-::tech-detail{summary="How we verify Uber Eats presence"} We check if your business has an active Uber Eats URL in our database. This indicates whether you've established a presence on the Uber Eats platform. Uber Eats is available in 45+ countries and is often the market leader in food delivery, especially in North America, Latin America, and many Asian markets. ::
+::tech-detail{summary="How we verify Uber Eats presence"} We check if your business has an active Uber Eats URL in our database. This indicates whether you've established a presence on the Uber Eats platform. Uber Eats operates in Australia and many other countries. ::
 
 ## What we're checking
 
 We verify if your restaurant is actively listed on Uber Eats, allowing customers to order your food through their app and website. Uber Eats connects you with their massive driver network and customer base.
 
-::impact{type="customers" severity="high"} Uber Eats has **81 million active users** globally - that's 81 million potential customers you're missing ::
+::impact{type="customers" severity="medium"} In Australia, Uber Eats is often used alongside Menulog. If you are not listed, customers ordering in the app will not see you. ::
 
 ## What issues may it cause?
 
-### Significant revenue loss
+### Fewer delivery orders
 
-- Missing **25-40% additional revenue** opportunity
+- Delivery revenue goes to listed competitors
 - Competitors capture your market share on the platform
 - No access to surge pricing during peak times
 - Lost weekend and late-night orders
 
 ### Limited customer reach
 
-- Can't serve customers beyond 1-2 mile radius
+- Can't serve customers beyond a short delivery radius (often 2–3 km)
 - Missing tech-savvy millennials and Gen Z customers
 - No access to Uber One members (priority delivery subscribers)
 - Invisible during bad weather when delivery demand peaks
@@ -55,7 +55,7 @@ We verify if your restaurant is actively listed on Uber Eats, allowing customers
 1. Visit [merchants.ubereats.com](https://merchants.ubereats.com)
 2. Click "Get started"
 3. Enter your restaurant information
-4. Provide required documents (business license, tax ID, bank details) ::
+4. Provide required documents (business licence, ABN or tax identifiers, bank details) ::
 
 ::fix-step{number="2" title="Complete verification"} Uber Eats will verify your restaurant (usually 3-7 days):
 
@@ -67,7 +67,7 @@ We verify if your restaurant is actively listed on Uber Eats, allowing customers
 ::fix-step{number="3" title="Set up your storefront"}
 
 - **Professional photos**: Uber offers free photography sessions
-- **Menu optimization**: Create combo meals and family packs
+- **Menu optimisation**: Create combo meals and family packs
 - **Accurate descriptions**: Include ingredients and dietary info
 - **Prep times**: Set realistic times to maintain quality ratings ::
 
@@ -91,7 +91,7 @@ We verify if your restaurant is actively listed on Uber Eats, allowing customers
 
 ### Market expansion
 
-- Typical delivery radius of 3-5 miles
+- Typical delivery radius of about 5–8 km
 - Access to Uber's 81 million active users
 - 24/7 ordering availability
 - Reach business districts and residential areas equally
@@ -103,7 +103,7 @@ We verify if your restaurant is actively listed on Uber Eats, allowing customers
 - Automated marketing through Uber's algorithm
 - Professional driver network handles delivery logistics
 
-::example{type="good" title="Uber Eats transformation"} Bella's Bistro joined Uber Eats and optimized their presence:
+::example{type="good" title="Uber Eats transformation"} Bella's Bistro joined Uber Eats and optimised their presence:
 
 - Month 1: 150 orders, mostly dinner
 - Month 3: 400 orders, discovered lunch demand
@@ -118,5 +118,5 @@ We verify if your restaurant is actively listed on Uber Eats, allowing customers
 
 - [Uber Eats Merchant Portal](https://merchants.ubereats.com) - Official partner signup
 - [Restaurant success guide](https://www.uber.com/us/en/deliver/restaurants/) - Best practices and tips
-- [Menu pricing strategies](https://www.uber.com/blog/uber-eats-menu-pricing/) - Optimize your delivery pricing
+- [Menu pricing strategies](https://www.uber.com/blog/uber-eats-menu-pricing/) - Optimise your delivery pricing
 - [Marketing on Uber Eats](https://merchants.ubereats.com/us/en/marketing/) - Promotional tools and features

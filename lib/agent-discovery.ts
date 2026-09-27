@@ -29,7 +29,7 @@ Use this skill when someone wants to check local listings or website SEO with Li
 
 ## What Listwell is
 
-Listwell is a chat-first local and website SEO audit at https://listwell.dev. A visitor describes a business. Listwell matches listings, a website, and social profiles, then runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).
+Listwell is a local and website SEO audit for Australian small businesses at https://listwell.dev. A visitor describes a business. Listwell matches Google Business Profile, Apple Maps, a website, and social profiles, then runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).
 
 Obambulo Studio owns Listwell. There is no public MCP server, A2A agent, or OAuth API.
 
@@ -110,9 +110,9 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
   [
     "# Listwell",
     "",
-    "> Chat-first local and website SEO audit. Answer a few questions, get a basic report, then upgrade for fixes and automation.",
+    "> Local and website SEO audit for Australian small businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
     "",
-    `Listwell matches a business to map listings, a website, and social profiles, then checks local and website SEO. The home page chat runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`,
+    `Listwell matches a business to Google Business Profile, Apple Maps, a website, and social profiles, then checks local and website SEO. The home page chat runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`,
     "",
     "AI crawlers are allowed. Content-Signal: search=yes, ai-input=yes, ai-train=no.",
     "",
@@ -173,7 +173,7 @@ const pageMarkdown = (origin: string): Record<string, string> => ({
   "/": [
     "# Listwell",
     "",
-    "Chat-first local and website SEO audit.",
+    "Local and website SEO audit for Australian businesses.",
     "",
     `Listwell runs a free check of local and website visibility. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`,
     "",

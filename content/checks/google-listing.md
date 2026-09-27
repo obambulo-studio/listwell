@@ -9,7 +9,7 @@ points:
 
 # Google Business Profile Listing
 
-Your business needs to be on Google Maps and Search - this is how 90% of customers find local businesses today.
+Your business needs a Google Business Profile on Google Maps and Search. Most Australians look up local businesses there before they visit or call.
 
 ::tech-detail{summary="What exactly is a Google Business Profile?"} Previously called "Google My Business", this is your free business listing that appears when people search for your business or related services on Google Search and Google Maps. It shows your hours, location, photos, reviews, and contact information. ::
 
@@ -23,7 +23,7 @@ We verify that a Google Place ID or public listing URL is attached to this audit
 
 ### You're invisible to new customers
 
-- When someone searches "coffee near me" or "plumber in [your city]", you won't appear
+- When someone searches "café near me" or "plumber in Parramatta", you won't appear
 - Competitors with listings will capture **all** these ready-to-buy customers
 - You miss out on Google's **5 billion** daily searches
 
@@ -33,7 +33,7 @@ We verify that a Google Place ID or public listing URL is attached to this audit
 - No listing can make your business seem outdated or closed
 - **88% of consumers** trust online reviews as much as personal recommendations
 
-::example{type="bad" title="Real business impact"} Sarah's Bakery didn't have a Google listing. A competitor 2 miles away was getting 50+ customer calls per week that should have gone to Sarah - simply because they appeared on Google Maps and Sarah didn't. ::
+::example{type="bad" title="Real business impact"} Sarah's Bakery in Geelong didn't have a Google listing. A competitor 3 km away was getting dozens of customer calls each week that could have gone to Sarah, simply because they appeared on Google Maps and Sarah didn't. ::
 
 ## How can I fix it?
 
@@ -81,7 +81,7 @@ We verify that a Google Place ID or public listing URL is attached to this audit
 - Respond to reviews to show you care
 - Higher review ratings = more customers
 
-::example{type="good" title="Success story"} Mike's Auto Repair created their Google listing and optimized it with photos and hours. Within 3 months:
+::example{type="good" title="Success story"} Mike's Auto Repair created their Google listing and optimised it with photos and hours. Within 3 months:
 
 - 150% increase in phone calls
 - 80 new customer reviews (4.8 star average)

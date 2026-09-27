@@ -71,7 +71,7 @@ Clear categorization helps customers immediately understand what you offer
 
 Google better understands and ranks your business for relevant local searches
 
-::example{type="good" title="Bakery - Category Optimization Success"} Sweet Treats changed their primary category from "Restaurant" to "Bakery" and added "Wedding Cake Shop" as secondary. They began appearing in "bakery near me" searches, gained access to product showcase features, and saw a 50% increase in cake orders from local searches. ::
+::example{type="good" title="Bakery - Category Optimisation Success"} Sweet Treats changed their primary category from "Restaurant" to "Bakery" and added "Wedding Cake Shop" as secondary. They began appearing in "bakery near me" searches, gained access to product showcase features, and saw a 50% increase in cake orders from local searches. ::
 
 ## Learn More
 

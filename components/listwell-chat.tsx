@@ -471,7 +471,7 @@ const ChatComposer = ({
   );
 };
 
-const ABOUT_COPY = `Listwell runs a free check of local and website visibility. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
+const ABOUT_COPY = `Listwell checks local listings and website SEO for Australian small businesses. The basic report is free. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
 
 const AboutDialog = ({
   open,
@@ -580,7 +580,7 @@ const PromptCard = ({
             <h1 className="listwell-chat__prompt">
               {question}{" "}
               <span className="listwell-chat__prompt-aside">
-                Free check of local and website visibility
+                Free visibility check for Australian businesses
               </span>
             </h1>
           </div>

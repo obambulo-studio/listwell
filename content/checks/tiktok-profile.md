@@ -46,7 +46,7 @@ TikTok's unique format allows for creative marketing that traditional platforms 
 
 ::fix-step{number="1" title="Create TikTok Business Account"} Download TikTok app and sign up for a business account using your business email and information. ::
 
-::fix-step{number="2" title="Optimize Your Profile"} Add business logo, compelling bio with keywords, link to your website, and business category information. ::
+::fix-step{number="2" title="Optimise Your Profile"} Add business logo, compelling bio with keywords, link to your website, and business category information. ::
 
 ::fix-step{number="3" title="Plan Content Strategy"} Focus on behind-the-scenes content, tutorials, trending sounds with your twist, and showcasing your products/services creatively. ::
 
