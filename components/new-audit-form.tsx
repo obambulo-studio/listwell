@@ -3,7 +3,25 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useReducer } from "react";
 
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
+import { ListwellSelect } from "@/components/listwell/select-field";
 import { PlaceSearch } from "@/components/place-search";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { SelectItem } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { CATEGORY_CONFIG, categoryIdSchema } from "@/lib/category";
 import type { CategoryId } from "@/lib/category";
 import { CHANNEL_CONFIG, channelIdSchema } from "@/lib/channel";
@@ -147,48 +165,44 @@ const AuditListingsTable = ({
   profiles: DiscoveredProfile[];
   onRemove: (profile: DiscoveredProfile) => void;
 }) => (
-  <div className="vbg-table-wrap">
-    <table>
-      <caption className="vbg-visually-hidden">
-        Listings attached to this audit
-      </caption>
-      <thead>
-        <tr>
-          <th scope="col">Channel</th>
-          <th scope="col">Listing</th>
-          <th scope="col">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {profiles.length === 0 ? (
-          <tr>
-            <td colSpan={3}>None yet. Add a website or listing below.</td>
-          </tr>
-        ) : (
-          profiles.map((profile) => (
-            <tr key={`${profile.type}-${profile.title}`}>
-              <td>{CHANNEL_CONFIG[profile.type].name}</td>
-              <td>
-                {profile.title}
-                {profile.subtitle ? (
-                  <div className="vbg-meta">{profile.subtitle}</div>
-                ) : null}
-              </td>
-              <td>
-                <button
-                  className="vbg-button vbg-button-quiet"
-                  type="button"
-                  onClick={() => onRemove(profile)}
-                >
-                  Not mine
-                </button>
-              </td>
-            </tr>
-          ))
-        )}
-      </tbody>
-    </table>
-  </div>
+  <Table>
+    <caption className="vbg-visually-hidden">
+      Listings attached to this audit
+    </caption>
+    <TableHeader>
+      <TableRow>
+        <TableHead scope="col">Channel</TableHead>
+        <TableHead scope="col">Listing</TableHead>
+        <TableHead scope="col">Action</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+      {profiles.length === 0 ? (
+        <TableRow>
+          <TableCell colSpan={3}>
+            None yet. Add a website or listing below.
+          </TableCell>
+        </TableRow>
+      ) : (
+        profiles.map((profile) => (
+          <TableRow key={`${profile.type}-${profile.title}`}>
+            <TableCell>{CHANNEL_CONFIG[profile.type].name}</TableCell>
+            <TableCell>
+              {profile.title}
+              {profile.subtitle ? (
+                <div className="vbg-meta">{profile.subtitle}</div>
+              ) : null}
+            </TableCell>
+            <TableCell>
+              <QuietButton type="button" onClick={() => onRemove(profile)}>
+                Not mine
+              </QuietButton>
+            </TableCell>
+          </TableRow>
+        ))
+      )}
+    </TableBody>
+  </Table>
 );
 
 const AddListingForm = ({
@@ -214,31 +228,27 @@ const AddListingForm = ({
 }) => {
   const mapsChannel = channelId === "google-maps" || channelId === "apple-maps";
   return (
-    <form className="vbg-custom-form" action={onSubmitListing}>
-      <div className="vbg-field">
-        <label className="vbg-label" htmlFor="channel">
-          Channel
-        </label>
-        <select
-          id="channel"
-          name="channel"
-          value={channelId}
-          onChange={(event) => {
-            onChannelChange(
-              event.target.value === ""
-                ? ""
-                : channelIdSchema.parse(event.target.value)
-            );
-          }}
-        >
-          <option value="">Select a channel</option>
-          {available.map((id) => (
-            <option key={id} value={id}>
-              {CHANNEL_CONFIG[id].name}
-            </option>
-          ))}
-        </select>
-      </div>
+    <form className="flex flex-col gap-4" action={onSubmitListing}>
+      <ListwellSelect
+        id="channel"
+        label="Channel"
+        value={channelId === "" ? "__none__" : channelId}
+        onValueChange={(next) => {
+          if (!next || next === "__none__") {
+            onChannelChange("");
+            return;
+          }
+          onChannelChange(channelIdSchema.parse(next));
+        }}
+        placeholder="Select a channel"
+      >
+        <SelectItem value="__none__">Select a channel</SelectItem>
+        {available.map((id) => (
+          <SelectItem key={id} value={id}>
+            {CHANNEL_CONFIG[id].name}
+          </SelectItem>
+        ))}
+      </ListwellSelect>
       {channelId === "google-maps" ? (
         <>
           <PlaceSearch
@@ -246,17 +256,17 @@ const AddListingForm = ({
             label="Google Maps listing"
             onSelect={onPlaceSelect}
           />
-          <div className="vbg-field">
-            <label className="vbg-label" htmlFor="profileValue">
+          <Field>
+            <FieldLabel htmlFor="profileValue">
               Or paste a listing URL
-            </label>
-            <input
+            </FieldLabel>
+            <Input
               id="profileValue"
               value={place ? "" : value}
               onChange={(event) => onValueChange(event.target.value)}
               placeholder="https://maps.google.com/..."
             />
-          </div>
+          </Field>
         </>
       ) : null}
       {channelId === "apple-maps" ? (
@@ -266,35 +276,34 @@ const AddListingForm = ({
             label="Apple Maps listing"
             onSelect={onPlaceSelect}
           />
-          <div className="vbg-field">
-            <label className="vbg-label" htmlFor="appleListingUrl">
+          <Field>
+            <FieldLabel htmlFor="appleListingUrl">
               Or paste a listing URL
-            </label>
-            <input
+            </FieldLabel>
+            <Input
               id="appleListingUrl"
               value={place ? "" : value}
               onChange={(event) => onValueChange(event.target.value)}
               placeholder="https://maps.apple.com/..."
             />
-          </div>
+          </Field>
         </>
       ) : null}
       {channelId && !mapsChannel ? (
-        <div className="vbg-field">
-          <label className="vbg-label" htmlFor="profileValue">
+        <Field>
+          <FieldLabel htmlFor="profileValue-other">
             {CHANNEL_CONFIG[channelId].name}
-          </label>
-          <input
-            id="profileValue"
+          </FieldLabel>
+          <Input
+            id="profileValue-other"
             value={value}
             onChange={(event) => onValueChange(event.target.value)}
             placeholder={channelPlaceholder(channelId)}
           />
-        </div>
+        </Field>
       ) : null}
-      <div className="vbg-custom-actions">
-        <button
-          className="vbg-button"
+      <FormActions>
+        <PrimaryButton
           type="submit"
           disabled={
             !channelId ||
@@ -302,15 +311,11 @@ const AddListingForm = ({
           }
         >
           Add listing
-        </button>
-        <button
-          className="vbg-button vbg-button-quiet"
-          type="button"
-          onClick={onCancel}
-        >
+        </PrimaryButton>
+        <QuietButton type="button" onClick={onCancel}>
           Cancel
-        </button>
-      </div>
+        </QuietButton>
+      </FormActions>
     </form>
   );
 };
@@ -426,24 +431,20 @@ export const NewAuditForm = ({
       </section>
 
       <section className="vbg-section">
-        <div className="vbg-custom-form">
-          <div className="vbg-field">
-            <label className="vbg-label" htmlFor="name">
-              Business name
-            </label>
-            <input
+        <FieldGroup className="gap-4">
+          <Field>
+            <FieldLabel htmlFor="name">Business name</FieldLabel>
+            <Input
               id="name"
               value={name}
               onChange={(event) =>
                 dispatch({ name: event.target.value, type: "name" })
               }
             />
-          </div>
-          <div className="vbg-field">
-            <label className="vbg-label" htmlFor="address">
-              Address
-            </label>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="address">Address</FieldLabel>
+            <Input
               id="address"
               value={address}
               onChange={(event) =>
@@ -451,29 +452,25 @@ export const NewAuditForm = ({
               }
               autoComplete="street-address"
             />
-          </div>
-          <div className="vbg-field">
-            <label className="vbg-label" htmlFor="category">
-              Business category
-            </label>
-            <select
-              id="category"
-              value={category}
-              onChange={(event) =>
-                dispatch({
-                  category: categoryIdSchema.parse(event.target.value),
-                  type: "category",
-                })
-              }
-            >
-              {Object.values(CATEGORY_CONFIG).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+          </Field>
+          <ListwellSelect
+            id="category"
+            label="Business category"
+            value={category}
+            onValueChange={(next) =>
+              dispatch({
+                category: categoryIdSchema.parse(next),
+                type: "category",
+              })
+            }
+          >
+            {Object.values(CATEGORY_CONFIG).map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </ListwellSelect>
+        </FieldGroup>
       </section>
 
       <section className="vbg-section">
@@ -514,27 +511,29 @@ export const NewAuditForm = ({
             value={state.value}
           />
         ) : (
-          <div className="vbg-custom-actions" style={{ marginTop: "24px" }}>
+          <FormActions className="mt-6">
             {available.length > 0 ? (
-              <button
-                className="vbg-button vbg-button-quiet"
+              <QuietButton
                 type="button"
                 onClick={() => dispatch({ showAdd: true, type: "show-add" })}
               >
                 Add missing
-              </button>
+              </QuietButton>
             ) : (
               <p className="vbg-meta">All available channels have been added</p>
             )}
-          </div>
+          </FormActions>
         )}
       </section>
 
-      {state.error ? <p className="vbg-error">{state.error}</p> : null}
+      {state.error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="vbg-custom-actions">
-        <button
-          className="vbg-button"
+      <FormActions>
+        <PrimaryButton
           type="button"
           onClick={() => {
             void saveAudit();
@@ -542,8 +541,8 @@ export const NewAuditForm = ({
           disabled={state.saving || !name.trim()}
         >
           {state.saving ? "Saving" : "Get report"}
-        </button>
-      </div>
+        </PrimaryButton>
+      </FormActions>
     </div>
   );
 };

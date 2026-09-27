@@ -5,7 +5,6 @@ import Script from "next/script";
 import {
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -15,7 +14,9 @@ import {
 import type { RefObject } from "react";
 import useSWR from "swr";
 
+import { Button } from "@/components/atoms/button";
 import { ReportSummary } from "@/components/chat-report-insight";
+import { QuietButton } from "@/components/listwell/actions";
 import {
   LISTWELL_LOGOUT_EVENT,
   LISTWELL_RESET_EVENT,
@@ -24,6 +25,16 @@ import ApprovalCard from "@/components/primitives/approval-card";
 import LoadingState from "@/components/primitives/loading-state";
 import TaskRows from "@/components/primitives/task-rows";
 import type { TaskDetail, TaskRow } from "@/components/primitives/task-rows";
+import { Card, CardContent, CardDescription } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   buildBasicReportStats,
   categoryFromInputAsync,
@@ -437,9 +448,9 @@ const ChatComposer = ({
       className={`listwell-chat__composer${embedded ? " listwell-chat__composer--embedded" : ""}`}
       action={sendComposerMessage}
     >
-      <input
+      <Input
         ref={inputRef}
-        className="listwell-chat__input"
+        className="listwell-chat__input border-0 shadow-none focus-visible:ring-0"
         defaultValue=""
         onInput={(event) => setValue(event.currentTarget.value)}
         placeholder={placeholder}
@@ -447,9 +458,11 @@ const ChatComposer = ({
         enterKeyHint="send"
         aria-label={placeholder}
       />
-      <button
-        className="listwell-chat__send"
+      <Button
         type="submit"
+        variant="primary"
+        size="sm"
+        className="listwell-chat__send shrink-0 rounded-full px-3"
         disabled={!canSend}
         aria-label="Send"
       >
@@ -466,7 +479,7 @@ const ChatComposer = ({
         >
           <path d="M12 19V5M5 12l7-7 7 7" />
         </svg>
-      </button>
+      </Button>
     </form>
   );
 };
@@ -479,43 +492,23 @@ const AboutDialog = ({
 }: {
   open: boolean;
   onClose: () => void;
-}) => {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-
-  useEffect(() => {
-    const node = dialogRef.current;
-    if (!node) {
-      return;
-    }
-    if (open) {
-      if (!node.open) {
-        node.showModal();
-      }
-      return;
-    }
-    if (node.open) {
-      node.close();
-    }
-  }, [open]);
-
-  return (
-    <dialog
-      ref={dialogRef}
-      className="listwell-about"
-      aria-labelledby={titleId}
-      onClose={onClose}
-    >
-      <h2 id={titleId} className="listwell-about__title">
-        About Listwell
-      </h2>
-      <p className="listwell-about__body">{ABOUT_COPY}</p>
-      <button type="button" className="listwell-about__close" onClick={onClose}>
-        Close
-      </button>
-    </dialog>
-  );
-};
+}) => (
+  <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>About Listwell</DialogTitle>
+        <DialogDescription className="text-foreground leading-relaxed">
+          {ABOUT_COPY}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter>
+        <QuietButton type="button" onClick={onClose}>
+          Close
+        </QuietButton>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
 
 /** Question card; optional user answer stays on the same surface. */
 const PromptCard = ({
@@ -594,14 +587,16 @@ const PromptCard = ({
             aria-label="Common categories"
           >
             {options.map((option) => (
-              <button
+              <Button
                 key={option}
                 type="button"
-                className="listwell-chat__prompt-card-option"
+                variant="secondary"
+                size="sm"
+                className="listwell-chat__prompt-card-option h-auto whitespace-normal"
                 onClick={() => onOptionSelect(option)}
               >
                 {option}
-              </button>
+              </Button>
             ))}
           </fieldset>
         ) : null}
@@ -621,24 +616,28 @@ const PromptCard = ({
       >
         <div className="listwell-chat__starter-chrome">
           <p className="listwell-chat__starter-title">Listwell</p>
-          <button
+          <QuietButton
             type="button"
-            className="listwell-chat__starter-about"
+            className="listwell-chat__starter-about h-auto px-0 py-0 text-sm"
             aria-haspopup="dialog"
             aria-expanded={aboutOpen}
             onClick={() => setAboutOpen(true)}
           >
             About
-          </button>
+          </QuietButton>
         </div>
         {card}
       </div>
       {promptInput ? (
-        <p className="listwell-chat__starter-pricing">
-          Full report with fix steps: {REPORT_ONCE_PRICE} once. Continued
-          reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per business
-          ({REPORT_YEARLY_VALUE_NOTE} on yearly).
-        </p>
+        <Card size="sm" className="listwell-chat__starter-pricing ring-0">
+          <CardContent className="px-4 py-3">
+            <CardDescription className="text-foreground text-sm leading-snug">
+              Full report with fix steps: {REPORT_ONCE_PRICE} once. Continued
+              reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per
+              business ({REPORT_YEARLY_VALUE_NOTE} on yearly).
+            </CardDescription>
+          </CardContent>
+        </Card>
       ) : null}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>

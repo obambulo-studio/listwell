@@ -8,7 +8,26 @@ import { z } from "zod";
 
 import { CheckBody } from "@/components/check-body";
 import { ListingReviewSection } from "@/components/listing-review-section";
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
+import { CheckStatusBadge } from "@/components/listwell/report-ui";
 import { ReportShareDialog } from "@/components/report-share-dialog";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -22,6 +41,7 @@ import {
   entitlementCheckoutRetryPath,
   reportShowsFixSteps,
 } from "@/lib/entitlements-access";
+import type { ListingReviewResult } from "@/lib/listing-review";
 import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
@@ -54,6 +74,7 @@ import {
   completedCheckSchema,
 } from "@/lib/summaries";
 import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
+import { cn } from "@/lib/utils";
 
 const initialResultsSchema = z.record(z.string(), checkResultSchema);
 const JOB_POLL_INTERVAL_MS = 2000;
@@ -410,53 +431,46 @@ const UnlockCodeForm = ({
     <form className="listwell-report__unlock" action={verifyUnlockCode}>
       <h2 className="vbg-heading-24">Full report with fix steps</h2>
       <p className="vbg-lede">{lede}</p>
-      <div className="vbg-field">
-        <label className="vbg-label" htmlFor="unlock-email">
-          Email
-        </label>
-        <input
-          id="unlock-email"
-          type="email"
-          name="email"
-          autoComplete="email"
-          value={state.email}
-          onChange={(event) =>
-            dispatch({ email: event.target.value, type: "email" })
-          }
-          required
-        />
-      </div>
-      <div className="vbg-field">
-        <label className="vbg-label" htmlFor="unlock-code">
-          Code
-        </label>
-        <input
-          id="unlock-code"
-          className="vbg-mono"
-          name="code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          value={state.code}
-          onChange={(event) =>
-            dispatch({
-              code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
-              type: "code",
-            })
-          }
-          required
-        />
-      </div>
-      <div className="listwell-report__unlock-actions">
-        <button
-          className="listwell-report__button"
-          type="submit"
-          disabled={state.busy !== null}
-        >
+      <FieldGroup className="gap-4 py-2">
+        <Field>
+          <FieldLabel htmlFor="unlock-email">Email</FieldLabel>
+          <Input
+            id="unlock-email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={state.email}
+            onChange={(event) =>
+              dispatch({ email: event.target.value, type: "email" })
+            }
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="unlock-code">Code</FieldLabel>
+          <Input
+            id="unlock-code"
+            className={cn("font-mono tracking-widest")}
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={state.code}
+            onChange={(event) =>
+              dispatch({
+                code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+                type: "code",
+              })
+            }
+            required
+          />
+        </Field>
+      </FieldGroup>
+      <FormActions>
+        <PrimaryButton type="submit" disabled={state.busy !== null}>
           {state.busy === "verify" ? "Checking…" : "Unlock report"}
-        </button>
-        <button
-          className="listwell-report__button listwell-report__button--quiet"
+        </PrimaryButton>
+        <QuietButton
           type="button"
           disabled={state.busy !== null || state.email.trim().length === 0}
           onClick={() => {
@@ -464,9 +478,13 @@ const UnlockCodeForm = ({
           }}
         >
           {state.busy === "resend" ? "Sending…" : "Send a new code"}
-        </button>
-      </div>
-      {state.error ? <p className="vbg-error">{state.error}</p> : null}
+        </QuietButton>
+      </FormActions>
+      {state.error ? (
+        <Alert variant="destructive" className="mt-3">
+          <AlertDescription>{state.error}</AlertDescription>
+        </Alert>
+      ) : null}
       {state.resent && !state.error ? (
         <p className="vbg-caption">
           If that email has a Listwell account, we sent a new code.
@@ -603,9 +621,8 @@ const ReportPaywallSection = ({
       <div className="listwell-report__unlock">
         <h2 className="vbg-heading-24">Full report with fix steps</h2>
         <p className="vbg-lede">{lede}</p>
-        <div className="listwell-report__unlock-actions">
-          <button
-            className="listwell-report__button listwell-report__button--quiet"
+        <FormActions>
+          <QuietButton
             type="button"
             disabled={redirecting !== null}
             onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
@@ -613,10 +630,9 @@ const ReportPaywallSection = ({
             {redirecting === "once"
               ? "Redirecting…"
               : `Full report · ${REPORT_ONCE_PRICE} once`}
-          </button>
+          </QuietButton>
           {access.yearlyAvailable ? (
-            <button
-              className="listwell-report__button"
+            <PrimaryButton
               type="button"
               disabled={redirecting !== null}
               onClick={() => onCheckout(checkoutPlanSchema.parse("yearly"))}
@@ -624,11 +640,10 @@ const ReportPaywallSection = ({
               {redirecting === "yearly"
                 ? "Redirecting…"
                 : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
-            </button>
+            </PrimaryButton>
           ) : null}
           {access.monthlyAvailable ? (
-            <button
-              className="listwell-report__button listwell-report__button--quiet"
+            <QuietButton
               type="button"
               disabled={redirecting !== null}
               onClick={() => onCheckout(checkoutPlanSchema.parse("monthly"))}
@@ -636,9 +651,9 @@ const ReportPaywallSection = ({
               {redirecting === "monthly"
                 ? "Redirecting…"
                 : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
-            </button>
+            </QuietButton>
           ) : null}
-        </div>
+        </FormActions>
         {checkoutError ? <p className="vbg-caption">{checkoutError}</p> : null}
       </div>
     </section>
@@ -727,8 +742,7 @@ const OnceRescanSection = ({
         {access.onceRescan.remaining === 1 ? "" : "s"} within 30 days of
         purchase.
       </p>
-      <button
-        className="listwell-report__button"
+      <PrimaryButton
         type="button"
         disabled={busy}
         onClick={() => {
@@ -766,7 +780,7 @@ const OnceRescanSection = ({
         }}
       >
         {busy ? "Re-scanning…" : "Re-scan now"}
-      </button>
+      </PrimaryButton>
       {error ? <p className="vbg-caption">{error}</p> : null}
     </section>
   );
@@ -779,40 +793,38 @@ const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
   return (
     <section className="listwell-report__chapter">
       <h2 className="vbg-heading-24">Scan history</h2>
-      <div className="vbg-table-wrap">
-        <table>
-          <caption className="vbg-caption">
-            Monthly visibility scores over time.
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Date</th>
-              <th scope="col">Score</th>
-              <th scope="col">Change</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scans.map((scan, index) => {
-              const previous = scans[index + 1];
-              const delta =
-                scan.score !== null &&
-                previous?.score !== null &&
-                previous?.score !== undefined
-                  ? scan.score - previous.score
-                  : null;
-              return (
-                <tr key={scan.id}>
-                  <th scope="row">
-                    {formatScanDate(scan.finishedAt ?? scan.startedAt)}
-                  </th>
-                  <td>{scan.score === null ? "—" : `${scan.score}%`}</td>
-                  <td>{formatScanDelta(delta)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <Table>
+        <TableCaption>Monthly visibility scores over time.</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">Date</TableHead>
+            <TableHead scope="col">Score</TableHead>
+            <TableHead scope="col">Change</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {scans.map((scan, index) => {
+            const previous = scans[index + 1];
+            const delta =
+              scan.score !== null &&
+              previous?.score !== null &&
+              previous?.score !== undefined
+                ? scan.score - previous.score
+                : null;
+            return (
+              <TableRow key={scan.id}>
+                <TableCell className="font-medium">
+                  {formatScanDate(scan.finishedAt ?? scan.startedAt)}
+                </TableCell>
+                <TableCell>
+                  {scan.score === null ? "—" : `${scan.score}%`}
+                </TableCell>
+                <TableCell>{formatScanDelta(delta)}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </section>
   );
 };
@@ -837,73 +849,72 @@ const ChecksLedgerSection = ({
   <section className="listwell-report__chapter listwell-report__ledger">
     <div className="listwell-report__ledger-head">
       <h2 className="vbg-heading-24">Checks</h2>
-      <fieldset className="listwell-report__filters" aria-label="Check filter">
-        <button
-          className="listwell-report__filter"
-          type="button"
-          aria-pressed={filter === "failures"}
-          onClick={() => onFilterChange("failures")}
-        >
-          Failures first
-        </button>
-        <button
-          className="listwell-report__filter"
-          type="button"
-          aria-pressed={filter === "all"}
-          onClick={() => onFilterChange("all")}
-        >
-          All checks
-        </button>
-      </fieldset>
+      <Tabs
+        value={filter}
+        onValueChange={(value) => {
+          if (value === "failures" || value === "all") {
+            onFilterChange(value);
+          }
+        }}
+        aria-label="Check filter"
+      >
+        <TabsList variant="line" className="h-auto">
+          <TabsTrigger value="failures">Failures first</TabsTrigger>
+          <TabsTrigger value="all">All checks</TabsTrigger>
+        </TabsList>
+      </Tabs>
     </div>
-    <div className="vbg-table-wrap">
-      <table className="vbg-custom-checks-table">
-        <caption className="vbg-caption">{checksCaption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Check</th>
-            <th scope="col">Status</th>
-            <th scope="col" className="vbg-numeric">
-              Points
-            </th>
-          </tr>
-        </thead>
-        {groupedChecks.map((group) => (
-          <tbody key={group.category}>
-            <tr className="vbg-custom-channel-group">
-              <th scope="colgroup" colSpan={3}>
-                {group.category}
-              </th>
-            </tr>
-            {group.items.map((item) => (
-              <tr
-                key={item.definition.id}
-                className={
-                  item.definition.id === selectedId
-                    ? "vbg-custom-row-selected"
-                    : undefined
-                }
-              >
-                <th scope="row">
-                  <button
-                    type="button"
-                    onClick={() => onSelectCheck(item.definition.id)}
-                  >
-                    {item.definition.title}
-                  </button>
-                </th>
-                <td className={`vbg-custom-status-${item.status}`}>
-                  {statusLabel(item.status)}
-                </td>
-                <td className="vbg-numeric">
-                  {pointsFor(item.definition, businessCategory)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        ))}
-      </table>
-    </div>
+    <Table className="listwell-report__checks-table">
+      <TableCaption>{checksCaption}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Check</TableHead>
+          <TableHead scope="col">Status</TableHead>
+          <TableHead scope="col" className="text-right">
+            Points
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      {groupedChecks.map((group) => (
+        <TableBody key={group.category}>
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <TableCell
+              colSpan={3}
+              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
+            >
+              {group.category}
+            </TableCell>
+          </TableRow>
+          {group.items.map((item) => (
+            <TableRow
+              key={item.definition.id}
+              data-state={
+                item.definition.id === selectedId ? "selected" : undefined
+              }
+              className={
+                item.definition.id === selectedId ? "bg-muted/60" : undefined
+              }
+            >
+              <TableCell className="font-medium">
+                <button
+                  type="button"
+                  className="text-left hover:underline"
+                  onClick={() => onSelectCheck(item.definition.id)}
+                >
+                  {item.definition.title}
+                </button>
+              </TableCell>
+              <TableCell>
+                <CheckStatusBadge status={item.status} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {pointsFor(item.definition, businessCategory)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      ))}
+    </Table>
   </section>
 );
 
@@ -954,30 +965,30 @@ const ListingsSection = ({
         <Link href={`/${businessId}/edit`}>Edit listings</Link>
       </p>
     ) : null}
-    <div className="vbg-table-wrap">
-      <table>
-        <caption className="vbg-caption">{listingsCaption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Channel</th>
-            <th scope="col">Listing</th>
-          </tr>
-        </thead>
-        <tbody>
-          {profiles.map((profile) => (
-            <tr key={`${profile.type}-${profile.title}`}>
-              <td>{CHANNEL_CONFIG[profile.type].name}</td>
-              <td>
-                {profile.title}
-                {profile.subtitle ? (
-                  <div className="vbg-meta">{profile.subtitle}</div>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table>
+      <TableCaption>{listingsCaption}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Channel</TableHead>
+          <TableHead scope="col">Listing</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {profiles.map((profile) => (
+          <TableRow key={`${profile.type}-${profile.title}`}>
+            <TableCell>{CHANNEL_CONFIG[profile.type].name}</TableCell>
+            <TableCell>
+              {profile.title}
+              {profile.subtitle ? (
+                <div className="text-muted-foreground text-sm">
+                  {profile.subtitle}
+                </div>
+              ) : null}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   </section>
 );
 
@@ -1041,6 +1052,7 @@ const useReportLiveData = ({
   checks,
   initialResults,
   initialSummary,
+  scanHistoryOverride,
   serverAccess,
   variant,
 }: {
@@ -1049,6 +1061,7 @@ const useReportLiveData = ({
   checks: CheckDefinition[];
   initialResults: Record<string, CheckResult>;
   initialSummary: AuditSummaryResult;
+  scanHistoryOverride?: ScanSummary[];
   serverAccess: EntitlementState;
   variant: "owner" | "shared";
 }) => {
@@ -1123,17 +1136,48 @@ const useReportLiveData = ({
   const summary =
     refinedSummary?.available === true ? refinedSummary : parsedInitialSummary;
 
-  const { data: scanHistory = [] } = useSWR(
+  let scanHistoryUrl: string | null = null;
+  if (
+    scanHistoryOverride === undefined &&
     variant === "owner" &&
-      (access.kind === "report_monthly" || access.kind === "report_once") &&
-      showFixSteps
-      ? `/api/businesses/${business.id}/scans`
-      : null,
+    showFixSteps &&
+    (access.kind === "report_monthly" || access.kind === "report_once")
+  ) {
+    scanHistoryUrl = `/api/businesses/${business.id}/scans`;
+  }
+  const { data: fetchedScanHistory = [] } = useSWR(
+    scanHistoryUrl,
     fetchScanHistory,
     { revalidateOnFocus: false }
   );
+  const scanHistory = scanHistoryOverride ?? fetchedScanHistory;
 
   return { access, liveChecks, scanHistory, showFixSteps, summary };
+};
+
+const shouldShowScanHistory = ({
+  access,
+  isOwner,
+  scanCount,
+  scanHistoryOverride,
+  showFixSteps,
+}: {
+  access: EntitlementState;
+  isOwner: boolean;
+  scanCount: number;
+  scanHistoryOverride: ScanSummary[] | undefined;
+  showFixSteps: boolean;
+}): boolean => {
+  if (!isOwner || scanCount === 0) {
+    return false;
+  }
+  if (scanHistoryOverride !== undefined) {
+    return true;
+  }
+  return (
+    (access.kind === "report_monthly" || access.kind === "report_once") &&
+    showFixSteps
+  );
 };
 
 const ReportSharedBanner = ({
@@ -1210,6 +1254,8 @@ export const ReportClient = ({
   checkJobId,
   variant = "owner",
   shareExpiresAt,
+  listingReviewOverride,
+  scanHistoryOverride,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
@@ -1224,6 +1270,10 @@ export const ReportClient = ({
   checkJobId?: string;
   variant?: "owner" | "shared";
   shareExpiresAt?: string | null;
+  /** Dev UI fixture only — skips listing review fetch when set. */
+  listingReviewOverride?: ListingReviewResult;
+  /** Dev UI fixture only — skips scan history fetch when set. */
+  scanHistoryOverride?: ScanSummary[];
 }) => {
   const business = useMemo(
     () => businessSchema.parse(initialBusiness),
@@ -1240,6 +1290,7 @@ export const ReportClient = ({
       checks,
       initialResults,
       initialSummary,
+      scanHistoryOverride,
       serverAccess,
       variant,
     });
@@ -1320,21 +1371,13 @@ export const ReportClient = ({
           <h1 className="vbg-title">{business.name}</h1>
           <div className="listwell-report__toolbar listwell-report__toolbar--screen">
             {isOwner ? (
-              <button
-                className="listwell-report__button listwell-report__button--quiet"
-                type="button"
-                onClick={() => setShareOpen(true)}
-              >
+              <QuietButton type="button" onClick={() => setShareOpen(true)}>
                 Share
-              </button>
+              </QuietButton>
             ) : null}
-            <button
-              className="listwell-report__button"
-              type="button"
-              onClick={() => window.print()}
-            >
+            <PrimaryButton type="button" onClick={() => window.print()}>
               Download PDF / Print
-            </button>
+            </PrimaryButton>
           </div>
         </div>
         {isOwner && access.kind === "report_monthly" ? (
@@ -1391,15 +1434,20 @@ export const ReportClient = ({
       <ListingReviewSection
         businessId={business.id}
         showContent={showFixSteps}
+        listingReviewOverride={listingReviewOverride}
       />
 
       {isOwner ? (
         <OnceRescanSection access={access} businessId={business.id} />
       ) : null}
 
-      {isOwner &&
-      scanHistory.length > 0 &&
-      (access.kind === "report_monthly" || access.kind === "report_once") ? (
+      {shouldShowScanHistory({
+        access,
+        isOwner,
+        scanCount: scanHistory.length,
+        scanHistoryOverride,
+        showFixSteps,
+      }) ? (
         <ScanHistorySection scans={scanHistory} />
       ) : null}
 

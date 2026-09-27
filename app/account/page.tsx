@@ -1,5 +1,14 @@
 import Link from "next/link";
 
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getSessionUser, listReportsForUser } from "@/lib/auth";
 import { probeConvexBusinesses } from "@/lib/data";
 
@@ -87,42 +96,38 @@ const AccountPage = async () => {
           </p>
         </>
       ) : (
-        <div className="vbg-table-wrap">
-          <table>
-            <caption className="vbg-caption">
-              Businesses on your account.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Business</th>
-                <th scope="col">Plan</th>
-                <th scope="col">Last scan</th>
-                <th scope="col">Next scan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.map((report) => (
-                <tr key={report.id}>
-                  <th scope="row">
-                    <Link href={`/${report.id}`}>{report.name}</Link>
-                  </th>
-                  <td>{formatPlan(report.plan)}</td>
-                  <td>
-                    {report.lastScan?.score !== null &&
-                    report.lastScan?.score !== undefined
-                      ? `${report.lastScan.score}% · ${formatDate(report.lastScan.finishedAt)}`
-                      : "—"}
-                  </td>
-                  <td>
-                    {report.plan === "monthly"
-                      ? formatDate(report.nextScanAt)
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableCaption>Businesses on your account.</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">Business</TableHead>
+              <TableHead scope="col">Plan</TableHead>
+              <TableHead scope="col">Last scan</TableHead>
+              <TableHead scope="col">Next scan</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {reports.map((report) => (
+              <TableRow key={report.id}>
+                <TableCell className="font-medium">
+                  <Link href={`/${report.id}`}>{report.name}</Link>
+                </TableCell>
+                <TableCell>{formatPlan(report.plan)}</TableCell>
+                <TableCell>
+                  {report.lastScan?.score !== null &&
+                  report.lastScan?.score !== undefined
+                    ? `${report.lastScan.score}% · ${formatDate(report.lastScan.finishedAt)}`
+                    : "—"}
+                </TableCell>
+                <TableCell>
+                  {report.plan === "monthly"
+                    ? formatDate(report.nextScanAt)
+                    : "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </section>
   );

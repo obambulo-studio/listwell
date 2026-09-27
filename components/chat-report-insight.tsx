@@ -4,6 +4,21 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { reportAllocationSegments } from "@/components/chat-report-allocation";
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { scorePercent } from "@/lib/chat-onboarding";
 import type { BasicReportStats, ReportIssue } from "@/lib/chat-onboarding";
 import {
@@ -18,53 +33,14 @@ import {
 import { checkoutPlanSchema, entitlementStateSchema } from "@/lib/schema";
 import type { CheckoutPlan, EntitlementState } from "@/lib/schema";
 
-const STATUS_COPY = {
-  fail: "Needs work",
-  pass: "Pass",
-} as const;
-
-const IssueStatusMark = ({ status }: { status: ReportIssue["status"] }) => {
-  if (status === "pass") {
-    return (
-      <span
-        className="listwell-chat__report-issue-mark listwell-chat__report-issue-mark--pass"
-        aria-hidden="true"
-      >
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className="listwell-chat__report-issue-mark listwell-chat__report-issue-mark--fail"
-      aria-hidden="true"
-    >
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3.5"
-        strokeLinecap="round"
-      >
-        <path d="M18 6L6 18M6 6l12 12" />
-      </svg>
-    </span>
-  );
-};
+const IssueStatusMark = ({ status }: { status: ReportIssue["status"] }) => (
+  <Badge
+    variant={status === "pass" ? "secondary" : "destructive"}
+    className="mr-2 shrink-0"
+  >
+    {status === "pass" ? "Pass" : "Needs work"}
+  </Badge>
+);
 
 const formatCheckCount = (count: number): string =>
   count === 1 ? "1 check" : `${count} checks`;
@@ -169,22 +145,22 @@ const ReportUnlockActions = ({
   onUnlock,
   onPreview,
 }: ReportUnlockActionsProps) => (
-  <div className="listwell-chat__report-actions">
-    <button
+  <FormActions className="flex-col items-stretch sm:flex-row sm:items-center">
+    <PrimaryButton
       type="button"
-      className="listwell-chat__report-cta"
       disabled={ctaDisabled}
+      className="w-full sm:w-auto"
       onClick={() => {
         onUnlock(checkoutPlanSchema.parse("once"));
       }}
     >
       {ctaLabel}
-    </button>
+    </PrimaryButton>
     {businessId && !access.unlocked && access.yearlyAvailable ? (
-      <button
+      <QuietButton
         type="button"
-        className="listwell-chat__report-link"
         disabled={ctaDisabled}
+        className="w-full justify-start sm:w-auto"
         onClick={() => {
           onUnlock(checkoutPlanSchema.parse("yearly"));
         }}
@@ -192,13 +168,13 @@ const ReportUnlockActions = ({
         {redirecting === "yearly"
           ? "Redirecting…"
           : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
-      </button>
+      </QuietButton>
     ) : null}
     {businessId && !access.unlocked && access.monthlyAvailable ? (
-      <button
+      <QuietButton
         type="button"
-        className="listwell-chat__report-link"
         disabled={ctaDisabled}
+        className="w-full justify-start sm:w-auto"
         onClick={() => {
           onUnlock(checkoutPlanSchema.parse("monthly"));
         }}
@@ -206,18 +182,18 @@ const ReportUnlockActions = ({
         {redirecting === "monthly"
           ? "Redirecting…"
           : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
-      </button>
+      </QuietButton>
     ) : null}
     {businessId && !access.unlocked ? (
-      <button
+      <QuietButton
         type="button"
-        className="listwell-chat__report-link"
+        className="w-full sm:w-auto"
         onClick={onPreview}
       >
         Preview
-      </button>
+      </QuietButton>
     ) : null}
-  </div>
+  </FormActions>
 );
 
 export const ReportSummary = ({
@@ -270,75 +246,93 @@ export const ReportSummary = ({
   };
 
   return (
-    <article
-      className="listwell-chat__report"
+    <Card
+      className="listwell-chat__report max-w-full ring-0"
       aria-label={`Visibility report for ${businessName}`}
     >
-      <header className="listwell-chat__report-header">
-        <p className="listwell-chat__report-business">{businessName}</p>
-        <p className="listwell-chat__report-score">
-          <span className="listwell-chat__report-score-value">{score}%</span>
-          <span className="listwell-chat__report-score-label"> visibility</span>
-        </p>
-        <p className="listwell-chat__report-meta">
+      <CardHeader className="gap-1">
+        <CardDescription className="text-foreground text-base">
+          {businessName}
+        </CardDescription>
+        <CardTitle className="text-3xl font-semibold tracking-tight">
+          {score}%
+          <span className="text-muted-foreground text-lg font-normal">
+            {" "}
+            visibility
+          </span>
+        </CardTitle>
+        <CardDescription>
           {formatCheckCount(stats.pass)} passing ·{" "}
           {formatCheckCount(stats.fail)} need work
           {stats.error > 0 ? ` · ${formatCheckCount(stats.error)} skipped` : ""}
-        </p>
-      </header>
+        </CardDescription>
+      </CardHeader>
 
-      <figure
-        className="listwell-chat__report-bar"
-        aria-label={`${stats.pass} passing, ${stats.fail} need work${stats.error > 0 ? `, ${stats.error} skipped` : ""}`}
-      >
-        {segments.map((segment) => (
-          <span
-            key={segment.name}
-            className={`listwell-chat__report-bar-segment ${segment.cls}`}
-            style={{ flex: `${segment.pct} 1 0%` }}
-          />
-        ))}
-      </figure>
-
-      <ul className="listwell-chat__report-legend">
-        {segments.map((segment) => (
-          <li key={segment.name} className="listwell-chat__report-legend-item">
+      <CardContent className="flex flex-col gap-4">
+        <figure
+          className="listwell-chat__report-bar"
+          aria-label={`${stats.pass} passing, ${stats.fail} need work${stats.error > 0 ? `, ${stats.error} skipped` : ""}`}
+        >
+          {segments.map((segment) => (
             <span
-              className={`listwell-chat__report-legend-label ${segment.tone}`}
-            >
-              {segment.label}
-            </span>
-            <span className="listwell-chat__report-legend-pct">
-              {segment.pct}%
-            </span>
-          </li>
-        ))}
-      </ul>
+              key={segment.name}
+              className={`listwell-chat__report-bar-segment ${segment.cls}`}
+              style={{ flex: `${segment.pct} 1 0%` }}
+            />
+          ))}
+        </figure>
 
-      {stats.topIssues.length > 0 ? (
-        <ul className="listwell-chat__report-issues">
-          {stats.topIssues.slice(0, 4).map((issue) => (
-            <li key={`${issue.status}-${issue.title}`}>
-              <IssueStatusMark status={issue.status} />
-              <span className="vbg-visually-hidden">
-                {STATUS_COPY[issue.status]}:{" "}
+        <ul className="listwell-chat__report-legend">
+          {segments.map((segment) => (
+            <li
+              key={segment.name}
+              className="listwell-chat__report-legend-item"
+            >
+              <span
+                className={`listwell-chat__report-legend-label ${segment.tone}`}
+              >
+                {segment.label}
               </span>
-              {issue.title}
+              <span className="listwell-chat__report-legend-pct">
+                {segment.pct}%
+              </span>
             </li>
           ))}
         </ul>
-      ) : null}
 
-      <ReportUnlockActions
-        businessId={businessId}
-        access={access}
-        ctaDisabled={ctaDisabled}
-        ctaLabel={ctaLabel}
-        redirecting={redirecting}
-        onUnlock={handleUnlock}
-        onPreview={onPreview}
-      />
-      <p className="listwell-chat__report-note">{checkoutError ?? note}</p>
-    </article>
+        {stats.topIssues.length > 0 ? (
+          <ul className="listwell-chat__report-issues space-y-2">
+            {stats.topIssues.slice(0, 4).map((issue) => (
+              <li
+                key={`${issue.status}-${issue.title}`}
+                className="flex items-start gap-1 text-sm"
+              >
+                <IssueStatusMark status={issue.status} />
+                {issue.title}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </CardContent>
+
+      <CardFooter className="flex flex-col items-stretch gap-3 border-t pt-4">
+        <ReportUnlockActions
+          businessId={businessId}
+          access={access}
+          ctaDisabled={ctaDisabled}
+          ctaLabel={ctaLabel}
+          redirecting={redirecting}
+          onUnlock={handleUnlock}
+          onPreview={onPreview}
+        />
+        {checkoutError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{checkoutError}</AlertDescription>
+          </Alert>
+        ) : (
+          <p className="text-muted-foreground text-sm">{note}</p>
+        )}
+      </CardFooter>
+    </Card>
   );
 };

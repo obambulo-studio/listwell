@@ -1,52 +1,85 @@
 "use client";
 
-import { cva } from "class-variance-authority";
-import type { VariantProps } from "class-variance-authority";
-import type { ButtonHTMLAttributes } from "react";
+import Link from "next/link";
+import type { ComponentProps, ReactNode } from "react";
 
+import { Button as UiButton, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const filledShadow = "shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]";
+type UiVariant = NonNullable<Parameters<typeof buttonVariants>[0]>["variant"];
 
-/* Pill-shaped by default — the app's core button style. Explicit symmetric
- * padding (not a fixed height) so the top/bottom spacing is always equal. */
-export const buttonVariants = cva(
-  `inline-flex items-center justify-center font-medium transition-[transform,background-color,opacity] duration-150 ease-out select-none active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50`,
-  {
-    defaultVariants: { size: "md", variant: "secondary" },
-    variants: {
-      size: {
-        md: "gap-2 rounded-full px-4 py-[9px] text-sm leading-none",
-        sm: "h-[27px] gap-1.5 rounded-full px-3 text-[13px] leading-none",
-        xs: "h-7 gap-1 rounded-full px-2.5 text-[12px] leading-none font-normal",
-      },
-      variant: {
-        accent: `bg-accent hover:bg-accent-ink text-white ${filledShadow}`,
-        ghost: "bg-hover-2 text-ink hover:bg-line-strong",
-        primary: `bg-ink text-canvas dark:bg-ink dark:text-canvas hover:opacity-90 ${filledShadow}`,
-        quiet: "text-ink hover:bg-hover",
-        secondary:
-          "bg-surface text-ink shadow-btn hover:bg-inset aria-expanded:bg-hover",
-        success: `bg-green text-white hover:brightness-95 ${filledShadow}`,
-      },
-    },
+const variantMap = {
+  accent: "default",
+  ghost: "ghost",
+  primary: "default",
+  quiet: "link",
+  secondary: "secondary",
+  success: "default",
+} as const satisfies Record<string, UiVariant>;
+
+export type ButtonVariant = keyof typeof variantMap;
+
+interface SharedProps {
+  variant?: ButtonVariant;
+  size?: "xs" | "sm" | "md";
+  className?: string;
+  disabled?: boolean;
+  children?: ReactNode;
+}
+
+const sizeMap = {
+  md: "default",
+  sm: "sm",
+  xs: "xs",
+} as const;
+
+const variantClassName = (variant: ButtonVariant): string | undefined => {
+  if (variant === "accent") {
+    return "bg-accent text-white hover:bg-accent-ink";
   }
-);
-
-export type ButtonVariant = NonNullable<
-  VariantProps<typeof buttonVariants>["variant"]
->;
+  if (variant === "success") {
+    return "bg-green text-white hover:brightness-95";
+  }
+  if (variant === "primary") {
+    return "bg-primary text-primary-foreground hover:bg-primary/90";
+  }
+  return undefined;
+};
 
 export const Button = ({
-  variant,
-  size,
+  variant = "secondary",
+  size = "md",
   className,
   ...props
-}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> &
-  VariantProps<typeof buttonVariants>) => (
-  <button
-    type="button"
-    className={cn(buttonVariants({ size, variant }), className)}
+}: SharedProps & Omit<ComponentProps<typeof UiButton>, keyof SharedProps>) => (
+  <UiButton
+    variant={variantMap[variant]}
+    size={sizeMap[size]}
+    className={cn(variantClassName(variant), className)}
     {...props}
   />
+);
+
+export const ButtonLink = ({
+  href,
+  variant = "secondary",
+  size = "md",
+  className,
+  children,
+  ...props
+}: SharedProps & {
+  href: ComponentProps<typeof Link>["href"];
+} & Omit<ComponentProps<typeof Link>, keyof SharedProps | "href">) => (
+  <Link
+    href={href}
+    className={cn(
+      buttonVariants({ size: sizeMap[size], variant: variantMap[variant] }),
+      variant === "quiet" && "px-0",
+      variantClassName(variant),
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </Link>
 );

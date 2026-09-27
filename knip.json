@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignore": ["open-next.config.ts", "worker.ts"],
+  "ignore": [
+    "open-next.config.ts",
+    "worker.ts",
+    "components/ui/**",
+    "components/reui/**"
+  ],
   "exclude": [
     "duplicates",
     "enumMembers",

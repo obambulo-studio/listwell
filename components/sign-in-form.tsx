@@ -1,11 +1,25 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useId, useReducer, useState } from "react";
 import { z } from "zod";
 
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+  QuietLink,
+} from "@/components/listwell/actions";
+import { Alert, AlertDescription } from "@/components/reui/alert";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { getStoredBusinessIds } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
 const signInEmailSchema = z.string().email();
 const signInCodeSchema = z.string().regex(/^\d{6}$/u);
@@ -209,7 +223,7 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
           Sign in is not available in this environment.
         </p>
         <p className="vbg-lede">
-          <Link href="/">Back to chat</Link>
+          <QuietLink href="/">Back to chat</QuietLink>
         </p>
       </>
     );
@@ -226,101 +240,92 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
 
   if (state.step === "code") {
     return (
-      <form className="listwell-report__unlock" action={verifyCode}>
+      <form className="listwell-report__unlock max-w-md" action={verifyCode}>
         <h1 className="vbg-title">Enter your code</h1>
         <p className="vbg-lede">
           We sent a code to {maskAccountEmail(state.email)}.
         </p>
-        <div className="vbg-field">
-          <label className="vbg-label" htmlFor={codeFieldId}>
-            Code
-          </label>
-          <input
-            id={codeFieldId}
-            type="text"
-            name="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]*"
-            maxLength={6}
-            value={state.code}
-            disabled={state.busy}
-            placeholder="000000"
-            className="vbg-mono"
-            onChange={(event) => {
-              dispatch({
-                code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
-                type: "code",
-              });
-            }}
-          />
-        </div>
-        <div className="listwell-report__unlock-actions">
-          <button
-            className="listwell-report__button"
+        <FieldGroup className="mt-6">
+          <Field data-invalid={state.error ? true : undefined}>
+            <FieldLabel htmlFor={codeFieldId}>Code</FieldLabel>
+            <Input
+              id={codeFieldId}
+              type="text"
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={state.code}
+              disabled={state.busy}
+              placeholder="000000"
+              className={cn("font-mono tracking-widest")}
+              onChange={(event) => {
+                dispatch({
+                  code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+                  type: "code",
+                });
+              }}
+            />
+            {state.error ? <FieldError>{state.error}</FieldError> : null}
+          </Field>
+        </FieldGroup>
+        <FormActions className="mt-6">
+          <PrimaryButton
             type="submit"
             disabled={state.busy || state.code.length !== 6}
           >
             {state.busy ? "Signing in" : "Sign in"}
-          </button>
-          <button
-            className="listwell-report__button listwell-report__button--quiet"
+          </PrimaryButton>
+          <QuietButton
             type="button"
             disabled={state.busy}
             onClick={() => dispatch({ type: "reset-email" })}
           >
             Use a different email
-          </button>
-        </div>
-        {state.error ? <p className="vbg-error">{state.error}</p> : null}
+          </QuietButton>
+        </FormActions>
       </form>
     );
   }
 
   return (
-    <form className="listwell-report__unlock" action={sendCode}>
+    <form className="listwell-report__unlock max-w-md" action={sendCode}>
       <h1 className="vbg-title">Sign in</h1>
       {authServiceDown && !healthLoading ? (
-        <output className="vbg-error">{AUTH_UNAVAILABLE_MESSAGE}</output>
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>{AUTH_UNAVAILABLE_MESSAGE}</AlertDescription>
+        </Alert>
       ) : (
         <p className="vbg-lede">
           We&apos;ll email you a one-time code. No password needed.
         </p>
       )}
-      <div className="vbg-field">
-        <label className="vbg-label" htmlFor={emailFieldId}>
-          Email
-        </label>
-        <input
-          id={emailFieldId}
-          type="email"
-          name="email"
-          autoComplete="email"
-          inputMode="email"
-          value={state.email}
-          disabled={state.busy || authServiceDown}
-          placeholder="you@business.com"
-          onChange={(event) =>
-            dispatch({ email: event.target.value, type: "email" })
-          }
-        />
-      </div>
-      <div className="listwell-report__unlock-actions">
-        <button
-          className="listwell-report__button"
-          type="submit"
-          disabled={state.busy || authServiceDown}
-        >
+      <FieldGroup className="mt-6">
+        <Field data-invalid={state.error ? true : undefined}>
+          <FieldLabel htmlFor={emailFieldId}>Email</FieldLabel>
+          <Input
+            id={emailFieldId}
+            type="email"
+            name="email"
+            autoComplete="email"
+            inputMode="email"
+            value={state.email}
+            disabled={state.busy || authServiceDown}
+            placeholder="you@business.com"
+            onChange={(event) =>
+              dispatch({ email: event.target.value, type: "email" })
+            }
+          />
+          {state.error ? <FieldError>{state.error}</FieldError> : null}
+        </Field>
+      </FieldGroup>
+      <FormActions className="mt-6">
+        <PrimaryButton type="submit" disabled={state.busy || authServiceDown}>
           {state.busy ? "Sending code" : "Send code"}
-        </button>
-        <Link
-          className="listwell-report__button listwell-report__button--quiet"
-          href="/"
-        >
-          Back to chat
-        </Link>
-      </div>
-      {state.error ? <p className="vbg-error">{state.error}</p> : null}
+        </PrimaryButton>
+        <QuietLink href="/">Back to chat</QuietLink>
+      </FormActions>
     </form>
   );
 };
