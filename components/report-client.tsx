@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { CheckBody } from "@/components/check-body";
 import { ListingReviewSection } from "@/components/listing-review-section";
+import { ReportShareDialog } from "@/components/report-share-dialog";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -866,16 +867,20 @@ const ListingsSection = ({
   businessId,
   profiles,
   listingsCaption,
+  showEditLink,
 }: {
   businessId: string;
   profiles: ReturnType<typeof businessToProfiles>;
   listingsCaption: string;
+  showEditLink: boolean;
 }) => (
   <section className="listwell-report__chapter">
     <h2 className="vbg-heading-24">Listings on this audit</h2>
-    <p className="vbg-meta listwell-report__detail-meta">
-      <Link href={`/${businessId}/edit`}>Edit listings</Link>
-    </p>
+    {showEditLink ? (
+      <p className="vbg-meta listwell-report__detail-meta">
+        <Link href={`/${businessId}/edit`}>Edit listings</Link>
+      </p>
+    ) : null}
     <div className="vbg-table-wrap">
       <table>
         <caption className="vbg-caption">{listingsCaption}</caption>
@@ -964,6 +969,7 @@ const useReportLiveData = ({
   initialResults,
   initialSummary,
   serverAccess,
+  variant,
 }: {
   business: Business;
   checkJobId?: string;
@@ -971,6 +977,7 @@ const useReportLiveData = ({
   initialResults: Record<string, CheckResult>;
   initialSummary: AuditSummaryResult;
   serverAccess: EntitlementState;
+  variant: "owner" | "shared";
 }) => {
   const parsedInitialResults = useMemo(
     () => initialResultsSchema.parse(initialResults),
@@ -982,7 +989,7 @@ const useReportLiveData = ({
   );
 
   const { data: clientAccess } = useSWR(
-    ["entitlement", business.id] as const,
+    variant === "owner" ? (["entitlement", business.id] as const) : null,
     ([, id]) => fetchEntitlement(id),
     { revalidateOnFocus: false }
   );
@@ -1054,6 +1061,66 @@ const useReportLiveData = ({
   return { access, liveChecks, scanHistory, showFixSteps, summary };
 };
 
+const ReportSharedBanner = ({
+  expiresAt,
+}: {
+  expiresAt: string | null | undefined;
+}) => {
+  const expiryLabel =
+    expiresAt && !Number.isNaN(Date.parse(expiresAt))
+      ? new Date(expiresAt).toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : null;
+  return (
+    <ReportSystemNotice>
+      Read-only shared report
+      {expiryLabel ? ` · link expires ${expiryLabel}` : ""}. Paid fix steps and
+      account details are not shown.
+    </ReportSystemNotice>
+  );
+};
+
+const ReportTopNotices = ({
+  access,
+  businessId,
+  checkoutRetryId,
+  isOwner,
+  kvExpiryDays,
+  purchasePending,
+  shareExpiresAt,
+  showKvExpiryNotice,
+}: {
+  access: EntitlementState;
+  businessId: string;
+  checkoutRetryId?: string;
+  isOwner: boolean;
+  kvExpiryDays: number;
+  purchasePending: boolean;
+  shareExpiresAt?: string | null;
+  showKvExpiryNotice: boolean;
+}) => {
+  if (isOwner) {
+    return (
+      <>
+        {showKvExpiryNotice ? (
+          <ReportKvExpiryNotice days={kvExpiryDays} />
+        ) : null}
+        {access.backendAvailable ? null : <ReportBackendUnavailableNotice />}
+        {purchasePending ? (
+          <ReportPurchasePendingNotice
+            businessId={businessId}
+            checkoutRetryId={checkoutRetryId}
+          />
+        ) : null}
+      </>
+    );
+  }
+  return <ReportSharedBanner expiresAt={shareExpiresAt} />;
+};
+
 export const ReportClient = ({
   initialBusiness,
   checks,
@@ -1066,6 +1133,8 @@ export const ReportClient = ({
   showKvExpiryNotice,
   kvExpiryDays,
   checkJobId,
+  variant = "owner",
+  shareExpiresAt,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
@@ -1078,6 +1147,8 @@ export const ReportClient = ({
   showKvExpiryNotice: boolean;
   kvExpiryDays: number;
   checkJobId?: string;
+  variant?: "owner" | "shared";
+  shareExpiresAt?: string | null;
 }) => {
   const business = useMemo(
     () => businessSchema.parse(initialBusiness),
@@ -1095,11 +1166,14 @@ export const ReportClient = ({
       initialResults,
       initialSummary,
       serverAccess,
+      variant,
     });
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
   const [pickedId, setPickedId] = useState<string | undefined>();
   const [filter, setFilter] = useState<"failures" | "all">("failures");
+  const [shareOpen, setShareOpen] = useState(false);
+  const isOwner = variant === "owner";
 
   const selectedId = pickedId ?? recommendedCheckId(summary, liveChecks);
   const selected = liveChecks.find((item) => item.definition.id === selectedId);
@@ -1145,18 +1219,50 @@ export const ReportClient = ({
   };
 
   return (
-    <article className="listwell-report">
-      {showKvExpiryNotice ? <ReportKvExpiryNotice days={kvExpiryDays} /> : null}
-      {access.backendAvailable ? undefined : <ReportBackendUnavailableNotice />}
-      {purchasePending ? (
-        <ReportPurchasePendingNotice
+    <article
+      className={
+        isOwner ? "listwell-report" : "listwell-report listwell-report--shared"
+      }
+    >
+      {shareOpen ? (
+        <ReportShareDialog
           businessId={business.id}
-          checkoutRetryId={checkoutRetryId}
+          onClose={() => setShareOpen(false)}
         />
       ) : null}
+      <ReportTopNotices
+        access={access}
+        businessId={business.id}
+        checkoutRetryId={checkoutRetryId}
+        isOwner={isOwner}
+        kvExpiryDays={kvExpiryDays}
+        purchasePending={purchasePending}
+        shareExpiresAt={shareExpiresAt}
+        showKvExpiryNotice={showKvExpiryNotice}
+      />
       <header className="listwell-report__hero">
-        <h1 className="vbg-title">{business.name}</h1>
-        {access.kind === "report_monthly" ? (
+        <div className="listwell-report__hero-top">
+          <h1 className="vbg-title">{business.name}</h1>
+          <div className="listwell-report__toolbar listwell-report__toolbar--screen">
+            {isOwner ? (
+              <button
+                className="listwell-report__button listwell-report__button--quiet"
+                type="button"
+                onClick={() => setShareOpen(true)}
+              >
+                Share
+              </button>
+            ) : null}
+            <button
+              className="listwell-report__button"
+              type="button"
+              onClick={() => window.print()}
+            >
+              Download PDF / Print
+            </button>
+          </div>
+        </div>
+        {isOwner && access.kind === "report_monthly" ? (
           <p className="vbg-caption listwell-report__badge">
             Monthly scans active
           </p>
@@ -1189,28 +1295,30 @@ export const ReportClient = ({
         onSelectCheck={setPickedId}
       />
 
-      <ReportAccessSection
-        access={access}
-        checkoutReturned={checkoutReturned}
-        summary={summary}
-        citationChecks={citationChecks}
-        redirecting={redirecting}
-        checkoutError={checkoutError}
-        onSelectCheck={setPickedId}
-        onCheckout={(plan) => {
-          void startCheckout(plan);
-        }}
-        onUnlocked={() => {
-          window.location.replace(`/${business.id}`);
-        }}
-      />
+      {isOwner ? (
+        <ReportAccessSection
+          access={access}
+          checkoutReturned={checkoutReturned}
+          summary={summary}
+          citationChecks={citationChecks}
+          redirecting={redirecting}
+          checkoutError={checkoutError}
+          onSelectCheck={setPickedId}
+          onCheckout={(plan) => {
+            void startCheckout(plan);
+          }}
+          onUnlocked={() => {
+            window.location.replace(`/${business.id}`);
+          }}
+        />
+      ) : null}
 
       <ListingReviewSection
         businessId={business.id}
         showContent={showFixSteps}
       />
 
-      {access.kind === "report_monthly" && scanHistory.length > 0 ? (
+      {isOwner && access.kind === "report_monthly" && scanHistory.length > 0 ? (
         <ScanHistorySection scans={scanHistory} />
       ) : null}
 
@@ -1237,7 +1345,13 @@ export const ReportClient = ({
         businessId={business.id}
         profiles={profiles}
         listingsCaption={listingsCaption}
+        showEditLink={isOwner}
       />
+      <footer aria-hidden="true" className="listwell-report__print-footer">
+        <p className="vbg-caption">
+          Listwell · listwell.dev · local SEO audit for Australian businesses
+        </p>
+      </footer>
     </article>
   );
 };

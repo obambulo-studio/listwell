@@ -263,6 +263,34 @@ export type ClaimBusinessesRequest = z.infer<
   typeof claimBusinessesRequestSchema
 >;
 
+export const reportShareRecordSchema = z.object({
+  businessId: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string().nullable(),
+  revokedAt: z.string().nullable(),
+  token: z.string().min(16),
+});
+export type ReportShareRecord = z.infer<typeof reportShareRecordSchema>;
+
+export const createReportShareRequestSchema = z.object({
+  expiresInDays: z
+    .union([z.literal(7), z.literal(30)])
+    .nullable()
+    .optional(),
+});
+export type CreateReportShareRequest = z.infer<
+  typeof createReportShareRequestSchema
+>;
+
+export const reportShareStateSchema = z.object({
+  active: z.boolean(),
+  createdAt: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+  token: z.string().nullable(),
+  url: z.string().nullable(),
+});
+export type ReportShareState = z.infer<typeof reportShareStateSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.string(),
 });

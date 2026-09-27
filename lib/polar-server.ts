@@ -19,6 +19,7 @@ import {
 import {
   fixStepsWithoutPayment,
   isPaymentsIntentionallyDisabled,
+  sharedViewerEntitlementState,
 } from "./entitlements-access";
 import {
   businessIdFromMetadata,
@@ -92,6 +93,51 @@ const readPaymentsDisabledFlag = async (): Promise<boolean> => {
     listwellPaymentsDisabled: fromWorker ?? fromProcess,
   });
 };
+
+export const getSharedReportViewerAccess =
+  async (): Promise<EntitlementState> => {
+    const [config, authEnabled, paymentsDisabledFlag] = await Promise.all([
+      getPolarConfig(),
+      isAuthEnabled(),
+      readPaymentsDisabledFlag(),
+    ]);
+    const polarConfigured = Boolean(config);
+    const waived = fixStepsWithoutPayment({
+      intentionallyDisabled: paymentsDisabledFlag,
+      nodeEnv: process.env.NODE_ENV ?? "development",
+      polarConfigured,
+    });
+
+    if (!config) {
+      return sharedViewerEntitlementState(
+        entitlementStateSchema.parse({
+          authEnabled,
+          backendAvailable: true,
+          fixStepsWithoutPayment: waived,
+          kind: null,
+          maskedEmail: null,
+          monthlyAvailable: false,
+          paymentsEnabled: false,
+          sessionRequired: false,
+          unlocked: false,
+        })
+      );
+    }
+
+    return sharedViewerEntitlementState(
+      entitlementStateSchema.parse({
+        authEnabled,
+        backendAvailable: true,
+        fixStepsWithoutPayment: waived,
+        kind: null,
+        maskedEmail: null,
+        monthlyAvailable: Boolean(config.productReportMonthly),
+        paymentsEnabled: true,
+        sessionRequired: false,
+        unlocked: false,
+      })
+    );
+  };
 
 export const getReportAccess = async (
   businessId: string

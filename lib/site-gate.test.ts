@@ -26,6 +26,12 @@ describe("site gate paths", () => {
     expect(isSiteGateExemptPath("/discover")).toBeFalsy();
     expect(isSiteGateExemptPath("/api/discover")).toBeFalsy();
   });
+
+  it("exempts shared report pages", () => {
+    expect(
+      isSiteGateExemptPath("/share/abc123def456ghi789jkl012mno345pqr678")
+    ).toBeTruthy();
+  });
 });
 
 describe("site gate cookie", () => {
