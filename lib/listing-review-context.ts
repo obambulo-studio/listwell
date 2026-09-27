@@ -5,11 +5,13 @@ import {
   firstGooglePlaceId,
   isHttpUrl,
   searchNominatim,
-  type AuditEngineEnv,
-  type BusinessSnapshot,
-  type FetchWebsiteOptions,
-  type ListingEvidence,
-  type NominatimMatch,
+} from "@listwell/audit-engine";
+import type {
+  AuditEngineEnv,
+  BusinessSnapshot,
+  FetchWebsiteOptions,
+  ListingEvidence,
+  NominatimMatch,
 } from "@listwell/audit-engine";
 import { z } from "zod";
 
@@ -92,7 +94,7 @@ const osmSource = (match: NominatimMatch): ListingReviewSource =>
   });
 
 const auditRecordSource = (business: BusinessSnapshot): ListingReviewSource => {
-  const location = business.locations[0];
+  const [location] = business.locations;
   return listingReviewSourceSchema.parse({
     address: location?.address ?? undefined,
     id: "audit_record",
@@ -132,6 +134,16 @@ const fingerprintFromSources = async (
   return bytesToHex(new Uint8Array(digest)).slice(0, 16);
 };
 
+const loadOptional = async <T>(
+  load: () => Promise<T>
+): Promise<T | null> => {
+  try {
+    return await load();
+  } catch {
+    return null;
+  }
+};
+
 export const gatherListingReviewInput = async (input: {
   business: BusinessSnapshot;
   engineEnv: AuditEngineEnv;
@@ -141,36 +153,32 @@ export const gatherListingReviewInput = async (input: {
   const ctx = createCheckContext(business, engineEnv, fetchOptions);
   const sources: ListingReviewSource[] = [auditRecordSource(business)];
 
-  const location = business.locations[0];
+  const [location] = business.locations;
   const near = location?.address ?? "";
-  const osmPromise = searchNominatim(business.name, near, {
-    fetchImpl: ctx.fetchImpl,
-  }).then((matches) => matches[0] ?? null);
-
-  const websitePromise = ctx.getWebsiteEvidence().catch(() => null);
-  const listingPromise = ctx.getListingEvidence().catch(() => null);
 
   const placeId = firstGooglePlaceId(business);
-  const googleApiPromise =
-    placeId && !isHttpUrl(placeId) && engineEnv.googleApiKey
-      ? fetchGooglePlace(placeId, engineEnv.googleApiKey, ctx.fetchImpl).catch(
-          () => null
-        )
-      : Promise.resolve(null);
-
   const appleId = business.locations.find((row) => row.appleMapsId)?.appleMapsId;
-  const applePromise =
-    appleId && engineEnv.appleMapkitTeamId
-      ? fetchApplePlace(appleId, engineEnv, ctx.fetchImpl).catch(() => null)
-      : Promise.resolve(null);
 
   const [website, listing, googlePlace, applePlace, osmMatch] =
     await Promise.all([
-      websitePromise,
-      listingPromise,
-      googleApiPromise,
-      applePromise,
-      osmPromise,
+      loadOptional(() => ctx.getWebsiteEvidence()),
+      loadOptional(() => ctx.getListingEvidence()),
+      placeId && !isHttpUrl(placeId) && engineEnv.googleApiKey
+        ? loadOptional(() =>
+            fetchGooglePlace(placeId, engineEnv.googleApiKey ?? "", ctx.fetchImpl)
+          )
+        : Promise.resolve(null),
+      appleId && engineEnv.appleMapkitTeamId
+        ? loadOptional(() =>
+            fetchApplePlace(appleId, engineEnv, ctx.fetchImpl)
+          )
+        : Promise.resolve(null),
+      loadOptional(async () => {
+        const matches = await searchNominatim(business.name, near, {
+          fetchImpl: ctx.fetchImpl,
+        });
+        return matches[0] ?? null;
+      }),
     ]);
 
   const fromWebsite = website

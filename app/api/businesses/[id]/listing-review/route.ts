@@ -14,9 +14,9 @@ import {
   listingReviewCacheKey,
   listingReviewResultSchema,
   readListingReviewCache,
-  resolveWorkersAiBinding,
   writeListingReviewCache,
 } from "@/lib/listing-review";
+import { resolveWorkersAiBinding } from "@/lib/summaries";
 import { reportShowsFixSteps } from "@/lib/entitlements-access";
 import { getReportAccess } from "@/lib/polar-server";
 

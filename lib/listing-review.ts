@@ -5,12 +5,9 @@ import { listingReviewSourceIdSchema } from "./listing-review-context";
 import {
   extractModelText,
   parseJsonObject,
-  resolveWorkersAiBinding,
   WORKERS_AI_MODEL,
-  type WorkersAiBinding,
 } from "./summaries";
-
-export { resolveWorkersAiBinding };
+import type { WorkersAiBinding } from "./summaries";
 
 export const listingReviewDegradedReasonSchema = z.enum([
   "ai_binding_missing",
@@ -81,7 +78,12 @@ const LISTING_REVIEW_DISCLAIMER =
   "AI suggestions below are based only on data Listwell fetched for this audit. Verify every change before publishing.";
 
 const normalizeField = (value: string): string =>
-  value.trim().toLowerCase().replace(/\s+/gu, " ");
+  value
+    .trim()
+    .toLowerCase()
+    .split(/\s+/u)
+    .filter(Boolean)
+    .join(" ");
 
 const fieldValue = (
   source: { id: ListingReviewSourceId },

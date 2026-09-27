@@ -2,12 +2,12 @@
 
 import useSWR from "swr";
 
-import {
-  listingReviewResultSchema,
-  type ListingReviewResult,
-} from "@/lib/listing-review";
+import { listingReviewResultSchema } from "@/lib/listing-review";
+import type { ListingReviewResult } from "@/lib/listing-review";
 
-const fetchListingReview = async (businessId: string): Promise<ListingReviewResult> => {
+const fetchListingReview = async (
+  businessId: string
+): Promise<ListingReviewResult> => {
   const response = await fetch(`/api/businesses/${businessId}/listing-review`, {
     method: "POST",
   });
@@ -43,51 +43,6 @@ const degradedCaption = (result: ListingReviewResult): string | null => {
 const SourceBadge = () => (
   <span className="listwell-report__ai-badge">AI suggestion</span>
 );
-
-export const ListingReviewSection = ({
-  businessId,
-  showContent,
-}: {
-  businessId: string;
-  showContent: boolean;
-}) => {
-  const { data, error, isLoading } = useSWR(
-    showContent ? (["listing-review", businessId] as const) : null,
-    ([, id]) => fetchListingReview(id),
-    { revalidateOnFocus: false }
-  );
-
-  return (
-    <section className="listwell-report__chapter" aria-labelledby="listing-review-heading">
-      <h2 className="vbg-heading-24" id="listing-review-heading">
-        AI listing review
-      </h2>
-      <p className="vbg-meta listwell-report__detail-meta">
-        Copy-paste improvements from your website and map listings.
-      </p>
-
-      {!showContent ? (
-        <p className="vbg-caption">
-          Unlock the full report to see AI listing suggestions.
-        </p>
-      ) : null}
-
-      {showContent && isLoading ? (
-        <p className="vbg-caption">Generating listing suggestions…</p>
-      ) : null}
-
-      {showContent && error ? (
-        <p className="vbg-caption" role="status">
-          Listing suggestions could not be loaded. Try refreshing the page.
-        </p>
-      ) : null}
-
-      {showContent && data ? (
-        <ListingReviewBody result={data} />
-      ) : null}
-    </section>
-  );
-};
 
 const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
   const caption = degradedCaption(result);
@@ -171,7 +126,10 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
             Suggested review replies <SourceBadge />
           </h3>
           {content.reviewReplyTemplates.map((template) => (
-            <div key={template.reviewSnippet} className="listwell-report__reply-template">
+            <div
+              key={template.reviewSnippet}
+              className="listwell-report__reply-template"
+            >
               <p className="vbg-meta">Review excerpt</p>
               <blockquote className="listwell-report__copy-block">
                 {template.reviewSnippet}
@@ -185,5 +143,51 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
         </div>
       ) : null}
     </div>
+  );
+};
+
+export const ListingReviewSection = ({
+  businessId,
+  showContent,
+}: {
+  businessId: string;
+  showContent: boolean;
+}) => {
+  const { data, error, isLoading } = useSWR(
+    showContent ? (["listing-review", businessId] as const) : null,
+    ([, id]) => fetchListingReview(id),
+    { revalidateOnFocus: false }
+  );
+
+  return (
+    <section
+      className="listwell-report__chapter"
+      aria-labelledby="listing-review-heading"
+    >
+      <h2 className="vbg-heading-24" id="listing-review-heading">
+        AI listing review
+      </h2>
+      <p className="vbg-meta listwell-report__detail-meta">
+        Copy-paste improvements from your website and map listings.
+      </p>
+
+      {showContent ? (
+        <>
+          {isLoading ? (
+            <p className="vbg-caption">Generating listing suggestions…</p>
+          ) : null}
+          {error ? (
+            <p className="vbg-caption">
+              Listing suggestions could not be loaded. Try refreshing the page.
+            </p>
+          ) : null}
+          {data ? <ListingReviewBody result={data} /> : null}
+        </>
+      ) : (
+        <p className="vbg-caption">
+          Unlock the full report to see AI listing suggestions.
+        </p>
+      )}
+    </section>
   );
 };

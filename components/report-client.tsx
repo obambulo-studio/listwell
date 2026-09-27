@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { z } from "zod";
 
 import { CheckBody } from "@/components/check-body";
+import { ListingReviewSection } from "@/components/listing-review-section";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -20,7 +21,6 @@ import {
   entitlementCheckoutRetryPath,
   reportShowsFixSteps,
 } from "@/lib/entitlements-access";
-import { ListingReviewSection } from "@/components/listing-review-section";
 import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,

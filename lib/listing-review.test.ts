@@ -14,10 +14,10 @@ const baseInput = listingReviewInputSchema.parse({
   fingerprint: "abc123",
   sources: [
     {
+      address: "1 Main St, Brisbane QLD",
       id: "audit_record",
       label: "Your Listwell audit",
       name: "Seoul Bistro",
-      address: "1 Main St, Brisbane QLD",
       phone: "07 3000 0000",
       website: "https://seoulbistro.example",
     },
@@ -29,11 +29,11 @@ const baseInput = listingReviewInputSchema.parse({
       photoCount: 1,
     },
     {
+      address: "1 Main Street, Brisbane",
+      category: "restaurant",
       id: "openstreetmap",
       label: "OpenStreetMap",
       name: "Seoul Bistro",
-      address: "1 Main Street, Brisbane",
-      category: "restaurant",
     },
   ],
 });
@@ -96,18 +96,18 @@ describe("sanitizeListingReviewContent", () => {
   });
 });
 
-describe(buildFallbackListingReview, () => {
+describe("buildFallbackListingReview", () => {
   it("detects phone mismatches without AI", () => {
     const result = buildFallbackListingReview(baseInput, "ai_binding_missing");
     expect(result.source).toBe("fallback");
-    expect(result.content.napMismatches.some((row) => row.field === "phone")).toBe(
-      true
-    );
+    expect(
+      result.content.napMismatches.some((row) => row.field === "phone")
+    ).toBe(true);
     expect(result.content.photoChecklistGaps.length).toBeGreaterThan(0);
   });
 });
 
-describe(generateListingReview, () => {
+describe("generateListingReview", () => {
   it("uses mocked Workers AI JSON when valid", async () => {
     const ai: WorkersAiBinding = {
       run: vi.fn<WorkersAiBinding["run"]>().mockResolvedValue({
@@ -137,7 +137,9 @@ describe(generateListingReview, () => {
     const result = await generateListingReview({ ai, reviewInput: baseInput });
     expect(result.available).toBe(true);
     expect(result.source).toBe("workers-ai");
-    expect(result.content.businessDescription?.suggestedText).toContain("Korean");
+    expect(result.content.businessDescription?.suggestedText).toContain(
+      "Korean"
+    );
   });
 
   it("falls back when the model returns invalid JSON", async () => {
