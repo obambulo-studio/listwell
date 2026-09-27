@@ -439,6 +439,84 @@ export const setNextScanAt = async (
   });
 };
 
+export const reserveDueMonthlyScan = async (
+  entitlementId: Id<"entitlements">,
+  now: Date
+): Promise<{ reserved: boolean; businessExternalId: string | null }> =>
+  convexMutation(api.entitlements.reserveDueMonthlyScan, {
+    entitlementId,
+    nowIso: now.toISOString(),
+  });
+
+export type ScanEmailRecipient = {
+  email: string;
+  monthlyScanEmails: boolean;
+  unsubscribeToken: string | null;
+};
+
+export const getScanEmailRecipient = async (
+  businessId: string
+): Promise<ScanEmailRecipient | null> => {
+  const row = await convexQuery(api.entitlements.getScanNotificationRecipient, {
+    businessExternalId: businessId,
+  });
+  if (!row) {
+    return null;
+  }
+  return row;
+};
+
+export const ensureNotificationPrefs = async (
+  userId: string
+): Promise<string> =>
+  convexMutation(api.notificationPreferences.ensureForUserInternal, {
+    userId,
+  });
+
+export const getLatestCompleteScanDetails = async (
+  businessId: string
+): Promise<{
+  score: number | null;
+  results: ScanRow["results"];
+  finishedAt: string | null;
+} | null> => {
+  const row = await convexQuery(api.scans.getLatestCompleteDetails, {
+    businessExternalId: businessId,
+  });
+  if (!row) {
+    return null;
+  }
+  const results =
+    row.results && typeof row.results === "object"
+      ? z.record(z.string(), checkResultSchema).parse(row.results)
+      : null;
+  return {
+    finishedAt: row.finishedAt,
+    results,
+    score: row.score,
+  };
+};
+
+export const tryConsumeOnceRescan = async (
+  businessId: string,
+  now: Date
+): Promise<{
+  allowed: boolean;
+  reason: "no_active_once_entitlement" | "window_expired" | "limit_reached" | null;
+}> => {
+  const result = await convexMutation(api.entitlements.tryConsumeOnceRescan, {
+    businessExternalId: businessId,
+    nowIso: now.toISOString(),
+  });
+  return result;
+};
+
+export const getOnceRescanStatus = (businessId: string, now: Date) =>
+  convexPublicQuery(api.entitlements.getOnceRescanStatus, {
+    businessExternalId: businessId,
+    nowIso: now.toISOString(),
+  });
+
 const parseScanRow = (row: {
   id: string;
   businessId: string;

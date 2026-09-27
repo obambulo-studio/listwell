@@ -113,10 +113,14 @@ export const entitlementRowSchema = z.object({
 });
 export type EntitlementRow = z.infer<typeof entitlementRowSchema>;
 
-export const SCAN_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
+export {
+  ONCE_RESCAN_FREE_LIMIT,
+  ONCE_RESCAN_WINDOW_DAYS,
+  SCAN_INTERVAL_MS,
+} from "./scan-config";
+export { nextScanAtFrom } from "./scan-interval";
 
-export const nextScanAtFrom = (date: Date): string =>
-  new Date(date.getTime() + SCAN_INTERVAL_MS).toISOString();
+export const scanTriggerSchema = z.enum(["baseline", "schedule", "rescan"]);
 
 export const scanStatusSchema = z.enum([
   "queued",
@@ -126,7 +130,6 @@ export const scanStatusSchema = z.enum([
 ]);
 export type ScanStatus = z.infer<typeof scanStatusSchema>;
 
-export const scanTriggerSchema = z.enum(["baseline", "schedule"]);
 export type ScanTrigger = z.infer<typeof scanTriggerSchema>;
 
 export const scanRowSchema = z.object({
@@ -184,6 +187,12 @@ export const sessionRowSchema = z.object({
 });
 export type SessionRow = z.infer<typeof sessionRowSchema>;
 
+export const onceRescanStateSchema = z.object({
+  available: z.boolean(),
+  remaining: z.number().int().nonnegative(),
+  windowEndsAt: z.string().nullable(),
+});
+
 export const entitlementStateSchema = z.object({
   authEnabled: z.boolean().default(false),
   backendAvailable: z.boolean().default(true),
@@ -191,6 +200,7 @@ export const entitlementStateSchema = z.object({
   kind: entitlementKindSchema.nullable().default(null),
   maskedEmail: z.string().nullable().default(null),
   monthlyAvailable: z.boolean().default(false),
+  onceRescan: onceRescanStateSchema.optional(),
   paymentsEnabled: z.boolean(),
   sessionRequired: z.boolean().default(false),
   unlocked: z.boolean(),

@@ -3,9 +3,7 @@ import { z } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { timingSafeEqual } from "@/lib/auth";
-import { setNextScanAt } from "@/lib/data";
-import { runScanForBusiness } from "@/lib/scans";
-import { nextScanAtFrom } from "@/lib/schema";
+import { runReservedMonthlyScan } from "@/lib/scheduled-scan-run";
 
 export const dynamic = "force-dynamic";
 
@@ -53,21 +51,23 @@ export const POST = async (request: Request) => {
   }
 
   const parsed = runOneBodySchema.parse(body);
-  const now = new Date();
 
-  try {
-    await runScanForBusiness(parsed.businessId, "schedule");
-  } catch (error) {
-    await setNextScanAt(parsed.entitlementId, nextScanAtFrom(now));
+  const outcome = await runReservedMonthlyScan({
+    businessId: parsed.businessId,
+    entitlementId: parsed.entitlementId,
+  });
+
+  if (outcome.skipped) {
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+  if (!outcome.ok) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Scan failed",
+        error: outcome.error,
         ok: false,
       },
       { status: 500 }
     );
   }
-
-  await setNextScanAt(parsed.entitlementId, nextScanAtFrom(now));
   return NextResponse.json({ ok: true });
 };

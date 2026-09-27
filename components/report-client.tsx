@@ -697,6 +697,75 @@ const ReportAccessSection = ({
   );
 };
 
+const OnceRescanSection = ({
+  access,
+  businessId,
+}: {
+  access: EntitlementState;
+  businessId: string;
+}) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (
+    access.kind !== "report_once" ||
+    !access.unlocked ||
+    access.sessionRequired ||
+    !access.onceRescan?.available
+  ) {
+    return null;
+  }
+
+  return (
+    <section className="listwell-report__chapter">
+      <h2 className="vbg-heading-24">Re-scan report</h2>
+      <p className="vbg-caption">
+        Run the checks again after you fix listings. You have{" "}
+        {access.onceRescan.remaining} free re-scan
+        {access.onceRescan.remaining === 1 ? "" : "s"} within 30 days of
+        purchase.
+      </p>
+      <button
+        className="listwell-report__button"
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          void (async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              const response = await fetch(
+                `/api/businesses/${businessId}/rescan`,
+                { method: "POST" }
+              );
+              const payload: unknown = await response.json();
+              if (!response.ok) {
+                const message =
+                  typeof payload === "object" &&
+                  payload !== null &&
+                  "error" in payload &&
+                  typeof payload.error === "string"
+                    ? payload.error
+                    : "Re-scan failed";
+                throw new Error(message);
+              }
+              window.location.reload();
+            } catch (caught) {
+              setError(
+                caught instanceof Error ? caught.message : "Re-scan failed"
+              );
+              setBusy(false);
+            }
+          })();
+        }}
+      >
+        {busy ? "Re-scanning…" : "Re-scan now"}
+      </button>
+      {error ? <p className="vbg-caption">{error}</p> : null}
+    </section>
+  );
+};
+
 const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
   if (scans.length === 0) {
     return null;
@@ -1204,7 +1273,10 @@ export const ReportClient = ({
         }}
       />
 
-      {access.kind === "report_monthly" && scanHistory.length > 0 ? (
+      <OnceRescanSection access={access} businessId={business.id} />
+
+      {scanHistory.length > 0 &&
+      (access.kind === "report_monthly" || access.kind === "report_once") ? (
         <ScanHistorySection scans={scanHistory} />
       ) : null}
 

@@ -12,10 +12,10 @@ import {
   getLatestCompleteScan,
   insertScan,
   listDueMonthlyEntitlements,
-  setNextScanAt,
   updateScan,
 } from "./data";
-import { checkResultSchema, nextScanAtFrom, scanSummarySchema } from "./schema";
+import { runReservedMonthlyScan } from "./scheduled-scan-run";
+import { checkResultSchema, scanSummarySchema } from "./schema";
 import type { ScanRow, ScanSummary, ScanTrigger } from "./schema";
 
 const BASELINE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -112,16 +112,23 @@ export const runScanForBusiness = async (
   }
 };
 
-const processDueEntitlement = async (
-  entitlement: { businessId: string; id: string },
-  now: Date
-): Promise<"failed" | "ok"> => {
+const processDueEntitlement = async (entitlement: {
+  businessId: string;
+  id: string;
+}): Promise<"failed" | "ok"> => {
   try {
-    const scan = await runScanForBusiness(entitlement.businessId, "schedule");
-    await setNextScanAt(entitlement.id, nextScanAtFrom(now));
-    return scan.status === "error" ? "failed" : "ok";
+    const outcome = await runReservedMonthlyScan({
+      businessId: entitlement.businessId,
+      entitlementId: entitlement.id,
+    });
+    if (outcome.skipped) {
+      return "ok";
+    }
+    if (!outcome.ok) {
+      return "failed";
+    }
+    return outcome.scan.status === "error" ? "failed" : "ok";
   } catch {
-    await setNextScanAt(entitlement.id, nextScanAtFrom(now));
     return "failed";
   }
 };
@@ -142,7 +149,7 @@ export const runDueScans = async (
   // Sequential on purpose: avoids concurrent Chromium bursts on Workers.
   for (const entitlement of due) {
     // eslint-disable-next-line no-await-in-loop
-    outcomes.push(await processDueEntitlement(entitlement, now));
+    outcomes.push(await processDueEntitlement(entitlement));
   }
 
   return {

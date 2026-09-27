@@ -18,6 +18,7 @@ import type * as http from "../http.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_internal from "../lib/internal.js";
 import type * as lib_validators from "../lib/validators.js";
+import type * as notificationPreferences from "../notificationPreferences.js";
 import type * as scans from "../scans.js";
 import type * as users from "../users.js";
 
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   "lib/email": typeof lib_email;
   "lib/internal": typeof lib_internal;
   "lib/validators": typeof lib_validators;
+  notificationPreferences: typeof notificationPreferences;
   scans: typeof scans;
   users: typeof users;
 }>;

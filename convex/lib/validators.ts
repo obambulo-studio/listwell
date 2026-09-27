@@ -19,7 +19,8 @@ export const entitlementStatusValidator = v.union(
 
 export const scanTriggerValidator = v.union(
   v.literal("baseline"),
-  v.literal("schedule")
+  v.literal("schedule"),
+  v.literal("rescan")
 );
 
 export const scanStatusValidator = v.union(
