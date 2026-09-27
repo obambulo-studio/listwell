@@ -63,6 +63,7 @@ export const runReservedMonthlyScan = async (input: {
   if (siteUrl && scan.status === "complete") {
     try {
       await notifyScheduledScanComplete({
+        businessCategory: business.category,
         businessId,
         businessName: business.name,
         previousComplete: previousComplete

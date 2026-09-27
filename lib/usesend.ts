@@ -38,12 +38,14 @@ export const sendUseSendEmail = async (
   config: UseSendConfig,
   input: {
     html?: string;
+    headers?: Record<string, string>;
+    listUnsubscribeUrl?: string;
     subject: string;
     text: string;
     to: string;
   }
 ): Promise<boolean> => {
-  const payload: Record<string, string> = {
+  const payload: Record<string, string | Record<string, string>> = {
     from: config.from,
     subject: input.subject,
     text: input.text,
@@ -51,6 +53,20 @@ export const sendUseSendEmail = async (
   };
   if (input.html) {
     payload.html = input.html;
+  }
+  const listUnsubscribe =
+    input.listUnsubscribeUrl ?? input.headers?.["List-Unsubscribe"];
+  if (listUnsubscribe) {
+    const headers: Record<string, string> = {
+      ...input.headers,
+      "List-Unsubscribe": listUnsubscribe.startsWith("<")
+        ? listUnsubscribe
+        : `<${listUnsubscribe}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+    payload.headers = headers;
+  } else if (input.headers) {
+    payload.headers = input.headers;
   }
 
   try {

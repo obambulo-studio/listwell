@@ -1,11 +1,12 @@
 import { getCloudflareEnv } from "./audit-env";
+import type { CategoryId } from "./category";
 import {
   ensureNotificationPrefs,
   getActiveEntitlementOwner,
   getScanEmailRecipient,
 } from "./data";
-import type { ScanSnapshot } from "./scan-email";
 import { buildScanEmail } from "./scan-email";
+import type { ScanSnapshot } from "./scan-email";
 import type { ScanRow } from "./schema";
 import { readUseSendConfig, sendUseSendEmail } from "./usesend";
 
@@ -17,7 +18,30 @@ const toSnapshot = (scan: {
   score: scan.score,
 });
 
+const resolveUnsubscribeToken = async (
+  businessId: string,
+  existing: string | null | undefined
+): Promise<string | null> => {
+  if (existing) {
+    return existing;
+  }
+  const owner = await getActiveEntitlementOwner(businessId);
+  if (!owner.backendAvailable || !owner.ownerUserId) {
+    return null;
+  }
+  try {
+    return await ensureNotificationPrefs(owner.ownerUserId);
+  } catch (error) {
+    console.error(
+      "notifyScheduledScanComplete: could not ensure notification prefs",
+      error
+    );
+    return null;
+  }
+};
+
 export const notifyScheduledScanComplete = async (input: {
+  businessCategory: CategoryId;
   businessId: string;
   businessName: string;
   previousComplete: Pick<ScanRow, "results" | "score"> | null;
@@ -43,20 +67,10 @@ export const notifyScheduledScanComplete = async (input: {
     return { sent: false, skipped: true };
   }
 
-  let { unsubscribeToken } = recipient;
-  if (!unsubscribeToken) {
-    const owner = await getActiveEntitlementOwner(input.businessId);
-    if (owner.backendAvailable && owner.ownerUserId) {
-      try {
-        unsubscribeToken = await ensureNotificationPrefs(owner.ownerUserId);
-      } catch (error) {
-        console.error(
-          "notifyScheduledScanComplete: could not ensure notification prefs",
-          error
-        );
-      }
-    }
-  }
+  const unsubscribeToken = await resolveUnsubscribeToken(
+    input.businessId,
+    recipient.unsubscribeToken
+  );
 
   const workerEnv = await getCloudflareEnv();
   const config =
@@ -77,21 +91,35 @@ export const notifyScheduledScanComplete = async (input: {
 
   const siteBase = input.siteUrl.replace(/\/$/u, "");
   const reportUrl = `${siteBase}/${input.businessId}`;
-  const unsubscribeUrl = unsubscribeToken
-    ? `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`
-    : undefined;
-  const email = buildScanEmail({
-    businessName: input.businessName,
-    current: toSnapshot(input.scan),
-    previous: input.previousComplete
-      ? toSnapshot(input.previousComplete)
-      : null,
-    reportUrl,
-    unsubscribeUrl,
-  });
+  if (!unsubscribeToken) {
+    console.error(
+      "notifyScheduledScanComplete: missing unsubscribe token; skipping email"
+    );
+    return { sent: false, skipped: true };
+  }
+
+  const unsubscribeUrl = `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
+
+  let email;
+  try {
+    email = buildScanEmail({
+      businessCategory: input.businessCategory,
+      businessName: input.businessName,
+      current: toSnapshot(input.scan),
+      previous: input.previousComplete
+        ? toSnapshot(input.previousComplete)
+        : null,
+      reportUrl,
+      unsubscribeUrl,
+    });
+  } catch (error) {
+    console.error("notifyScheduledScanComplete: could not build email", error);
+    return { sent: false, skipped: true };
+  }
 
   const sent = await sendUseSendEmail(config, {
     html: email.html,
+    listUnsubscribeUrl: email.listUnsubscribeUrl,
     subject: email.subject,
     text: email.text,
     to: recipient.email,
