@@ -10,7 +10,10 @@ import {
   polarWebhookEventSchema,
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
+  REPORT_YEARLY_PRICE,
+  REPORT_YEARLY_VALUE_NOTE,
   signPolarWebhook,
+  unlockPricingNote,
   verifyPolarSignature,
 } from "./polar";
 import { checkoutRequestSchema } from "./schema";
@@ -20,10 +23,31 @@ const secret = "polar_whsec_test";
 const event = (type: string, data: Record<string, unknown>) =>
   polarWebhookEventSchema.parse({ data, type });
 
+const polarProducts = {
+  monthlyProductId: "prod_month",
+  yearlyProductId: "prod_year",
+};
+
 describe("report pricing copy", () => {
   it("uses AUD list prices", () => {
     expect(REPORT_ONCE_PRICE).toBe("A$9.99");
     expect(REPORT_MONTHLY_PRICE).toBe("A$4.99/mo per business");
+    expect(REPORT_YEARLY_PRICE).toBe("A$49/yr");
+    expect(REPORT_YEARLY_VALUE_NOTE).toBe("about two months free");
+  });
+});
+
+describe(unlockPricingNote, () => {
+  it("includes yearly when configured", () => {
+    expect(
+      unlockPricingNote({ monthlyAvailable: true, yearlyAvailable: true })
+    ).toContain("A$49/yr");
+  });
+
+  it("returns null when only once is sold", () => {
+    expect(
+      unlockPricingNote({ monthlyAvailable: false, yearlyAvailable: false })
+    ).toBeNull();
   });
 });
 
@@ -62,13 +86,19 @@ describe(businessIdFromMetadata, () => {
 describe(entitlementKindFromCheckout, () => {
   it("uses monthly when a subscription id is present", () => {
     expect(
-      entitlementKindFromCheckout({ subscriptionId: "sub_1" }, "prod_month")
+      entitlementKindFromCheckout({ subscriptionId: "sub_1" }, polarProducts)
     ).toBe("report_monthly");
   });
 
-  it("uses monthly when the product matches", () => {
+  it("uses monthly when the monthly product matches", () => {
     expect(
-      entitlementKindFromCheckout({ productId: "prod_month" }, "prod_month")
+      entitlementKindFromCheckout({ productId: "prod_month" }, polarProducts)
+    ).toBe("report_monthly");
+  });
+
+  it("uses monthly entitlement when the yearly product matches", () => {
+    expect(
+      entitlementKindFromCheckout({ productId: "prod_year" }, polarProducts)
     ).toBe("report_monthly");
   });
 
@@ -76,14 +106,23 @@ describe(entitlementKindFromCheckout, () => {
     expect(
       entitlementKindFromCheckout(
         { metadata: { plan: "monthly" } },
-        "prod_month"
+        polarProducts
+      )
+    ).toBe("report_monthly");
+  });
+
+  it("uses monthly when metadata plan is yearly", () => {
+    expect(
+      entitlementKindFromCheckout(
+        { metadata: { plan: "yearly" } },
+        polarProducts
       )
     ).toBe("report_monthly");
   });
 
   it("defaults to one-time", () => {
     expect(
-      entitlementKindFromCheckout({ productId: "prod_once" }, "prod_month")
+      entitlementKindFromCheckout({ productId: "prod_once" }, polarProducts)
     ).toBe("report_once");
   });
 });
@@ -93,7 +132,7 @@ describe(entitlementKindFromPolarData, () => {
     expect(
       entitlementKindFromPolarData(
         { id: "ord_1", subscription_id: "sub_1" },
-        "prod_month"
+        polarProducts
       )
     ).toBe("report_monthly");
   });
@@ -102,7 +141,16 @@ describe(entitlementKindFromPolarData, () => {
     expect(
       entitlementKindFromPolarData(
         { id: "ord_1", product_id: "prod_month" },
-        "prod_month"
+        polarProducts
+      )
+    ).toBe("report_monthly");
+  });
+
+  it("uses monthly entitlement for yearly product id", () => {
+    expect(
+      entitlementKindFromPolarData(
+        { id: "ord_1", product_id: "prod_year" },
+        polarProducts
       )
     ).toBe("report_monthly");
   });
@@ -111,7 +159,7 @@ describe(entitlementKindFromPolarData, () => {
     expect(
       entitlementKindFromPolarData(
         { id: "ord_1", product_id: "prod_once" },
-        "prod_month"
+        polarProducts
       )
     ).toBe("report_once");
   });
@@ -174,7 +222,7 @@ describe(entitlementActionFromPolarEvent, () => {
           product_id: "prod_month",
           subscription_id: "sub_1",
         }),
-        "prod_month"
+        polarProducts
       )
     ).toStrictEqual({
       businessId: "biz_1",
@@ -182,6 +230,26 @@ describe(entitlementActionFromPolarEvent, () => {
       kind: "report_monthly",
       polarOrderId: undefined,
       polarSubscriptionId: "sub_1",
+      type: "grant",
+    });
+  });
+
+  it("grants monthly entitlement for a yearly product on order.paid", () => {
+    expect(
+      entitlementActionFromPolarEvent(
+        event("order.paid", {
+          id: "ord_2",
+          metadata: { businessId: "biz_1", plan: "yearly" },
+          product_id: "prod_year",
+        }),
+        polarProducts
+      )
+    ).toStrictEqual({
+      businessId: "biz_1",
+      email: undefined,
+      kind: "report_monthly",
+      polarOrderId: "ord_2",
+      polarSubscriptionId: undefined,
       type: "grant",
     });
   });

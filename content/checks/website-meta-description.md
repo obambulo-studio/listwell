@@ -11,7 +11,7 @@ points:
 
 Attract more clicks from search results with compelling meta descriptions that clearly explain what your business offers to potential customers.
 
-::tech-detail{summary="What we check for meta description optimization"} We verify that your website pages include meta description tags (`<meta name="description" content="...">`) with concise, relevant descriptions under 160 characters. Meta descriptions appear as the snippet text under your page title in Google search results and significantly influence whether people click through to your website. ::
+::tech-detail{summary="What we check for meta description optimisation"} We verify that your website pages include meta description tags (`<meta name="description" content="...">`) with concise, relevant descriptions under 160 characters. Meta descriptions appear as the snippet text under your page title in Google search results and significantly influence whether people click through to your website. ::
 
 ## What we're checking
 
@@ -53,7 +53,7 @@ Competitors with compelling descriptions will attract more clicks from the same 
 
 ::time-estimate{minutes="45" difficulty="easy"} ::
 
-## Benefits of Optimized Meta Descriptions
+## Benefits of Optimised Meta Descriptions
 
 ### Higher Click-Through Rates
 
@@ -76,6 +76,6 @@ Immediately communicate why customers should choose your business
 ## Learn More
 
 - [Google Meta Description Guide](https://developers.google.com/search/docs/appearance/snippet) - Official best practices
-- [Meta Description Writing Tips](https://moz.com/learn/seo/meta-description) - SEO optimization guide
+- [Meta Description Writing Tips](https://moz.com/learn/seo/meta-description) - SEO optimisation guide
 - [WordPress SEO Plugin](https://wordpress.org/plugins/wordpress-seo/) - Easy meta description management
-- [Search Result Optimization](https://backlinko.com/meta-description-seo) - Advanced techniques
+- [Search Result Optimisation](https://backlinko.com/meta-description-seo) - Advanced techniques

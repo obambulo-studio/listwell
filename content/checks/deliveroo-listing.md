@@ -8,15 +8,15 @@ businessCategories:
 
 # Deliveroo Listing
 
-Get your food business on Deliveroo's platform - one of the UK's leading food delivery services with millions of hungry customers.
+Deliveroo operates in Australia as well as the UK and other markets. For food businesses, a Deliveroo listing lets customers order delivery or pickup through the app.
 
-::tech-detail{summary="What we check for Deliveroo presence"} We verify if your business has an active Deliveroo URL stored in our system. This indicates whether you've set up and maintained a presence on the Deliveroo platform. Deliveroo operates primarily in the UK, Ireland, France, Belgium, Italy, Australia, the Netherlands, Hong Kong, Singapore, UAE, and Kuwait. ::
+::tech-detail{summary="What we check for Deliveroo presence"} We verify if your business has an active Deliveroo URL stored in our system. This indicates whether you've set up and maintained a presence on the Deliveroo platform. In Australia, check coverage for your suburb or postcode on Deliveroo's partner site. ::
 
 ## What we're checking
 
 We look for whether your restaurant or food business is listed and active on Deliveroo's delivery platform. Being on Deliveroo means customers can order your food for delivery or pickup through their app and website.
 
-::impact{type="money" severity="medium"} Deliveroo processes over **3 million orders per week** across their markets - missing out means losing access to a huge customer base ::
+::impact{type="money" severity="medium"} Customers often compare Menulog, Uber Eats, and Deliveroo before they order. A missing listing means they may not see you at all. ::
 
 ## What issues may it cause?
 
@@ -57,7 +57,7 @@ We look for whether your restaurant or food business is listed and active on Del
 1. Click "Become a partner" on Deliveroo's restaurant site
 2. Fill in your restaurant details
 3. Provide menu information and pricing
-4. Submit required documents (food license, insurance, etc.) ::
+4. Submit required documents (food licence, insurance, etc.) ::
 
 ::fix-step{number="3" title="Set up your profile"} Once approved (typically 1-2 weeks):
 
@@ -67,7 +67,7 @@ We look for whether your restaurant or food business is listed and active on Del
 - Configure your opening hours for delivery
 - Set up tablet or integrate with your POS system ::
 
-::fix-step{number="4" title="Optimize for success"}
+::fix-step{number="4" title="Optimise for success"}
 
 - **Photography matters**: Deliveroo offers photography for new partners
 - **Menu engineering**: Create delivery-friendly portions and packaging
@@ -97,14 +97,14 @@ We look for whether your restaurant or food business is listed and active on Del
 - Detailed analytics on popular dishes
 - Customer ordering patterns and preferences
 - Real-time performance dashboards
-- Data to optimize your menu and pricing
+- Data to optimise your menu and pricing
 
 ::example{type="good" title="Deliveroo success story"} Mario's Pizza joined Deliveroo and within 6 months:
 
 - 45% increase in total revenue
 - 800 new unique customers
 - Launched a successful "delivery-only" menu with higher margins
-- Expanded delivery radius from 2 to 5 miles
+- Expanded delivery radius from about 3 km to 8 km
 - Hired 3 additional staff to handle increased orders
 - Now delivery represents 35% of their total business ::
 
@@ -113,4 +113,4 @@ We look for whether your restaurant or food business is listed and active on Del
 - [Deliveroo Restaurant Partner Portal](https://restaurants.deliveroo.com) - Official partner information
 - [Deliveroo Partner Help Centre](https://help.deliveroo.com/en/restaurant) - Support and guides
 - [Food delivery best practices](https://www.deliveroo.co.uk/blog/tips-for-restaurants) - Tips from successful partners
-- [Menu optimization guide](https://blog.deliveroo.co.uk/2021/04/menu-engineering-guide.html) - Maximize your delivery menu
+- [Menu optimisation guide](https://blog.deliveroo.co.uk/2021/04/menu-engineering-guide.html) - Maximize your delivery menu

@@ -2153,6 +2153,46 @@ tbody:first-of-type .vbg-custom-channel-group th {
   margin: 0;
 }
 
+.listwell-report__listing-review {
+  display: grid;
+  gap: var(--vbg-space-6);
+}
+
+.listwell-report__listing-block {
+  display: grid;
+  gap: var(--vbg-space-3);
+}
+
+.listwell-report__copy-block {
+  margin: 0;
+  padding: var(--vbg-space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--vbg-radius-small);
+  background: color-mix(in srgb, var(--page) 94%, var(--ink));
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: var(--vbg-type-metadata);
+  line-height: var(--vbg-leading-lede);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.listwell-report__ai-badge {
+  display: inline-block;
+  margin-inline-start: var(--vbg-space-2);
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--vbg-radius-small);
+  color: var(--ink-3);
+  font-size: var(--vbg-type-metadata);
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.listwell-report__reply-template {
+  display: grid;
+  gap: var(--vbg-space-2);
+}
+
 .listwell-report__unlock {
   display: grid;
   gap: var(--vbg-space-4);

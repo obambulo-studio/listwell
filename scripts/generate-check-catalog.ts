@@ -106,7 +106,8 @@ const catalog = files
   })
   .toSorted((a, b) => a.id.localeCompare(b.id));
 
-const output = `import { checkDefinitionSchema, type CheckDefinition } from "./types";
+const output = `import type { CheckDefinition } from "./types";
+import { checkDefinitionSchema } from "./types";
 
 export const CHECK_CATALOG: CheckDefinition[] = checkDefinitionSchema.array().parse(${JSON.stringify(catalog, null, 2)});
 `;

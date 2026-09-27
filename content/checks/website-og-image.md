@@ -47,7 +47,7 @@ Businesses without proper social previews appear less established and tech-savvy
 
 ::fix-step{number="3" title="Use Page-Specific Images"} Create unique images for important pages (homepage, services, products) rather than using the same image everywhere. ::
 
-::fix-step{number="4" title="Include Additional OG Tags"} Add `og:title`, `og:description`, and `og:url` tags to complete your social media optimization. ::
+::fix-step{number="4" title="Include Additional OG Tags"} Add `og:title`, `og:description`, and `og:url` tags to complete your social media optimisation. ::
 
 ::fix-step{number="5" title="Test Social Sharing"} Use Facebook's Sharing Debugger or LinkedIn's Post Inspector to verify your images appear correctly when shared. ::
 

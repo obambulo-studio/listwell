@@ -35,7 +35,7 @@ Missing addresses make businesses appear less legitimate or transparent to poten
 
 ### Missed Local SEO Opportunities
 
-Your website can't contribute to local search optimization without clear location information.
+Your website can't contribute to local search optimisation without clear location information.
 
 ::example{type="bad" title="Dental Practice - Hidden Address Confusion"} Bright Smile Dentistry had their address only on a hard-to-find contact page buried in their navigation. Patients frequently called asking for directions, and many gave up trying to find the location. New patient visits from their website dropped 30% compared to competitors with prominent address displays. ::
 
@@ -77,5 +77,5 @@ Fewer calls asking for directions means staff can focus on serving customers
 
 - [Local SEO Address Guide](https://moz.com/learn/seo/nap-local-seo) - NAP (Name, Address, Phone) best practices
 - [Google Maps Integration](https://developers.google.com/maps/documentation/embed/get-started) - Adding maps to websites
-- [Contact Page Optimization](https://blog.hubspot.com/marketing/contact-us-page-examples) - Complete contact information display
+- [Contact Page Optimisation](https://blog.hubspot.com/marketing/contact-us-page-examples) - Complete contact information display
 - [Local Business Schema](https://schema.org/LocalBusiness) - Structured data for addresses

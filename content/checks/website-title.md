@@ -11,7 +11,7 @@ points:
 
 Your website's title tag is crucial for local SEO - we check if it includes both your business name and location to help you rank for local searches.
 
-::tech-detail{summary="How we analyze your title tag"} We extract your website's `<title>` tag and check for:
+::tech-detail{summary="How we analyse your title tag"} We extract your website's `<title>` tag and check for:
 
 1. **Business name** - Exact or close match to your registered name
 2. **Location** - Suburb, city, state, or area identifier
@@ -59,7 +59,7 @@ We verify that your website's title tag properly identifies both what your busin
 
 ## How can I fix it?
 
-::fix-step{number="1" title="Analyze your current title"}
+::fix-step{number="1" title="Analyse your current title"}
 
 1. Google your business name
 2. Look at the blue link text - that's your title
@@ -94,7 +94,7 @@ Don't forget to update:
 - Service pages with specific locations
 - Contact page with full address area ::
 
-::fix-step{number="4" title="Optimize for multiple locations"} If you serve multiple areas:
+::fix-step{number="4" title="Optimise for multiple locations"} If you serve multiple areas:
 
 - Homepage: Primary location only
 - Create area pages: "Plumber North Sydney", "Plumber Chatswood"
@@ -126,7 +126,7 @@ Don't forget to update:
 - Compound effect with other local SEO
 - Foundation for location page strategy
 
-::example{type="good" title="Title optimization success"} "Fresh Flowers" florist updated to "Florist Brisbane CBD - Fresh Flowers | Same Day Delivery":
+::example{type="good" title="Title optimisation success"} "Fresh Flowers" florist updated to "Florist Brisbane CBD - Fresh Flowers | Same Day Delivery":
 
 - Week 1: Appeared on page 2 for "florist Brisbane"
 - Month 1: Reached #4 for target keywords
@@ -141,5 +141,5 @@ Don't forget to update:
 
 - [Google's title tag guidelines](https://developers.google.com/search/docs/appearance/title-link) - Official best practices
 - [Local SEO guide](https://moz.com/learn/seo/local) - Comprehensive local ranking factors
-- [Title tag optimization](https://ahrefs.com/blog/title-tag-seo/) - Advanced techniques
+- [Title tag optimisation](https://ahrefs.com/blog/title-tag-seo/) - Advanced techniques
 - [Schema markup for local](https://schema.org/LocalBusiness) - Enhanced local presence

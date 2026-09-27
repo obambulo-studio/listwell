@@ -156,6 +156,7 @@ describe("agent discovery", () => {
       expect(llmsTxt(origin)).toMatch(/^# Listwell/u);
       expect(llmsTxt(origin)).toContain("A$9.99");
       expect(llmsTxt(origin)).toContain("A$4.99");
+      expect(llmsTxt(origin)).toContain("A$49");
       expect(llmsTxt(origin)).toContain(
         "does not publish a public HTTP API catalog"
       );
