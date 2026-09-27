@@ -15,6 +15,34 @@ const shareTokenKey = (token: string): string => `report-share:token:${token}`;
 const shareActiveKey = (businessId: string): string =>
   `report-share:active:${businessId}`;
 
+declare global {
+  var listwellReportShares: Map<string, ReportShareRecord> | undefined;
+  var listwellActiveShareByBusiness: Map<string, string> | undefined;
+}
+
+const shareMemory: Map<string, ReportShareRecord> =
+  globalThis.listwellReportShares ?? new Map<string, ReportShareRecord>();
+globalThis.listwellReportShares = shareMemory;
+
+const activeShareMemory: Map<string, string> =
+  globalThis.listwellActiveShareByBusiness ?? new Map<string, string>();
+globalThis.listwellActiveShareByBusiness = activeShareMemory;
+
+const writeShareToMemory = (record: ReportShareRecord): void => {
+  shareMemory.set(record.token, record);
+  if (!record.revokedAt) {
+    activeShareMemory.set(record.businessId, record.token);
+  } else {
+    activeShareMemory.delete(record.businessId);
+  }
+};
+
+const readShareFromMemory = (token: string): ReportShareRecord | null =>
+  shareMemory.get(token) ?? null;
+
+const readActiveTokenFromMemory = (businessId: string): string | null =>
+  activeShareMemory.get(businessId) ?? null;
+
 const base64UrlFromBytes = (bytes: Uint8Array): string => {
   let binary = "";
   for (const byte of bytes) {
@@ -65,6 +93,7 @@ const kvTtlForShare = (
 const writeShareToKv = async (
   record: ReportShareRecord
 ): Promise<void> => {
+  writeShareToMemory(record);
   const env = await getCloudflareEnv();
   const kv = env?.AUDIT_KV;
   if (!kv) {
@@ -85,18 +114,30 @@ const writeShareToKv = async (
 const readShareFromKv = async (
   token: string
 ): Promise<ReportShareRecord | null> => {
+  const fromMemory = readShareFromMemory(token);
+  if (fromMemory) {
+    return fromMemory;
+  }
   const env = await getCloudflareEnv();
   const kv = env?.AUDIT_KV;
   if (!kv) {
     return null;
   }
   const raw = await kv.get(shareTokenKey(token), "json");
-  return parseShareRecord(raw);
+  const parsed = parseShareRecord(raw);
+  if (parsed) {
+    writeShareToMemory(parsed);
+  }
+  return parsed;
 };
 
 const readActiveTokenFromKv = async (
   businessId: string
 ): Promise<string | null> => {
+  const fromMemory = readActiveTokenFromMemory(businessId);
+  if (fromMemory) {
+    return fromMemory;
+  }
   const env = await getCloudflareEnv();
   const kv = env?.AUDIT_KV;
   if (!kv) {
@@ -115,6 +156,7 @@ const revokeShareInKv = async (
     ...record,
     revokedAt: new Date().toISOString(),
   });
+  writeShareToMemory(revoked);
   if (kv) {
     const ttl = kvTtlForShare(revoked, Date.now());
     await kv.put(shareTokenKey(revoked.token), JSON.stringify(revoked), {
@@ -199,7 +241,11 @@ export const getReportShareByToken = async (
   token: string
 ): Promise<ReportShareRecord | null> => {
   const fromKv = await readShareFromKv(token);
-  const record = fromKv ?? (await readShareFromConvex(token));
+  const fromConvex = fromKv ? null : await readShareFromConvex(token);
+  const record = fromKv ?? fromConvex;
+  if (record) {
+    writeShareToMemory(record);
+  }
   if (!record || !isShareActive(record, Date.now())) {
     return null;
   }
@@ -264,7 +310,9 @@ export const createReportShare = async (input: {
 const readShareRecordRaw = async (
   token: string
 ): Promise<ReportShareRecord | null> =>
-  (await readShareFromKv(token)) ?? (await readShareFromConvex(token));
+  readShareFromMemory(token) ??
+  (await readShareFromKv(token)) ??
+  (await readShareFromConvex(token));
 
 export const revokeReportShare = async (
   businessId: string,
