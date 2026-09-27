@@ -34,8 +34,8 @@ describe(resolveShareExpiresAt, () => {
   });
 });
 
-describe("report share active state", () => {
-  it("treats revoked and expired links as inactive", () => {
+describe("report share record shape", () => {
+  it("accepts revoked and expired share records", () => {
     const revoked = reportShareRecordSchema.parse({
       businessId: "biz_1",
       createdAt: new Date().toISOString(),
