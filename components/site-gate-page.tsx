@@ -3,6 +3,8 @@
 import { useId, useReducer } from "react";
 
 import { safeAppPath } from "@/lib/query-params";
+import { SITE_PLAN_INTEREST_OPTIONS } from "@/lib/site-interest";
+import type { SitePlanInterest } from "@/lib/site-interest";
 
 type GateSection = "access" | "interest";
 
@@ -15,6 +17,8 @@ interface GateState {
   interestName: string;
   interestEmail: string;
   interestNote: string;
+  interestPlan: SitePlanInterest | "";
+  interestBusinessCount: string;
   password: string;
   section: GateSection;
 }
@@ -25,6 +29,8 @@ type GateAction =
   | { type: "password"; password: string }
   | { type: "section"; section: GateSection }
   | { type: "interest-field"; field: "name" | "email" | "note"; value: string }
+  | { type: "interest-plan"; plan: SitePlanInterest | "" }
+  | { type: "interest-business-count"; value: string }
   | { type: "interest-busy"; busy: boolean }
   | {
       type: "interest-result";
@@ -35,12 +41,14 @@ type GateAction =
 const initialGateState: GateState = {
   accessBusy: false,
   accessError: null,
+  interestBusinessCount: "",
   interestBusy: false,
   interestEmail: "",
   interestError: null,
   interestMessage: null,
   interestName: "",
   interestNote: "",
+  interestPlan: "",
   password: "",
   section: "access",
 };
@@ -73,6 +81,22 @@ const gateReducer = (state: GateState, action: GateAction): GateState => {
       }
       return { ...next, interestNote: action.value };
     }
+    case "interest-plan": {
+      return {
+        ...state,
+        interestError: null,
+        interestMessage: null,
+        interestPlan: action.plan,
+      };
+    }
+    case "interest-business-count": {
+      return {
+        ...state,
+        interestBusinessCount: action.value.replaceAll(/\D/gu, "").slice(0, 5),
+        interestError: null,
+        interestMessage: null,
+      };
+    }
     case "interest-busy": {
       return { ...state, interestBusy: action.busy };
     }
@@ -95,6 +119,7 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
   const nameId = useId();
   const emailId = useId();
   const noteId = useId();
+  const businessCountId = useId();
   const [state, dispatch] = useReducer(gateReducer, initialGateState);
   const returnPath = safeAppPath(nextPath, "/");
 
@@ -140,9 +165,15 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
     try {
       const response = await fetch("/api/site-gate/interest", {
         body: JSON.stringify({
+          businessCount:
+            state.interestBusinessCount.length > 0
+              ? state.interestBusinessCount
+              : undefined,
           email: state.interestEmail,
           name: state.interestName,
           note: state.interestNote,
+          planInterest:
+            state.interestPlan.length > 0 ? state.interestPlan : undefined,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -309,6 +340,61 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
                   });
                 }}
               />
+            </div>
+            <fieldset className="listwell-site-gate__fieldset vbg-field">
+              <legend className="vbg-label">
+                Which plan interests you?{" "}
+                <span className="listwell-site-gate__optional">(optional)</span>
+              </legend>
+              <div className="listwell-site-gate__choices">
+                {SITE_PLAN_INTEREST_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
+                    className="listwell-site-gate__choice"
+                  >
+                    <input
+                      type="radio"
+                      name="planInterest"
+                      value={option.value}
+                      checked={state.interestPlan === option.value}
+                      disabled={state.interestBusy}
+                      onChange={() => {
+                        dispatch({
+                          plan: option.value,
+                          type: "interest-plan",
+                        });
+                      }}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div className="vbg-field">
+              <label className="vbg-label" htmlFor={businessCountId}>
+                How many businesses?{" "}
+                <span className="listwell-site-gate__optional">(optional)</span>
+              </label>
+              <input
+                id={businessCountId}
+                name="businessCount"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="off"
+                placeholder="e.g. 12"
+                value={state.interestBusinessCount}
+                disabled={state.interestBusy}
+                onChange={(event) => {
+                  dispatch({
+                    type: "interest-business-count",
+                    value: event.target.value,
+                  });
+                }}
+              />
+              <p className="listwell-site-gate__hint">
+                Helpful if you are an agency managing multiple locations.
+              </p>
             </div>
             <div className="vbg-field">
               <label className="vbg-label" htmlFor={noteId}>

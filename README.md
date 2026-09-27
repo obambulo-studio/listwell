@@ -217,7 +217,7 @@ bun run cf:sync-env
 
 Health checks, `robots.txt`, `sitemap.xml`, static assets, Better Auth (`/api/auth/*`), Polar webhooks, and the gate APIs stay reachable without the cookie.
 
-Waitlist rows are stored in `AUDIT_KV` under `site-interest:by-email:<email>` (easy to migrate into Convex later).
+Waitlist rows are stored in `AUDIT_KV` under `site-interest:by-email:<email>` (email, optional name/note, optional plan interest, optional business count — easy to migrate into Convex later).
 
 Export sign-ups:
 

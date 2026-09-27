@@ -2268,6 +2268,50 @@ tbody:first-of-type .vbg-custom-channel-group th {
   font-weight: var(--vbg-weight-regular);
 }
 
+.listwell-site-gate__fieldset {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.listwell-site-gate__choices {
+  display: grid;
+  gap: var(--vbg-space-2);
+  margin-top: var(--vbg-space-2);
+}
+
+.listwell-site-gate__choice {
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: var(--vbg-radius);
+  cursor: pointer;
+  display: flex;
+  gap: var(--vbg-space-3);
+  padding: var(--vbg-space-3) var(--vbg-space-4);
+}
+
+.listwell-site-gate__choice:has(input:checked) {
+  border-color: var(--ink);
+}
+
+.listwell-site-gate__choice input {
+  margin-top: 0.2rem;
+}
+
+.listwell-site-gate__choice span {
+  color: var(--ink);
+  font-size: var(--vbg-type-compact);
+  line-height: var(--vbg-leading-compact);
+}
+
+.listwell-site-gate__hint {
+  color: var(--ink-2);
+  font-size: var(--vbg-type-label);
+  line-height: var(--vbg-leading-caption);
+  margin: var(--vbg-space-2) 0 0;
+}
+
 .listwell-site-gate__textarea {
   min-height: 6rem;
   resize: vertical;
