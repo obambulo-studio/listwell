@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { listingReviewInputSchema } from "./listing-review-context";
 import {
   buildFallbackListingReview,
   generateListingReview,
   sanitizeListingReviewContent,
 } from "./listing-review";
+import { listingReviewInputSchema } from "./listing-review-context";
 import type { WorkersAiBinding } from "./summaries";
 
 const baseInput = listingReviewInputSchema.parse({
@@ -38,7 +38,7 @@ const baseInput = listingReviewInputSchema.parse({
   ],
 });
 
-describe("sanitizeListingReviewContent", () => {
+describe(sanitizeListingReviewContent, () => {
   it("drops NAP rows that are not grounded in input sources", () => {
     const sanitized = sanitizeListingReviewContent(
       {
@@ -74,7 +74,7 @@ describe("sanitizeListingReviewContent", () => {
       sanitized?.napMismatches[0]?.values.some(
         (row) => row.sourceId === "google_places"
       )
-    ).toBe(false);
+    ).toBeFalsy();
   });
 
   it("strips review templates when no review text was fetched", () => {
@@ -96,18 +96,18 @@ describe("sanitizeListingReviewContent", () => {
   });
 });
 
-describe("buildFallbackListingReview", () => {
+describe(buildFallbackListingReview, () => {
   it("detects phone mismatches without AI", () => {
     const result = buildFallbackListingReview(baseInput, "ai_binding_missing");
     expect(result.source).toBe("fallback");
     expect(
       result.content.napMismatches.some((row) => row.field === "phone")
-    ).toBe(true);
+    ).toBeTruthy();
     expect(result.content.photoChecklistGaps.length).toBeGreaterThan(0);
   });
 });
 
-describe("generateListingReview", () => {
+describe(generateListingReview, () => {
   it("uses mocked Workers AI JSON when valid", async () => {
     const ai: WorkersAiBinding = {
       run: vi.fn<WorkersAiBinding["run"]>().mockResolvedValue({
@@ -135,7 +135,7 @@ describe("generateListingReview", () => {
     };
 
     const result = await generateListingReview({ ai, reviewInput: baseInput });
-    expect(result.available).toBe(true);
+    expect(result.available).toBeTruthy();
     expect(result.source).toBe("workers-ai");
     expect(result.content.businessDescription?.suggestedText).toContain(
       "Korean"
@@ -150,7 +150,7 @@ describe("generateListingReview", () => {
     };
 
     const result = await generateListingReview({ ai, reviewInput: baseInput });
-    expect(result.available).toBe(false);
+    expect(result.available).toBeFalsy();
     expect(result.degradedReason).toBe("model_request_failed");
   });
 });

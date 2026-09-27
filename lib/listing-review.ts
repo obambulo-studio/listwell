@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import type { ListingReviewInput, ListingReviewSourceId } from "./listing-review-context";
+import type {
+  ListingReviewInput,
+  ListingReviewSourceId,
+} from "./listing-review-context";
 import { listingReviewSourceIdSchema } from "./listing-review-context";
 import {
   extractModelText,
@@ -78,12 +81,7 @@ const LISTING_REVIEW_DISCLAIMER =
   "AI suggestions below are based only on data Listwell fetched for this audit. Verify every change before publishing.";
 
 const normalizeField = (value: string): string =>
-  value
-    .trim()
-    .toLowerCase()
-    .split(/\s+/u)
-    .filter(Boolean)
-    .join(" ");
+  value.trim().toLowerCase().split(/\s+/u).filter(Boolean).join(" ");
 
 const fieldValue = (
   source: { id: ListingReviewSourceId },
@@ -208,14 +206,15 @@ export const buildFallbackListingReview = (
   source: "fallback",
 });
 
-const validSourceIds = (input: ListingReviewInput): Set<ListingReviewSourceId> =>
+const validSourceIds = (
+  input: ListingReviewInput
+): Set<ListingReviewSourceId> =>
   new Set(input.sources.map((source) => source.id));
 
 const filterSourceIds = (
   ids: ListingReviewSourceId[],
   allowed: Set<ListingReviewSourceId>
-): ListingReviewSourceId[] =>
-  ids.filter((id) => allowed.has(id));
+): ListingReviewSourceId[] => ids.filter((id) => allowed.has(id));
 
 const reviewSnippetsInInput = (input: ListingReviewInput): string[] =>
   input.sources.flatMap((source) =>
@@ -231,7 +230,8 @@ export const sanitizeListingReviewContent = (
 
   const businessDescription =
     raw.businessDescription &&
-    filterSourceIds(raw.businessDescription.basedOnSourceIds, allowed).length > 0
+    filterSourceIds(raw.businessDescription.basedOnSourceIds, allowed).length >
+      0
       ? {
           ...raw.businessDescription,
           basedOnSourceIds: filterSourceIds(
@@ -263,7 +263,9 @@ export const sanitizeListingReviewContent = (
     if (values.length < 2) {
       return [];
     }
-    const normalized = new Set(values.map((entry) => normalizeField(entry.value)));
+    const normalized = new Set(
+      values.map((entry) => normalizeField(entry.value))
+    );
     if (normalized.size < 2) {
       return [];
     }
@@ -307,9 +309,7 @@ export const sanitizeListingReviewContent = (
   return content;
 };
 
-export const buildListingReviewPrompt = (
-  input: ListingReviewInput
-): string =>
+export const buildListingReviewPrompt = (input: ListingReviewInput): string =>
   [
     "You help Australian small businesses improve local listings for Listwell.",
     "",
@@ -344,17 +344,11 @@ export const generateListingReview = async (input: {
 }): Promise<ListingReviewResult> => {
   const { reviewInput } = input;
   if (reviewInput.sources.length < 1) {
-    return buildFallbackListingReview(
-      reviewInput,
-      "insufficient_sources"
-    );
+    return buildFallbackListingReview(reviewInput, "insufficient_sources");
   }
 
   if (!input.ai) {
-    return buildFallbackListingReview(
-      reviewInput,
-      "ai_binding_missing"
-    );
+    return buildFallbackListingReview(reviewInput, "ai_binding_missing");
   }
 
   try {
@@ -376,10 +370,7 @@ export const generateListingReview = async (input: {
     );
     const sanitized = sanitizeListingReviewContent(parsed, reviewInput);
     if (!sanitized) {
-      return buildFallbackListingReview(
-        reviewInput,
-        "model_output_invalid"
-      );
+      return buildFallbackListingReview(reviewInput, "model_output_invalid");
     }
 
     return listingReviewResultSchema.parse({
@@ -392,10 +383,7 @@ export const generateListingReview = async (input: {
       source: "workers-ai",
     });
   } catch {
-    return buildFallbackListingReview(
-      reviewInput,
-      "model_request_failed"
-    );
+    return buildFallbackListingReview(reviewInput, "model_request_failed");
   }
 };
 

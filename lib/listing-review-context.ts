@@ -134,9 +134,7 @@ const fingerprintFromSources = async (
   return bytesToHex(new Uint8Array(digest)).slice(0, 16);
 };
 
-const loadOptional = async <T>(
-  load: () => Promise<T>
-): Promise<T | null> => {
+const loadOptional = async <T>(load: () => Promise<T>): Promise<T | null> => {
   try {
     return await load();
   } catch {
@@ -157,7 +155,9 @@ export const gatherListingReviewInput = async (input: {
   const near = location?.address ?? "";
 
   const placeId = firstGooglePlaceId(business);
-  const appleId = business.locations.find((row) => row.appleMapsId)?.appleMapsId;
+  const appleId = business.locations.find(
+    (row) => row.appleMapsId
+  )?.appleMapsId;
 
   const [website, listing, googlePlace, applePlace, osmMatch] =
     await Promise.all([
@@ -165,13 +165,15 @@ export const gatherListingReviewInput = async (input: {
       loadOptional(() => ctx.getListingEvidence()),
       placeId && !isHttpUrl(placeId) && engineEnv.googleApiKey
         ? loadOptional(() =>
-            fetchGooglePlace(placeId, engineEnv.googleApiKey ?? "", ctx.fetchImpl)
+            fetchGooglePlace(
+              placeId,
+              engineEnv.googleApiKey ?? "",
+              ctx.fetchImpl
+            )
           )
         : Promise.resolve(null),
       appleId && engineEnv.appleMapkitTeamId
-        ? loadOptional(() =>
-            fetchApplePlace(appleId, engineEnv, ctx.fetchImpl)
-          )
+        ? loadOptional(() => fetchApplePlace(appleId, engineEnv, ctx.fetchImpl))
         : Promise.resolve(null),
       loadOptional(async () => {
         const matches = await searchNominatim(business.name, near, {
