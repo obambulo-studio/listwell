@@ -1,3 +1,4 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -7,7 +8,51 @@ import {
   appendAgentLinkHeaders,
   isApiPath,
 } from "@/lib/agent-discovery";
+import {
+  hasSiteGateAccess,
+  isSiteGateExemptPath,
+  readSitePassword,
+} from "@/lib/site-gate";
 import { wwwToApexHref } from "@/lib/www-redirect";
+
+const readSitePasswordForMiddleware = async (): Promise<string | undefined> => {
+  try {
+    const context = await getCloudflareContext({ async: true });
+    return readSitePassword(context.env);
+  } catch {
+    return readSitePassword(null);
+  }
+};
+
+const applySiteGate = async (
+  request: NextRequest
+): Promise<NextResponse | null> => {
+  const sitePassword = await readSitePasswordForMiddleware();
+  if (sitePassword) {
+    const { pathname, search } = request.nextUrl;
+    if (
+      !isSiteGateExemptPath(pathname) &&
+      !(await hasSiteGateAccess(request, sitePassword))
+    ) {
+      const gateUrl = request.nextUrl.clone();
+      gateUrl.pathname = "/gate";
+      const nextTarget = `${pathname}${search}`;
+      if (nextTarget === "/") {
+        gateUrl.searchParams.delete("next");
+      } else {
+        gateUrl.searchParams.set("next", nextTarget);
+      }
+
+      if (pathname === "/") {
+        return NextResponse.rewrite(gateUrl);
+      }
+
+      return NextResponse.redirect(gateUrl);
+    }
+  }
+
+  return null;
+};
 
 export const config = {
   matcher: [
@@ -30,6 +75,11 @@ export const middleware = async (
       headers: agentResponse.headers,
       status: agentResponse.status,
     });
+  }
+
+  const gateResponse = await applySiteGate(request);
+  if (gateResponse) {
+    return gateResponse;
   }
 
   const response = NextResponse.next();
