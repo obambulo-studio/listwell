@@ -154,6 +154,8 @@ describe("agent discovery", () => {
 
     it("introduces the product in llms.txt", () => {
       expect(llmsTxt(origin)).toMatch(/^# Listwell/u);
+      expect(llmsTxt(origin)).toContain("A$9.99");
+      expect(llmsTxt(origin)).toContain("A$4.99");
       expect(llmsTxt(origin)).toContain(
         "does not publish a public HTTP API catalog"
       );

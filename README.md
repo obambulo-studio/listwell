@@ -6,8 +6,8 @@ Obambulo Studio owns Listwell. The software is proprietary. It is not open sourc
 
 ## What Listwell does
 
-You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. A full report with fix steps costs $5 one time (`report_once`).
-Monthly scans cost $9 per month (`report_monthly`).
+You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. A full report with fix steps costs A$9.99 one time (`report_once`).
+Continued monthly reports cost A$4.99 per month per business (`report_monthly`).
 
 Sign-in uses a one-time code by email. There is no password. The `/account` page lists businesses for the signed-in user.
 
@@ -140,7 +140,7 @@ Business names, suburbs, and URLs sent to Jev are processed by TypeSafe when thi
 Payments and email:
 
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar API and webhooks
-- `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY` - Polar product IDs
+- `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY` - Polar product IDs (create products at A$9.99 once and A$4.99/month per business in Polar; IDs are not hardcoded in the app)
 - `POLAR_SERVER` - `sandbox` or `production`
 - `USESEND_API_KEY`, `USESEND_FROM` - email one-time codes (required for production sign-in)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
@@ -218,8 +218,10 @@ Polar is the merchant of record.
 
 Plans:
 
-- Full report with fix steps - $5 one time (`report_once`)
-- Monthly scans - $9 per month (`report_monthly`)
+- Full report with fix steps - A$9.99 one time (`report_once`)
+- Continued monthly reports - A$4.99 per month per business (`report_monthly`)
+
+Create matching products in the Polar dashboard at these prices, then set `POLAR_PRODUCT_REPORT_ONCE` and `POLAR_PRODUCT_REPORT_MONTHLY` to those product IDs on the Worker.
 
 Set the Polar webhook to `POST /api/webhook/polar` on your public site URL.
 
