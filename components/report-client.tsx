@@ -20,6 +20,7 @@ import {
   entitlementCheckoutRetryPath,
   reportShowsFixSteps,
 } from "@/lib/entitlements-access";
+import { ListingReviewSection } from "@/components/listing-review-section";
 import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
@@ -1186,6 +1187,11 @@ export const ReportClient = ({
         onUnlocked={() => {
           window.location.replace(`/${business.id}`);
         }}
+      />
+
+      <ListingReviewSection
+        businessId={business.id}
+        showContent={showFixSteps}
       />
 
       {access.kind === "report_monthly" && scanHistory.length > 0 ? (
