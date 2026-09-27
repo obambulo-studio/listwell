@@ -58,6 +58,12 @@ import {
   lookupResponseSchema,
 } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
+import {
+  REPORT_MONTHLY_PRICE,
+  REPORT_ONCE_PRICE,
+  REPORT_YEARLY_PRICE,
+  REPORT_YEARLY_VALUE_NOTE,
+} from "@/lib/polar";
 import { mapProfilesToBusinessData } from "@/lib/profiles";
 import {
   auditJobPollSchema,
@@ -465,8 +471,7 @@ const ChatComposer = ({
   );
 };
 
-const ABOUT_COPY =
-  "Listwell checks local listings and website SEO for Australian small businesses. The basic report is free. A full report with fix steps is $5 AUD.";
+const ABOUT_COPY = `Listwell checks local listings and website SEO for Australian small businesses. The basic report is free. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
 
 const AboutDialog = ({
   open,
@@ -630,7 +635,9 @@ const PromptCard = ({
       </div>
       {promptInput ? (
         <p className="listwell-chat__starter-pricing">
-          $5 AUD for a full report with fix steps
+          Full report with fix steps: {REPORT_ONCE_PRICE} once. Continued
+          reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per business (
+          {REPORT_YEARLY_VALUE_NOTE} on yearly).
         </p>
       ) : null}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />

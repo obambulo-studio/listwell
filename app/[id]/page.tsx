@@ -6,7 +6,12 @@ import { ReportClient } from "@/components/report-client";
 import { runBusinessCheckBatch } from "@/lib/audit-jobs";
 import { checksForCategory } from "@/lib/checks/registry";
 import { pointsFor } from "@/lib/checks/types";
-import { getBusiness } from "@/lib/data";
+import {
+  BUSINESS_KV_TTL_DAYS,
+  getBusiness,
+  hasAuditKv,
+  probeConvexBusinesses,
+} from "@/lib/data";
 import { getReportAccess } from "@/lib/polar-server";
 import { isFileLikePathId } from "@/lib/site-metadata";
 import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
@@ -19,9 +24,12 @@ const paramsSchema = z.object({
 
 const searchParamsSchema = z.object({
   checkout_id: z.union([z.string(), z.array(z.string())]).optional(),
+  checkout_retry: z.union([z.string(), z.array(z.string())]).optional(),
+  checkout_returned: z.union([z.string(), z.array(z.string())]).optional(),
+  purchase_pending: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
-const checkoutIdFromSearch = (
+const firstSearchValue = (
   value: string | string[] | undefined
 ): string | undefined => {
   if (typeof value === "string" && value.length > 0) {
@@ -32,6 +40,9 @@ const checkoutIdFromSearch = (
   }
   return undefined;
 };
+
+const searchFlag = (value: string | string[] | undefined): boolean =>
+  firstSearchValue(value) === "1";
 
 const checkStatus = (value: boolean | null): "pass" | "fail" | "error" => {
   if (value === true) {
@@ -75,12 +86,20 @@ const ReportPage = async ({
   }
 
   const search = searchParamsSchema.parse(await searchParams);
-  const checkoutId = checkoutIdFromSearch(search.checkout_id);
+  const checkoutId = firstSearchValue(search.checkout_id);
   if (checkoutId) {
     return <CheckoutReturnRedirect checkoutId={checkoutId} businessId={id} />;
   }
 
-  const access = await getReportAccess(id);
+  const [access, convexHealth, auditKv] = await Promise.all([
+    getReportAccess(id),
+    probeConvexBusinesses(),
+    hasAuditKv(),
+  ]);
+  const showKvExpiryNotice = auditKv && convexHealth === "error";
+  const checkoutReturned = searchFlag(search.checkout_returned);
+  const purchasePending = searchFlag(search.purchase_pending);
+  const checkoutRetryId = firstSearchValue(search.checkout_retry);
   const checks = checksForCategory(business.category);
   const batch = await runBusinessCheckBatch(business, {
     reuseStoredQueued: true,
@@ -113,7 +132,11 @@ const ReportPage = async ({
       initialResults={batch.results}
       initialSummary={summary}
       access={access}
-      checkoutReturned={Boolean(checkoutId)}
+      checkoutReturned={checkoutReturned}
+      checkoutRetryId={checkoutRetryId}
+      purchasePending={purchasePending}
+      showKvExpiryNotice={showKvExpiryNotice}
+      kvExpiryDays={BUSINESS_KV_TTL_DAYS}
       checkJobId={batch.pending.length > 0 ? batch.jobId : undefined}
     />
   );

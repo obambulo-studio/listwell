@@ -2056,6 +2056,18 @@ tbody:first-of-type .vbg-custom-channel-group th {
   line-height: var(--vbg-leading-lede);
 }
 
+.listwell-report__notice {
+  margin-block-end: var(--vbg-space-6);
+  padding: var(--vbg-space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--vbg-radius-small);
+  background: color-mix(in srgb, var(--page) 92%, var(--ink));
+}
+
+.listwell-report__notice .vbg-lede {
+  margin: 0;
+}
+
 .listwell-report__unlock {
   display: grid;
   gap: var(--vbg-space-4);
@@ -2211,4 +2223,74 @@ tbody:first-of-type .vbg-custom-channel-group th {
   .listwell-report .vbg-table-wrap button:active {
     transform: none;
   }
+}
+
+.listwell-site-gate {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: min(100dvh, 48rem);
+  padding: var(--vbg-space-8) var(--vbg-space-4);
+}
+
+.listwell-site-gate__panel {
+  display: grid;
+  gap: var(--vbg-space-5);
+  max-width: var(--listwell-column);
+  width: 100%;
+}
+
+.listwell-site-gate__eyebrow {
+  color: var(--ink-2);
+  font-size: var(--vbg-type-label);
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.listwell-site-gate__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vbg-space-2);
+}
+
+.listwell-site-gate__tab {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font: inherit;
+  padding: var(--vbg-space-2) var(--vbg-space-4);
+}
+
+.listwell-site-gate__tab--active {
+  background: var(--surface);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.listwell-site-gate__form {
+  display: grid;
+  gap: var(--vbg-space-4);
+}
+
+.listwell-site-gate__optional {
+  color: var(--ink-2);
+  font-weight: var(--vbg-weight-regular);
+}
+
+.listwell-site-gate__textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.listwell-site-gate__error {
+  color: var(--vbg-color-error);
+  margin: 0;
+}
+
+.listwell-site-gate__success {
+  color: var(--ink);
+  margin: 0;
 }

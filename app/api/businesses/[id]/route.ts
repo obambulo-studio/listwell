@@ -61,7 +61,9 @@ export const PUT = async (
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const paidOwnedBySomeoneElse =
-    entitlement.unlocked && entitlement.ownerUserId !== sessionUser?.id;
+    entitlement.backendAvailable &&
+    entitlement.unlocked &&
+    entitlement.ownerUserId !== sessionUser?.id;
   if (!ownerId && paidOwnedBySomeoneElse) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

@@ -6,8 +6,7 @@ Obambulo Studio owns Listwell. The software is proprietary. It is not open sourc
 
 ## What Listwell does
 
-You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. A full report with fix steps costs $5 one time (`report_once`).
-Monthly scans cost $9 per month (`report_monthly`).
+You start on the home page with a chat. You type a business name. The app finds listings, a website, and social profiles. A free preview shows basic results. Paid plans use the display strings in `lib/polar.ts` (`REPORT_ONCE_PRICE`, `REPORT_MONTHLY_PRICE`, `REPORT_YEARLY_PRICE`): one-off full report (`report_once`), continued monthly reports per business (`report_monthly`), or yearly checkout with the same scan entitlement as monthly (`report_yearly`).
 
 Sign-in uses a one-time code by email. There is no password. The `/account` page lists businesses for the signed-in user.
 
@@ -125,6 +124,7 @@ App and auth:
 - `NEXT_PUBLIC_SITE_URL`, `SITE_URL` - public app URL, for example `http://localhost:3000`
 - `BETTER_AUTH_SECRET` - session signing (generate a long random string)
 - `INTERNAL_API_SECRET` - shared secret for Next.js and Convex scan callbacks
+- `SITE_PASSWORD` - optional Worker secret that enables the public site password gate (leave unset locally)
 
 Lookups:
 
@@ -140,7 +140,7 @@ Business names, suburbs, and URLs sent to Jev are processed by TypeSafe when thi
 Payments and email:
 
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar API and webhooks
-- `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY` - Polar product IDs
+- `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, `POLAR_PRODUCT_REPORT_YEARLY` - Polar product IDs (create products in Polar at the amounts in `lib/polar.ts`; IDs are not hardcoded in the app). Yearly checkout is hidden when `POLAR_PRODUCT_REPORT_YEARLY` is unset.
 - `POLAR_SERVER` - `sandbox` or `production`
 - `USESEND_API_KEY`, `USESEND_FROM` - email one-time codes (required for production sign-in)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
@@ -190,7 +190,7 @@ Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC
 
 Bindings:
 
-- `AUDIT_KV` - KV namespace for audit jobs
+- `AUDIT_KV` - KV namespace for audit jobs and early-access sign-ups (`site-interest:by-email:*`)
 - `NEXT_INC_CACHE_R2_BUCKET` - OpenNext incremental cache (`listwell-next-cache`)
 - `NEXT_CACHE_DO_QUEUE` - OpenNext ISR revalidation queue
 - `BROWSER` - Cloudflare Browser Rendering
@@ -198,6 +198,40 @@ Bindings:
 - `IMAGES` - Cloudflare Images for Next.js image optimisation
 
 Set remaining Worker secrets with `wrangler secret put` or `bun run cf:sync-env`. See `.env.example`.
+
+### Public site password gate
+
+When `SITE_PASSWORD` is set on the Worker, visitors see an early-access landing page with:
+
+- a password field (sets an HttpOnly cookie for 30 days on success), and
+- a waitlist form (email required; name and a short business or website note optional).
+
+If `SITE_PASSWORD` is unset, the gate is off (default for local development). Production should set it before launch:
+
+```bash
+npx wrangler secret put SITE_PASSWORD --config wrangler.jsonc
+# or add SITE_PASSWORD to .env.local and run:
+bun run cf:sync-env
+```
+
+Health checks, `robots.txt`, `sitemap.xml`, static assets, Better Auth (`/api/auth/*`), Polar webhooks, and the gate APIs stay reachable without the cookie.
+
+Waitlist rows are stored in `AUDIT_KV` under `site-interest:by-email:<email>` (easy to migrate into Convex later).
+
+Export sign-ups:
+
+```bash
+# JSON via authenticated API (uses INTERNAL_API_SECRET)
+curl -sS -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  "https://listwell.dev/api/internal/site-interest" | jq .
+
+# CSV download
+curl -sS -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  "https://listwell.dev/api/internal/site-interest?format=csv" -o listwell-site-interest.csv
+
+# Or read KV directly with Wrangler
+bash scripts/export-site-interest.sh site-interest-export.json
+```
 
 - `GOOGLE_API_KEY` - required for full Google Business Profile quality
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - social and website discovery
@@ -216,10 +250,13 @@ The product does not scrape Google Maps HTML. It does not bypass bot walls.
 
 Polar is the merchant of record.
 
-Plans:
+Plans (user-facing amounts come from `lib/polar.ts`):
 
-- Full report with fix steps - $5 one time (`report_once`)
-- Monthly scans - $9 per month (`report_monthly`)
+- Full report with fix steps — `REPORT_ONCE_PRICE` once (`report_once`)
+- Continued monthly reports — `REPORT_MONTHLY_PRICE` (`report_monthly`)
+- Continued yearly reports — `REPORT_YEARLY_PRICE` (`report_yearly` checkout; grants the same entitlement as monthly for continued scans)
+
+Create matching products in the Polar dashboard at those prices, then set `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, and `POLAR_PRODUCT_REPORT_YEARLY` to those product IDs on the Worker.
 
 Set the Polar webhook to `POST /api/webhook/polar` on your public site URL.
 

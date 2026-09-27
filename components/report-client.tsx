@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useReducer, useState } from "react";
+import type { ReactNode } from "react";
 import useSWR from "swr";
 import { z } from "zod";
 
@@ -16,9 +17,15 @@ import type { CheckStatus } from "@/lib/chat-onboarding";
 import { pointsFor } from "@/lib/checks/types";
 import type { CheckDefinition } from "@/lib/checks/types";
 import {
+  entitlementCheckoutRetryPath,
+  reportShowsFixSteps,
+} from "@/lib/entitlements-access";
+import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
+  REPORT_YEARLY_PRICE,
+  REPORT_YEARLY_VALUE_NOTE,
   requestCheckoutUrl,
   requestSignInCode,
   verifySignInCode,
@@ -151,10 +158,52 @@ const formatScanDelta = (delta: number | null): string => {
   return `${delta > 0 ? "+" : ""}${delta}%`;
 };
 
-const reportShowsFixSteps = (access: EntitlementState): boolean =>
-  !access.paymentsEnabled || (access.unlocked && !access.sessionRequired);
-
 const CITATION_PREVIEW = 2;
+
+const ReportSystemNotice = ({ children }: { children: ReactNode }) => (
+  <output className="listwell-report__notice">
+    <p className="vbg-lede">{children}</p>
+  </output>
+);
+
+const ReportKvExpiryNotice = ({ days }: { days: number }) => (
+  <ReportSystemNotice>
+    This report is saved temporarily ({days} days).{" "}
+    <Link href="/sign-in?return=%2Faccount">Sign in</Link> to keep it on your
+    account once accounts are available.
+  </ReportSystemNotice>
+);
+
+const ReportBackendUnavailableNotice = () => (
+  <ReportSystemNotice>
+    We cannot verify unlock status right now. If you have already paid, use
+    retry below or check back shortly — your purchase is still recorded.
+  </ReportSystemNotice>
+);
+
+const ReportPurchasePendingNotice = ({
+  checkoutRetryId,
+  businessId,
+}: {
+  checkoutRetryId: string | undefined;
+  businessId: string;
+}) => {
+  const retryHref =
+    checkoutRetryId === undefined
+      ? null
+      : entitlementCheckoutRetryPath(checkoutRetryId, businessId);
+  return (
+    <ReportSystemNotice>
+      Payment received, but we could not activate fix steps yet.{" "}
+      {typeof retryHref === "string" ? (
+        <a href={retryHref}>Retry activation</a>
+      ) : (
+        "Refresh this page in a minute"
+      )}{" "}
+      or wait for the payment webhook. Contact support if this persists.
+    </ReportSystemNotice>
+  );
+};
 
 const CitationLinks = ({
   checkIds,
@@ -514,8 +563,37 @@ const ReportPaywallSection = ({
   checkoutError: string | null;
   onCheckout: (plan: CheckoutPlan) => void;
 }) => {
-  const lede = access.monthlyAvailable
-    ? "Unlock fix steps with a one-off report or monthly scans."
+  if (!access.backendAvailable) {
+    return (
+      <section className="listwell-report__chapter">
+        <div className="listwell-report__unlock">
+          <h2 className="vbg-heading-24">Full report with fix steps</h2>
+          <p className="vbg-lede">
+            Account services are temporarily unavailable. Fix steps stay locked
+            until we can confirm your entitlement.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!access.paymentsEnabled) {
+    return (
+      <section className="listwell-report__chapter">
+        <div className="listwell-report__unlock">
+          <h2 className="vbg-heading-24">Full report with fix steps</h2>
+          <p className="vbg-lede">
+            Payments are not configured on this environment yet.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  const continuedPlansAvailable =
+    access.monthlyAvailable || access.yearlyAvailable;
+  const lede = continuedPlansAvailable
+    ? "Unlock fix steps with a one-off report or continued scans (monthly or yearly, per business)."
     : `Pay ${REPORT_ONCE_PRICE} once to unlock the step-by-step fixes for this business.`;
 
   return (
@@ -525,7 +603,7 @@ const ReportPaywallSection = ({
         <p className="vbg-lede">{lede}</p>
         <div className="listwell-report__unlock-actions">
           <button
-            className="listwell-report__button"
+            className="listwell-report__button listwell-report__button--quiet"
             type="button"
             disabled={redirecting !== null}
             onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
@@ -534,6 +612,18 @@ const ReportPaywallSection = ({
               ? "Redirecting…"
               : `Full report · ${REPORT_ONCE_PRICE} once`}
           </button>
+          {access.yearlyAvailable ? (
+            <button
+              className="listwell-report__button"
+              type="button"
+              disabled={redirecting !== null}
+              onClick={() => onCheckout(checkoutPlanSchema.parse("yearly"))}
+            >
+              {redirecting === "yearly"
+                ? "Redirecting…"
+                : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
+            </button>
+          ) : null}
           {access.monthlyAvailable ? (
             <button
               className="listwell-report__button listwell-report__button--quiet"
@@ -970,6 +1060,10 @@ export const ReportClient = ({
   initialSummary,
   access: initialAccess,
   checkoutReturned,
+  checkoutRetryId,
+  purchasePending,
+  showKvExpiryNotice,
+  kvExpiryDays,
   checkJobId,
 }: {
   initialBusiness: Business;
@@ -978,6 +1072,10 @@ export const ReportClient = ({
   initialSummary: AuditSummaryResult;
   access: EntitlementState;
   checkoutReturned: boolean;
+  checkoutRetryId?: string;
+  purchasePending: boolean;
+  showKvExpiryNotice: boolean;
+  kvExpiryDays: number;
   checkJobId?: string;
 }) => {
   const business = useMemo(
@@ -1047,6 +1145,14 @@ export const ReportClient = ({
 
   return (
     <article className="listwell-report">
+      {showKvExpiryNotice ? <ReportKvExpiryNotice days={kvExpiryDays} /> : null}
+      {access.backendAvailable ? undefined : <ReportBackendUnavailableNotice />}
+      {purchasePending ? (
+        <ReportPurchasePendingNotice
+          businessId={business.id}
+          checkoutRetryId={checkoutRetryId}
+        />
+      ) : null}
       <header className="listwell-report__hero">
         <h1 className="vbg-title">{business.name}</h1>
         {access.kind === "report_monthly" ? (

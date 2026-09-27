@@ -3,6 +3,15 @@ interface KVNamespace {
     key: string,
     type?: "text" | "json"
   ) => Promise<string | null | unknown>;
+  list: (options?: {
+    prefix?: string;
+    limit?: number;
+    cursor?: string;
+  }) => Promise<{
+    keys: { name: string }[];
+    list_complete: boolean;
+    cursor?: string;
+  }>;
   put: (
     key: string,
     value: string,
@@ -101,6 +110,7 @@ interface CloudflareEnv {
   INTERNAL_API_SECRET?: string;
   LISTWELL_BROWSER_RENDERING_ACCOUNT_ID?: string;
   LISTWELL_BROWSER_RENDERING_API_TOKEN?: string;
+  LISTWELL_PAYMENTS_DISABLED?: string;
   NEXT_CACHE_DO_QUEUE?: DurableObjectNamespace;
   NEXT_INC_CACHE_R2_BUCKET?: R2Bucket;
   NEXT_PUBLIC_CONVEX_SITE_URL?: string;
@@ -109,8 +119,10 @@ interface CloudflareEnv {
   POLAR_ACCESS_TOKEN?: string;
   POLAR_PRODUCT_REPORT_MONTHLY?: string;
   POLAR_PRODUCT_REPORT_ONCE?: string;
+  POLAR_PRODUCT_REPORT_YEARLY?: string;
   POLAR_SERVER?: string;
   POLAR_WEBHOOK_SECRET?: string;
+  SITE_PASSWORD?: string;
   SITE_URL?: string;
   TYPESAFE_API_KEY?: string;
   TYPESAFE_MODEL?: string;

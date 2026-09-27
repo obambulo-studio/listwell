@@ -10,7 +10,10 @@ import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
+  REPORT_YEARLY_PRICE,
+  REPORT_YEARLY_VALUE_NOTE,
   requestCheckoutUrl,
+  unlockPricingNote,
 } from "@/lib/polar";
 import { checkoutPlanSchema, entitlementStateSchema } from "@/lib/schema";
 import type { CheckoutPlan, EntitlementState } from "@/lib/schema";
@@ -92,6 +95,33 @@ const buildCtaLabel = (
   return `Full report · ${REPORT_ONCE_PRICE} once`;
 };
 
+const sessionAccessNote = (access: EntitlementState): string => {
+  if (access.maskedEmail) {
+    return `Enter the code we sent to ${access.maskedEmail}.`;
+  }
+  return "Enter the code we sent to open the full report.";
+};
+
+const unlockedAccessNote = (access: EntitlementState): string =>
+  access.kind === "report_monthly"
+    ? "Monthly scans active."
+    : "Full report unlocked.";
+
+const lockedAccessNote = (access: EntitlementState): string => {
+  if (!access.backendAvailable) {
+    return "Account services are temporarily unavailable.";
+  }
+  if (!access.paymentsEnabled) {
+    return access.fixStepsWithoutPayment
+      ? "Fix steps are included in this environment."
+      : "Payments are not configured yet.";
+  }
+  return (
+    unlockPricingNote(access) ??
+    `Pay ${REPORT_ONCE_PRICE} once to unlock fix steps for this business.`
+  );
+};
+
 const buildAccessNote = (
   access: EntitlementState,
   businessId: string | null
@@ -99,31 +129,96 @@ const buildAccessNote = (
   if (!businessId) {
     return "Save this audit to unlock the full report.";
   }
-
-  const sessionRequired = access.unlocked && access.sessionRequired;
-  if (sessionRequired) {
-    if (access.maskedEmail) {
-      return `Enter the code we sent to ${access.maskedEmail}.`;
-    }
-    return "Enter the code we sent to open the full report.";
+  if (access.unlocked && access.sessionRequired) {
+    return sessionAccessNote(access);
   }
-
   if (access.unlocked) {
-    return access.kind === "report_monthly"
-      ? "Monthly scans active."
-      : "Full report unlocked.";
+    return unlockedAccessNote(access);
   }
-
-  if (!access.paymentsEnabled) {
-    return "Payment coming soon.";
-  }
-
-  if (access.monthlyAvailable) {
-    return `Unlock with ${REPORT_ONCE_PRICE} once or ${REPORT_MONTHLY_PRICE}.`;
-  }
-
-  return `Pay ${REPORT_ONCE_PRICE} once to unlock fix steps for this business.`;
+  return lockedAccessNote(access);
 };
+
+const isCtaDisabled = (
+  businessId: string | null,
+  access: EntitlementState,
+  redirecting: CheckoutPlan | null
+): boolean =>
+  !businessId ||
+  redirecting !== null ||
+  !access.backendAvailable ||
+  (!access.unlocked &&
+    !access.paymentsEnabled &&
+    !access.fixStepsWithoutPayment);
+
+interface ReportUnlockActionsProps {
+  businessId: string | null;
+  access: EntitlementState;
+  ctaDisabled: boolean;
+  ctaLabel: string;
+  redirecting: CheckoutPlan | null;
+  onUnlock: (plan: CheckoutPlan) => void;
+  onPreview: () => void;
+}
+
+const ReportUnlockActions = ({
+  businessId,
+  access,
+  ctaDisabled,
+  ctaLabel,
+  redirecting,
+  onUnlock,
+  onPreview,
+}: ReportUnlockActionsProps) => (
+  <div className="listwell-chat__report-actions">
+    <button
+      type="button"
+      className="listwell-chat__report-cta"
+      disabled={ctaDisabled}
+      onClick={() => {
+        onUnlock(checkoutPlanSchema.parse("once"));
+      }}
+    >
+      {ctaLabel}
+    </button>
+    {businessId && !access.unlocked && access.yearlyAvailable ? (
+      <button
+        type="button"
+        className="listwell-chat__report-link"
+        disabled={ctaDisabled}
+        onClick={() => {
+          onUnlock(checkoutPlanSchema.parse("yearly"));
+        }}
+      >
+        {redirecting === "yearly"
+          ? "Redirecting…"
+          : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
+      </button>
+    ) : null}
+    {businessId && !access.unlocked && access.monthlyAvailable ? (
+      <button
+        type="button"
+        className="listwell-chat__report-link"
+        disabled={ctaDisabled}
+        onClick={() => {
+          onUnlock(checkoutPlanSchema.parse("monthly"));
+        }}
+      >
+        {redirecting === "monthly"
+          ? "Redirecting…"
+          : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
+      </button>
+    ) : null}
+    {businessId && !access.unlocked ? (
+      <button
+        type="button"
+        className="listwell-chat__report-link"
+        onClick={onPreview}
+      >
+        Preview
+      </button>
+    ) : null}
+  </div>
+);
 
 export const ReportSummary = ({
   businessName,
@@ -147,10 +242,7 @@ export const ReportSummary = ({
   const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
 
   const sessionRequired = Boolean(access.unlocked && access.sessionRequired);
-  const ctaDisabled =
-    !businessId ||
-    redirecting !== null ||
-    (!access.unlocked && !access.paymentsEnabled);
+  const ctaDisabled = isCtaDisabled(businessId, access, redirecting);
   const ctaLabel = buildCtaLabel(access, redirecting, sessionRequired);
   const note = buildAccessNote(access, businessId);
 
@@ -237,41 +329,15 @@ export const ReportSummary = ({
         </ul>
       ) : null}
 
-      <div className="listwell-chat__report-actions">
-        <button
-          type="button"
-          className="listwell-chat__report-cta"
-          disabled={ctaDisabled}
-          onClick={() => {
-            handleUnlock(checkoutPlanSchema.parse("once"));
-          }}
-        >
-          {ctaLabel}
-        </button>
-        {businessId && !access.unlocked && access.monthlyAvailable ? (
-          <button
-            type="button"
-            className="listwell-chat__report-link"
-            disabled={ctaDisabled}
-            onClick={() => {
-              handleUnlock(checkoutPlanSchema.parse("monthly"));
-            }}
-          >
-            {redirecting === "monthly"
-              ? "Redirecting…"
-              : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
-          </button>
-        ) : null}
-        {businessId && !access.unlocked ? (
-          <button
-            type="button"
-            className="listwell-chat__report-link"
-            onClick={onPreview}
-          >
-            Preview
-          </button>
-        ) : null}
-      </div>
+      <ReportUnlockActions
+        businessId={businessId}
+        access={access}
+        ctaDisabled={ctaDisabled}
+        ctaLabel={ctaLabel}
+        redirecting={redirecting}
+        onUnlock={handleUnlock}
+        onPreview={onPreview}
+      />
       <p className="listwell-chat__report-note">{checkoutError ?? note}</p>
     </article>
   );
