@@ -636,8 +636,8 @@ const PromptCard = ({
       {promptInput ? (
         <p className="listwell-chat__starter-pricing">
           Full report with fix steps: {REPORT_ONCE_PRICE} once. Continued
-          reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per business (
-          {REPORT_YEARLY_VALUE_NOTE} on yearly).
+          reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per business
+          ({REPORT_YEARLY_VALUE_NOTE} on yearly).
         </p>
       ) : null}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
