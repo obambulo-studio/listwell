@@ -24,6 +24,8 @@ import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
+  REPORT_YEARLY_PRICE,
+  REPORT_YEARLY_VALUE_NOTE,
   requestCheckoutUrl,
   requestSignInCode,
   verifySignInCode,
@@ -588,8 +590,10 @@ const ReportPaywallSection = ({
     );
   }
 
-  const lede = access.monthlyAvailable
-    ? "Unlock fix steps with a one-off report or monthly scans."
+  const continuedPlansAvailable =
+    access.monthlyAvailable || access.yearlyAvailable;
+  const lede = continuedPlansAvailable
+    ? "Unlock fix steps with a one-off report or continued scans (monthly or yearly, per business)."
     : `Pay ${REPORT_ONCE_PRICE} once to unlock the step-by-step fixes for this business.`;
 
   return (
@@ -599,7 +603,7 @@ const ReportPaywallSection = ({
         <p className="vbg-lede">{lede}</p>
         <div className="listwell-report__unlock-actions">
           <button
-            className="listwell-report__button"
+            className="listwell-report__button listwell-report__button--quiet"
             type="button"
             disabled={redirecting !== null}
             onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
@@ -608,6 +612,18 @@ const ReportPaywallSection = ({
               ? "Redirecting…"
               : `Full report · ${REPORT_ONCE_PRICE} once`}
           </button>
+          {access.yearlyAvailable ? (
+            <button
+              className="listwell-report__button"
+              type="button"
+              disabled={redirecting !== null}
+              onClick={() => onCheckout(checkoutPlanSchema.parse("yearly"))}
+            >
+              {redirecting === "yearly"
+                ? "Redirecting…"
+                : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
+            </button>
+          ) : null}
           {access.monthlyAvailable ? (
             <button
               className="listwell-report__button listwell-report__button--quiet"

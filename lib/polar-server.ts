@@ -45,6 +45,7 @@ export interface PolarConfig {
   webhookSecret: string | undefined;
   productReportOnce: string;
   productReportMonthly: string | undefined;
+  productReportYearly: string | undefined;
   server: z.infer<typeof polarServerSchema>;
 }
 
@@ -73,6 +74,9 @@ export const getPolarConfig = async (): Promise<PolarConfig | null> => {
       readSecret(workerEnv?.POLAR_PRODUCT_REPORT_MONTHLY) ??
       readSecret(process.env.POLAR_PRODUCT_REPORT_MONTHLY),
     productReportOnce,
+    productReportYearly:
+      readSecret(workerEnv?.POLAR_PRODUCT_REPORT_YEARLY) ??
+      readSecret(process.env.POLAR_PRODUCT_REPORT_YEARLY),
     server,
     webhookSecret:
       readSecret(workerEnv?.POLAR_WEBHOOK_SECRET) ??
@@ -111,6 +115,7 @@ export const getReportAccess = async (
     authEnabled && unlocked && ownerUserId && sessionUser?.id !== ownerUserId
   );
   const monthlyAvailable = Boolean(config?.productReportMonthly);
+  const yearlyAvailable = Boolean(config?.productReportYearly);
   const polarConfigured = Boolean(config);
   const waived = fixStepsWithoutPayment({
     intentionallyDisabled: paymentsDisabledFlag,
@@ -129,6 +134,7 @@ export const getReportAccess = async (
       paymentsEnabled: false,
       sessionRequired: false,
       unlocked,
+      yearlyAvailable: false,
     });
   }
 
@@ -142,6 +148,7 @@ export const getReportAccess = async (
     paymentsEnabled: true,
     sessionRequired,
     unlocked,
+    yearlyAvailable,
   });
 };
 
@@ -367,16 +374,25 @@ export const createPolarCheckout = async (input: {
   }
 
   const plan = checkoutPlanSchema.parse(input.plan);
-  const productId =
-    plan === "monthly" ? config.productReportMonthly : config.productReportOnce;
-  if (plan === "monthly" && !productId) {
-    throw new Error("Monthly plan is not configured");
+  let productId: string | undefined;
+  if (plan === "monthly") {
+    productId = config.productReportMonthly;
+    if (!productId) {
+      throw new Error("Monthly plan is not configured");
+    }
+  } else if (plan === "yearly") {
+    productId = config.productReportYearly;
+    if (!productId) {
+      throw new Error("Yearly plan is not configured");
+    }
+  } else {
+    productId = config.productReportOnce;
   }
 
   const created = await polarClient(config).checkouts.create({
     customerIpAddress: input.customerIpAddress,
     metadata: { businessId: input.businessId, plan },
-    products: [productId ?? config.productReportOnce],
+    products: [productId],
     returnUrl: `${input.origin}/${input.businessId}`,
     successUrl: `${input.origin}/api/auth/checkout/{CHECKOUT_ID}/${input.businessId}`,
   });
@@ -426,7 +442,10 @@ export const confirmPolarCheckout = async (
       productId: parsed.productId,
       subscriptionId: parsed.subscriptionId,
     },
-    config.productReportMonthly
+    {
+      monthlyProductId: config.productReportMonthly,
+      yearlyProductId: config.productReportYearly,
+    }
   );
 
   const email = customerEmailFromPolarData(parsed);
@@ -462,10 +481,10 @@ export const applyPolarWebhookEvent = async (
   event: PolarWebhookEvent
 ): Promise<void> => {
   const config = await getPolarConfig();
-  const action = entitlementActionFromPolarEvent(
-    event,
-    config?.productReportMonthly
-  );
+  const action = entitlementActionFromPolarEvent(event, {
+    monthlyProductId: config?.productReportMonthly,
+    yearlyProductId: config?.productReportYearly,
+  });
   if (action.type === "ignore") {
     return;
   }

@@ -58,7 +58,12 @@ import {
   lookupResponseSchema,
 } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
-import { REPORT_MONTHLY_PRICE, REPORT_ONCE_PRICE } from "@/lib/polar";
+import {
+  REPORT_MONTHLY_PRICE,
+  REPORT_ONCE_PRICE,
+  REPORT_YEARLY_PRICE,
+  REPORT_YEARLY_VALUE_NOTE,
+} from "@/lib/polar";
 import { mapProfilesToBusinessData } from "@/lib/profiles";
 import {
   auditJobPollSchema,
@@ -466,7 +471,7 @@ const ChatComposer = ({
   );
 };
 
-const ABOUT_COPY = `Listwell runs a free check of local and website visibility. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued monthly reports are ${REPORT_MONTHLY_PRICE}.`;
+const ABOUT_COPY = `Listwell runs a free check of local and website visibility. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
 
 const AboutDialog = ({
   open,
@@ -631,7 +636,8 @@ const PromptCard = ({
       {promptInput ? (
         <p className="listwell-chat__starter-pricing">
           Full report with fix steps: {REPORT_ONCE_PRICE} once. Continued
-          reports: {REPORT_MONTHLY_PRICE}.
+          reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per business
+          ({REPORT_YEARLY_VALUE_NOTE} on yearly).
         </p>
       ) : null}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />

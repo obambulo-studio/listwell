@@ -194,6 +194,7 @@ export const entitlementStateSchema = z.object({
   paymentsEnabled: z.boolean(),
   sessionRequired: z.boolean().default(false),
   unlocked: z.boolean(),
+  yearlyAvailable: z.boolean().default(false),
 });
 export type EntitlementState = z.infer<typeof entitlementStateSchema>;
 
@@ -241,7 +242,7 @@ export const accountReportsSchema = z.object({
 });
 export type AccountReports = z.infer<typeof accountReportsSchema>;
 
-export const checkoutPlanSchema = z.enum(["once", "monthly"]);
+export const checkoutPlanSchema = z.enum(["once", "monthly", "yearly"]);
 export type CheckoutPlan = z.infer<typeof checkoutPlanSchema>;
 
 export const checkoutRequestSchema = z.object({
