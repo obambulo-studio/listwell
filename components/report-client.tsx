@@ -752,9 +752,11 @@ const OnceRescanSection = ({
                 return;
               }
               window.location.reload();
-            } catch (error) {
+            } catch (rescanError) {
               setError(
-                error instanceof Error ? error.message : "Re-scan failed"
+                rescanError instanceof Error
+                  ? rescanError.message
+                  : "Re-scan failed"
               );
               setBusy(false);
             }

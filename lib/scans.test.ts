@@ -3,25 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runDueScans } from "./scans";
 import type { ScanRow } from "./schema";
 
-const { listDueMonthlyEntitlements, runReservedMonthlyScan } = vi.hoisted(() => ({
-  listDueMonthlyEntitlements:
-    vi.fn<
-      (
-        now: Date,
-        limit: number
-      ) => Promise<
-        { businessId: string; id: string; nextScanAt: string | null }[]
-      >
-    >(),
-  runReservedMonthlyScan:
-    vi.fn<
-      () => Promise<
-        | { ok: true; skipped: true }
-        | { ok: true; skipped: false; scan: ScanRow }
-        | { ok: false; skipped: false; scan: ScanRow | null; error: string }
-      >
-    >(),
-}));
+const { listDueMonthlyEntitlements, runReservedMonthlyScan } = vi.hoisted(
+  () => ({
+    listDueMonthlyEntitlements:
+      vi.fn<
+        (
+          now: Date,
+          limit: number
+        ) => Promise<
+          { businessId: string; id: string; nextScanAt: string | null }[]
+        >
+      >(),
+    runReservedMonthlyScan:
+      vi.fn<
+        () => Promise<
+          | { ok: true; skipped: true }
+          | { ok: true; skipped: false; scan: ScanRow }
+          | { ok: false; skipped: false; scan: ScanRow | null; error: string }
+        >
+      >(),
+  })
+);
 
 vi.mock(import("./scheduled-scan-run"), () => ({
   runReservedMonthlyScan,

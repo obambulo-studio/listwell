@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { getSessionUser } from "@/lib/auth";
-import { getBusiness, getBusinessOwnerId, tryConsumeOnceRescan } from "@/lib/data";
+import {
+  getBusiness,
+  getBusinessOwnerId,
+  tryConsumeOnceRescan,
+} from "@/lib/data";
 import { getReportAccess } from "@/lib/polar-server";
 import { consumeRateLimit } from "@/lib/rate-limit-kv";
 import { runScanForBusiness } from "@/lib/scans";

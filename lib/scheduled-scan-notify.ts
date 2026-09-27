@@ -4,8 +4,9 @@ import {
   getActiveEntitlementOwner,
   getScanEmailRecipient,
 } from "./data";
+import type { ScanSnapshot } from "./scan-email";
+import { buildScanEmail } from "./scan-email";
 import type { ScanRow } from "./schema";
-import { buildScanEmail, type ScanSnapshot } from "./scan-email";
 import { readUseSendConfig, sendUseSendEmail } from "./usesend";
 
 const toSnapshot = (scan: {
@@ -31,7 +32,10 @@ export const notifyScheduledScanComplete = async (input: {
   try {
     recipient = await getScanEmailRecipient(input.businessId);
   } catch (error) {
-    console.error("notifyScheduledScanComplete: recipient lookup failed", error);
+    console.error(
+      "notifyScheduledScanComplete: recipient lookup failed",
+      error
+    );
     return { sent: false, skipped: true };
   }
 

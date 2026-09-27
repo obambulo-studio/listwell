@@ -311,20 +311,17 @@ export const runDue = internalAction({
     for (const entitlement of due) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        const response = await fetch(
-          `${baseUrl}/api/internal/scans/run-one`,
-          {
-            body: JSON.stringify({
-              businessId: entitlement.businessExternalId,
-              entitlementId: entitlement.id,
-            }),
-            headers: {
-              authorization: `Bearer ${secret}`,
-              "content-type": "application/json",
-            },
-            method: "POST",
-          }
-        );
+        const response = await fetch(`${baseUrl}/api/internal/scans/run-one`, {
+          body: JSON.stringify({
+            businessId: entitlement.businessExternalId,
+            entitlementId: entitlement.id,
+          }),
+          headers: {
+            authorization: `Bearer ${secret}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        });
         outcomes.push(response.ok);
       } catch {
         outcomes.push(false);

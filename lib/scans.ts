@@ -1,7 +1,4 @@
-import {
-  getLatestCompleteScan,
-  listDueMonthlyEntitlements,
-} from "./data";
+import { getLatestCompleteScan, listDueMonthlyEntitlements } from "./data";
 import { runScanForBusiness } from "./run-business-scan";
 import { runReservedMonthlyScan } from "./scheduled-scan-run";
 import { scanSummarySchema } from "./schema";

@@ -500,7 +500,11 @@ export const tryConsumeOnceRescan = (
   now: Date
 ): Promise<{
   allowed: boolean;
-  reason: "limit_reached" | "no_active_once_entitlement" | "window_expired" | null;
+  reason:
+    | "limit_reached"
+    | "no_active_once_entitlement"
+    | "window_expired"
+    | null;
 }> =>
   convexMutation(api.entitlements.tryConsumeOnceRescan, {
     businessExternalId: businessId,

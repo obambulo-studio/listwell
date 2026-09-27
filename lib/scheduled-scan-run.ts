@@ -4,9 +4,9 @@ import {
   getLatestCompleteScanDetails,
   reserveDueMonthlyScan,
 } from "./data";
+import { runScanForBusiness } from "./run-business-scan";
 import { notifyScheduledScanComplete } from "./scheduled-scan-notify";
 import type { ScanRow } from "./schema";
-import { runScanForBusiness } from "./run-business-scan";
 
 const readSiteUrl = (): string | null => {
   const url =
