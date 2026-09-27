@@ -77,5 +77,5 @@ Google highlights businesses that are currently open, giving you a competitive a
 
 - [Google Business Hours Guide](https://support.google.com/business/answer/3370250) - Official setup instructions
 - [Holiday Hours Management](https://support.google.com/business/answer/6066545) - Managing seasonal changes
-- [Google Business Profile Best Practices](https://support.google.com/business/answer/7091) - Complete optimization guide
+- [Google Business Profile Best Practices](https://support.google.com/business/answer/7091) - Complete optimisation guide
 - [Local Search Statistics](https://blog.hubspot.com/marketing/local-seo-stats) - Why accurate information matters

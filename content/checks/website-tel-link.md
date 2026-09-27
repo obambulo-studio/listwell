@@ -78,4 +78,4 @@ Easier contact methods typically result in more customer inquiries and bookings
 - [Click-to-Call Implementation Guide](https://developers.google.com/web/fundamentals/native-hardware/click-to-call) - Technical setup instructions
 - [Mobile UX Best Practices](https://developers.google.com/web/fundamentals/design-and-ux/principles) - Improving mobile user experience
 - [Phone Link Formatting](https://css-tricks.com/the-current-state-of-telephone-links/) - Proper tel: link structure
-- [Mobile Conversion Optimization](https://blog.hubspot.com/marketing/mobile-website-optimization) - Improving mobile performance
+- [Mobile Conversion Optimisation](https://blog.hubspot.com/marketing/mobile-website-optimisation) - Improving mobile performance

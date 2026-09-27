@@ -75,7 +75,7 @@ Fewer confused calls and emails about conflicting business information
 
 ## Learn More
 
-- [Local SEO NAP Guide](https://moz.com/learn/seo/nap-local-seo) - Complete NAP optimization strategy
+- [Local SEO NAP Guide](https://moz.com/learn/seo/nap-local-seo) - Complete NAP optimisation strategy
 - [Google Business Profile Management](https://support.google.com/business/answer/3038063) - Updating business information
 - [Citation Building Guide](https://www.brightlocal.com/learn/local-seo-citation-guide/) - Managing online business listings
 - [Local Search Ranking Factors](https://www.brightlocal.com/research/local-search-ranking-factors/) - What affects local SEO performance

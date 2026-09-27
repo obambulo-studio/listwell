@@ -49,7 +49,7 @@ We verify that your website automatically adapts to work well on smartphones and
 - Click-to-call buttons don't work properly
 - Competitors with mobile sites win your customers
 
-::example{type="bad" title="Mobile failure impact"} A dental practice ignored mobile optimization for years:
+::example{type="bad" title="Mobile failure impact"} A dental practice ignored mobile optimisation for years:
 
 - 68% of website traffic was mobile but 90% bounced immediately
 - Appointment form was unusable on phones
@@ -83,12 +83,12 @@ We verify that your website automatically adapts to work well on smartphones and
 - **Touch targets**: Buttons at least 44x44 pixels
 - **Simplified navigation**: Hamburger menu for mobile ::
 
-::fix-step{number="4" title="Optimize mobile performance"}
+::fix-step{number="4" title="Optimise mobile performance"}
 
 - Compress images for faster loading
 - Minimize pop-ups and interstitials
 - Test on real devices, not just desktop
-- Ensure forms are mobile-optimized
+- Ensure forms are mobile-optimised
 - Add click-to-call functionality ::
 
 ::time-estimate{minutes="480" difficulty="medium"} Quick theme change: 2-4 hours Custom responsive retrofit: 2-5 days Complete redesign: 1-3 weeks ::
@@ -116,7 +116,7 @@ We verify that your website automatically adapts to work well on smartphones and
 - Professional modern appearance
 - Competitive advantage in your market
 
-::example{type="good" title="Mobile optimization success"} Pete's Plumbing redesigned for mobile responsiveness:
+::example{type="good" title="Mobile optimisation success"} Pete's Plumbing redesigned for mobile responsiveness:
 
 - Before: 71% mobile traffic, 89% bounce rate
 - After: 75% mobile traffic, 31% bounce rate

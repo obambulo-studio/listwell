@@ -44,13 +44,13 @@ Competitors with YouTube channels appear more established and credible to potent
 
 ::fix-step{number="1" title="Create YouTube Business Channel"} Sign in to YouTube with your business Google account and create a channel using your business name and branding. ::
 
-::fix-step{number="2" title="Optimize Channel Setup"} Add channel art, compelling description with keywords, upload schedule, contact information, and links to your website. ::
+::fix-step{number="2" title="Optimise Channel Setup"} Add channel art, compelling description with keywords, upload schedule, contact information, and links to your website. ::
 
 ::fix-step{number="3" title="Plan Your Content Strategy"} Focus on how-to videos, product demonstrations, customer testimonials, behind-the-scenes content, and industry tips. ::
 
 ::fix-step{number="4" title="Create Quality Content"} Use good lighting and audio, keep videos focused and valuable, add captions, and create eye-catching thumbnails. ::
 
-::fix-step{number="5" title="Optimize for Search"} Use relevant keywords in titles and descriptions, create playlists, add end screens and cards, and encourage engagement. ::
+::fix-step{number="5" title="Optimise for Search"} Use relevant keywords in titles and descriptions, create playlists, add end screens and cards, and encourage engagement. ::
 
 ::time-estimate{minutes="120" difficulty="medium"}
 
@@ -79,4 +79,4 @@ Videos continue attracting customers for years, providing ongoing marketing valu
 - [YouTube for Business](https://www.youtube.com/business/) - Official business resources
 - [YouTube Creator Academy](https://creatoracademy.youtube.com/) - Free video creation courses
 - [Video Marketing Guide](https://blog.hubspot.com/marketing/video-marketing-guide) - Strategy and best practices
-- [YouTube SEO Tips](https://backlinko.com/youtube-seo) - Optimization strategies
+- [YouTube SEO Tips](https://backlinko.com/youtube-seo) - Optimisation strategies

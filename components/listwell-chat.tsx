@@ -466,7 +466,7 @@ const ChatComposer = ({
 };
 
 const ABOUT_COPY =
-  "Listwell runs a free check of local and website visibility. A full report with fix steps is $5.";
+  "Listwell checks local listings and website SEO for Australian small businesses. The basic report is free. A full report with fix steps is $5 AUD.";
 
 const AboutDialog = ({
   open,
@@ -575,7 +575,7 @@ const PromptCard = ({
             <h1 className="listwell-chat__prompt">
               {question}{" "}
               <span className="listwell-chat__prompt-aside">
-                Free check of local and website visibility
+                Free visibility check for Australian businesses
               </span>
             </h1>
           </div>
@@ -630,7 +630,7 @@ const PromptCard = ({
       </div>
       {promptInput ? (
         <p className="listwell-chat__starter-pricing">
-          $5 for a full report with fix steps
+          $5 AUD for a full report with fix steps
         </p>
       ) : null}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />

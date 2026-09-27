@@ -1,6 +1,6 @@
 # Listwell
 
-Listwell audits local listings and websites for search engine optimization (SEO). You create an audit. You run the checks. Then you read a report with fix steps.
+Listwell audits local listings and websites for search engine optimisation (SEO). It is built for Australian small businesses and agencies. You create an audit, run the checks, then read a report with fix steps.
 
 Obambulo Studio owns Listwell. The software is proprietary. It is not open source. See `LICENSE`.
 
@@ -195,7 +195,7 @@ Bindings:
 - `NEXT_CACHE_DO_QUEUE` - OpenNext ISR revalidation queue
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI
-- `IMAGES` - Cloudflare Images for Next.js image optimization
+- `IMAGES` - Cloudflare Images for Next.js image optimisation
 
 Set remaining Worker secrets with `wrangler secret put` or `bun run cf:sync-env`. See `.env.example`.
 

@@ -46,7 +46,7 @@ You can't establish expertise in your industry without sharing insights on the p
 
 ::fix-step{number="2" title="Complete Your Company Profile"} Add company logo, banner image, compelling description, website URL, industry, company size, and location details. ::
 
-::fix-step{number="3" title="Optimize for Search"} Use relevant keywords in your company description that potential clients might search for. Include your services and industry terms. ::
+::fix-step{number="3" title="Optimise for Search"} Use relevant keywords in your company description that potential clients might search for. Include your services and industry terms. ::
 
 ::fix-step{number="4" title="Start Sharing Content"} Post industry insights, company updates, team achievements, and valuable content that showcases your expertise 2-3 times per week. ::
 

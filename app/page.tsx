@@ -4,7 +4,7 @@ import { ListwellChat } from "@/components/listwell-chat";
 
 export const metadata: Metadata = {
   description:
-    "Chat-first local and website SEO audit. Answer a few questions, get a basic report, then upgrade for fixes and automation.",
+    "Check Google Business Profile, listings, and website SEO for your Australian business. Free basic report; full fix steps from $5.",
   title: "Check your listings",
 };
 

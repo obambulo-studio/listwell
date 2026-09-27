@@ -8,21 +8,21 @@ businessCategories:
 
 # DoorDash Listing
 
-Expand your restaurant's reach with DoorDash - America's leading food delivery platform connecting millions of hungry customers to local restaurants every day.
+In Australia, DoorDash sits alongside Menulog and Uber Eats. If you run a restaurant or café, a DoorDash listing helps customers order delivery through the app.
 
-::tech-detail{summary="What we check for DoorDash presence"} We verify if your business has an active DoorDash URL stored in our system. This indicates whether you've set up and maintained a presence on the DoorDash platform. DoorDash operates primarily in the United States, Canada, Australia, and Japan, with over 25 million customers and 500,000+ restaurant partners. ::
+::tech-detail{summary="What we check for DoorDash presence"} We verify if your business has an active DoorDash URL stored in our system. This indicates whether you've set up and maintained a presence on the DoorDash platform. DoorDash operates in Australia as well as the United States, Canada, and Japan. ::
 
 ## What we're checking
 
 We look for whether your restaurant or food business is listed and active on DoorDash's delivery platform. Being on DoorDash means customers can order your food for delivery through their app and website.
 
-::impact{type="money" severity="high"} **Restaurants on DoorDash see average revenue increases of 20-30%** from delivery orders, with peak times generating 40% more orders than dine-in alone. ::
+::impact{type="money" severity="medium"} Delivery orders often peak in the evening and on weekends. If you are not listed, those orders go to competitors who are. ::
 
 ## Problems This Check Identifies
 
-### Missing Delivery Revenue Stream
+### Missing delivery orders
 
-Without DoorDash, you're missing out on the massive delivery market that has grown 300% since 2020.
+Without DoorDash, customers who prefer to order in the app cannot find you.
 
 ### Limited Customer Reach
 
@@ -40,11 +40,11 @@ Competitors on DoorDash capture market share while you rely solely on walk-in an
 
 ## How to Fix This
 
-::fix-step{number="1" title="Sign Up as a DoorDash Merchant"} Visit DoorDash's merchant portal and complete the application process. You'll need business license, menu, and banking information ready. ::
+::fix-step{number="1" title="Sign Up as a DoorDash Merchant"} Visit DoorDash's merchant portal and complete the application process. You'll need business licence, menu, and banking information ready. ::
 
 ::fix-step{number="2" title="Create Compelling Restaurant Profile"} Upload high-quality photos of your food, write appealing menu descriptions, and set accurate delivery times and areas. ::
 
-::fix-step{number="3" title="Optimize Your Menu for Delivery"} Adjust prices to account for delivery fees, create combo deals, and ensure items travel well. Remove items that don't deliver well. ::
+::fix-step{number="3" title="Optimise Your Menu for Delivery"} Adjust prices to account for delivery fees, create combo deals, and ensure items travel well. Remove items that don't deliver well. ::
 
 ::fix-step{number="4" title="Set Up Operations for Success"} Train staff on packaging for delivery, establish pickup procedures, and integrate DoorDash orders into your kitchen workflow. ::
 
@@ -77,4 +77,4 @@ DoorDash provides detailed analytics about customer preferences and ordering pat
 - [DoorDash for Merchants](https://get.doordash.com/en-us/merchants) - Official merchant signup
 - [DoorDash Restaurant Success Guide](https://help.doordash.com/merchants/s/article/Restaurant-Success-Guide) - Best practices
 - [Food Delivery Industry Report](https://www.mckinsey.com/industries/technology-media-and-telecommunications/our-insights/ordering-in-the-rapid-evolution-of-food-delivery) - Market trends
-- [Restaurant Delivery Optimization](https://pos.toasttab.com/blog/restaurant-delivery-guide) - Operational tips
+- [Restaurant Delivery Optimisation](https://pos.toasttab.com/blog/restaurant-delivery-guide) - Operational tips

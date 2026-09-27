@@ -17,7 +17,7 @@ Customers need to know when you're open - we check if your website clearly shows
 1. **Text patterns** - Looking for times like "9am-5pm" or "Monday-Friday"
 2. **Common locations** - Checking headers, footers, contact pages, and "Hours" sections
 3. **Structured data** - Reading schema.org markup that helps search engines
-4. **Multiple formats** - Recognizing "24/7", "Open 7 days", "Closed Sundays", etc.
+4. **Multiple formats** - Recognising "24/7", "Open 7 days", "Closed Sundays", etc.
 
 We use advanced pattern matching to find hours even if they're formatted unusually, and we filter out code or scripts that might contain time-like patterns. ::
 
@@ -44,7 +44,7 @@ We scan your entire website to find where you've listed your opening hours. Just
 ### Reduced trust
 
 - Professional businesses display hours prominently
-- Missing hours makes you seem disorganized
+- Missing hours makes you seem disorganised
 - Customers question if other information is current
 
 ::example{type="bad" title="Hidden hours hurt business"} A retail shop had hours only on their Facebook page, not their website. Customer survey revealed:

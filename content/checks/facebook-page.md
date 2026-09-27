@@ -81,7 +81,7 @@ We verify if your business has an active Facebook page that customers can find, 
 - Join local community groups and participate
 - Enable and respond to recommendations ::
 
-::time-estimate{minutes="60" difficulty="easy"} Basic setup: 30-45 minutes Full optimization: 1-2 hours Building initial audience: Ongoing ::
+::time-estimate{minutes="60" difficulty="easy"} Basic setup: 30-45 minutes Full optimisation: 1-2 hours Building initial audience: Ongoing ::
 
 ## What is the positive impact?
 
@@ -119,6 +119,6 @@ We verify if your business has an active Facebook page that customers can find, 
 ## Learn more
 
 - [Facebook Business Help Center](https://www.facebook.com/business/help) - Official guides and support
-- [Facebook Page Best Practices](https://www.facebook.com/business/pages) - Optimization tips
+- [Facebook Page Best Practices](https://www.facebook.com/business/pages) - Optimisation tips
 - [Content ideas for businesses](https://www.facebook.com/business/news/tips) - Engagement strategies
 - [Facebook Insights Guide](https://www.facebook.com/business/insights) - Understanding your analytics
