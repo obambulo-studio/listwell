@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -146,30 +146,29 @@ describe("scan email helpers", () => {
       reportUrl: "https://listwell.dev/demo-cafe",
       unsubscribeUrl: UNSUB,
     });
-    let wrote = false;
-    for (const artifactDir of [
-      "/opt/cursor/artifacts",
-      path.join(process.cwd(), "artifacts"),
-    ]) {
-      try {
-        writeFileSync(
-          path.join(artifactDir, "monthly-scan-alert-sample.html"),
-          alert.html,
-          "utf-8"
-        );
-        writeFileSync(
-          path.join(artifactDir, "monthly-scan-summary-sample.html"),
-          summary.html,
-          "utf-8"
-        );
-        wrote = true;
-        break;
-      } catch {
-        // Try next directory.
+    if (process.env.LISTWELL_WRITE_EMAIL_SAMPLES === "1") {
+      for (const artifactDir of [
+        path.join(process.cwd(), "artifacts"),
+        "/opt/cursor/artifacts",
+      ]) {
+        try {
+          mkdirSync(artifactDir, { recursive: true });
+          writeFileSync(
+            path.join(artifactDir, "monthly-scan-alert-sample.html"),
+            alert.html,
+            "utf-8"
+          );
+          writeFileSync(
+            path.join(artifactDir, "monthly-scan-summary-sample.html"),
+            summary.html,
+            "utf-8"
+          );
+        } catch {
+          // Optional sample output for docs and agent runs.
+        }
       }
     }
     expect(alert.html).toContain("Listwell");
     expect(summary.html).toContain("Email preferences");
-    expect(wrote).toBeTruthy();
   });
 });
