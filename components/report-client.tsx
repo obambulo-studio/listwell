@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { z } from "zod";
 
 import { CheckBody } from "@/components/check-body";
+import { ListingReviewSection } from "@/components/listing-review-section";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -1275,6 +1276,11 @@ export const ReportClient = ({
         onUnlocked={() => {
           window.location.replace(`/${business.id}`);
         }}
+      />
+
+      <ListingReviewSection
+        businessId={business.id}
+        showContent={showFixSteps}
       />
 
       <OnceRescanSection access={access} businessId={business.id} />
