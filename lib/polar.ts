@@ -54,8 +54,8 @@ export const polarCheckoutSchema = z.object({
   url: z.string().min(1),
 });
 
-export const REPORT_ONCE_PRICE = "$5";
-export const REPORT_MONTHLY_PRICE = "$9/mo";
+export const REPORT_ONCE_PRICE = "A$9.99";
+export const REPORT_MONTHLY_PRICE = "A$4.99/mo per business";
 
 const WEBHOOK_TOLERANCE_SECONDS = 300;
 

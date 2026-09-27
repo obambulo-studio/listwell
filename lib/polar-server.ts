@@ -8,6 +8,7 @@ import {
   isAuthEnabled,
   maskEmail,
 } from "./auth";
+import { CheckoutGrantError } from "./checkout-grant-error";
 import { api, convexAction } from "./convex/server";
 import {
   findUserIdByEmail,
@@ -15,6 +16,10 @@ import {
   grantEntitlement,
   revokeEntitlements,
 } from "./data";
+import {
+  fixStepsWithoutPayment,
+  isPaymentsIntentionallyDisabled,
+} from "./entitlements-access";
 import {
   businessIdFromMetadata,
   customerEmailFromPolarData,
@@ -75,44 +80,68 @@ export const getPolarConfig = async (): Promise<PolarConfig | null> => {
   };
 };
 
+const readPaymentsDisabledFlag = async (): Promise<boolean> => {
+  const workerEnv = await getCloudflareEnv();
+  const fromWorker = readSecret(workerEnv?.LISTWELL_PAYMENTS_DISABLED);
+  const fromProcess = readSecret(process.env.LISTWELL_PAYMENTS_DISABLED);
+  return isPaymentsIntentionallyDisabled({
+    listwellPaymentsDisabled: fromWorker ?? fromProcess,
+  });
+};
+
 export const getReportAccess = async (
   businessId: string
 ): Promise<EntitlementState> => {
-  const [config, authEnabled, sessionUser, owner] = await Promise.all([
-    getPolarConfig(),
-    isAuthEnabled(),
-    getSessionUser(),
-    getActiveEntitlementOwner(businessId),
-  ]);
-  const maskedEmail = owner.ownerEmail ? maskEmail(owner.ownerEmail) : null;
+  const [config, authEnabled, sessionUser, owner, paymentsDisabledFlag] =
+    await Promise.all([
+      getPolarConfig(),
+      isAuthEnabled(),
+      getSessionUser(),
+      getActiveEntitlementOwner(businessId),
+      readPaymentsDisabledFlag(),
+    ]);
+
+  const { backendAvailable } = owner;
+  const unlocked = backendAvailable ? owner.unlocked : false;
+  const kind = backendAvailable ? owner.kind : null;
+  const ownerEmail = backendAvailable ? owner.ownerEmail : null;
+  const ownerUserId = backendAvailable ? owner.ownerUserId : null;
+  const maskedEmail = ownerEmail ? maskEmail(ownerEmail) : null;
   const sessionRequired = Boolean(
-    authEnabled &&
-    owner.unlocked &&
-    owner.ownerUserId &&
-    sessionUser?.id !== owner.ownerUserId
+    authEnabled && unlocked && ownerUserId && sessionUser?.id !== ownerUserId
   );
   const monthlyAvailable = Boolean(config?.productReportMonthly);
+  const polarConfigured = Boolean(config);
+  const waived = fixStepsWithoutPayment({
+    intentionallyDisabled: paymentsDisabledFlag,
+    nodeEnv: process.env.NODE_ENV ?? "development",
+    polarConfigured,
+  });
 
   if (!config) {
     return entitlementStateSchema.parse({
       authEnabled,
-      kind: null,
+      backendAvailable,
+      fixStepsWithoutPayment: waived,
+      kind,
       maskedEmail,
       monthlyAvailable: false,
       paymentsEnabled: false,
       sessionRequired: false,
-      unlocked: false,
+      unlocked,
     });
   }
 
   return entitlementStateSchema.parse({
     authEnabled,
-    kind: owner.kind,
+    backendAvailable,
+    fixStepsWithoutPayment: waived,
+    kind,
     maskedEmail,
     monthlyAvailable,
     paymentsEnabled: true,
     sessionRequired,
-    unlocked: owner.unlocked,
+    unlocked,
   });
 };
 
@@ -139,22 +168,42 @@ const scheduleMonthlyBaseline = async (businessId: string): Promise<void> => {
   await run;
 };
 
+const convexSiteUrl = (): string | undefined => {
+  const url = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
+  return url ? url.replace(/\/$/u, "") : undefined;
+};
+
+export const betterAuthSendVerificationOtpPath =
+  "/api/auth/email-otp/send-verification-otp";
+
 const sendPostPaymentSignInCode = async (email: string): Promise<void> => {
+  const convexSite = convexSiteUrl();
   const siteUrl =
+    convexSite ??
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.SITE_URL ??
     "http://localhost:3000";
   try {
-    await fetch(
-      `${siteUrl.replace(/\/$/u, "")}/api/auth/email-otp/send-verification-otp`,
+    const response = await fetch(
+      `${siteUrl.replace(/\/$/u, "")}${betterAuthSendVerificationOtpPath}`,
       {
         body: JSON.stringify({ email, type: "sign-in" }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       }
     );
-  } catch {
-    // Best-effort post-checkout sign-in prompt.
+    if (!response.ok) {
+      console.error("Post-payment OTP send failed", {
+        email,
+        status: response.status,
+      });
+    }
+  } catch (sendError) {
+    console.error("Post-payment OTP send failed", {
+      email,
+      error:
+        sendError instanceof Error ? sendError.message : "Unknown send error",
+    });
   }
 };
 
@@ -233,11 +282,6 @@ export const publicOrigin = (request: Request): string => {
   }
   const host = candidates[0] ?? url.host;
   return `${proto}://${host}`;
-};
-
-const convexSiteUrl = (): string | undefined => {
-  const url = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
-  return url ? url.replace(/\/$/u, "") : undefined;
 };
 
 const signInWithEmailOtp = async (
@@ -388,18 +432,30 @@ export const confirmPolarCheckout = async (
   const email = customerEmailFromPolarData(parsed);
   const cookies = email ? await signInPaidCustomer(request, email) : [];
 
-  const user = await grantPaidAccess({
-    businessId,
-    email,
-    kind,
-  });
-  return polarCheckoutConfirmSchema.parse({
-    businessId,
-    cookies,
-    email,
-    granted: true,
-    userId: user?.id,
-  });
+  try {
+    const user = await grantPaidAccess({
+      businessId,
+      email,
+      kind,
+    });
+    return polarCheckoutConfirmSchema.parse({
+      businessId,
+      cookies,
+      email,
+      granted: true,
+      userId: user?.id,
+    });
+  } catch (grantError) {
+    console.error("Polar checkout grant failed", {
+      businessId,
+      checkoutId,
+      error:
+        grantError instanceof Error
+          ? grantError.message
+          : "Unknown grant error",
+    });
+    throw new CheckoutGrantError(businessId, checkoutId, grantError);
+  }
 };
 
 export const applyPolarWebhookEvent = async (

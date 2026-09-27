@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useReducer } from "react";
+import { useEffect, useId, useReducer, useState } from "react";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
@@ -9,6 +9,10 @@ import { getStoredBusinessIds } from "@/lib/storage";
 
 const signInEmailSchema = z.string().email();
 const signInCodeSchema = z.string().regex(/^\d{6}$/u);
+
+const healthResponseSchema = z.object({
+  convex: z.enum(["ok", "error"]),
+});
 
 type SignInStep = "email" | "code";
 
@@ -92,12 +96,41 @@ const claimStoredBusinesses = async (): Promise<void> => {
   }
 };
 
+const AUTH_UNAVAILABLE_MESSAGE =
+  "Sign-in is temporarily unavailable. Try again in a few minutes.";
+
 export const SignInForm = ({ returnPath }: { returnPath: string }) => {
   const emailFieldId = useId();
   const codeFieldId = useId();
   const session = authClient.useSession();
   const authAvailable = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
   const [state, dispatch] = useReducer(signInReducer, initialSignInState);
+  const [authServiceDown, setAuthServiceDown] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/health");
+        const payload: unknown = await response.json();
+        const parsed = healthResponseSchema.safeParse(payload);
+        if (!cancelled && parsed.success) {
+          setAuthServiceDown(parsed.data.convex === "error");
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthServiceDown(true);
+        }
+      }
+      if (!cancelled) {
+        setHealthLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const signedIn = Boolean(session.data?.user.email);
   const safeReturn = returnPath.startsWith("/") ? returnPath : "/";
@@ -108,6 +141,10 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
 
   const sendCode = async () => {
     if (state.busy) {
+      return;
+    }
+    if (authServiceDown) {
+      dispatch({ error: AUTH_UNAVAILABLE_MESSAGE, type: "error" });
       return;
     }
     const parsed = signInEmailSchema.safeParse(
@@ -124,7 +161,9 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
     });
     if (result.error) {
       dispatch({
-        error: result.error.message ?? "Could not send a code",
+        error: authServiceDown
+          ? AUTH_UNAVAILABLE_MESSAGE
+          : (result.error.message ?? "Could not send a code"),
         type: "error",
       });
       return;
@@ -150,7 +189,10 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
     });
     if (result.error) {
       dispatch({
-        error: result.error.message ?? "Invalid code",
+        error:
+          authServiceDown && result.error.message
+            ? AUTH_UNAVAILABLE_MESSAGE
+            : (result.error.message ?? "Invalid code"),
         type: "error",
       });
       return;
@@ -238,9 +280,13 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
   return (
     <form className="listwell-report__unlock" action={sendCode}>
       <h1 className="vbg-title">Sign in</h1>
-      <p className="vbg-lede">
-        We&apos;ll email you a one-time code. No password needed.
-      </p>
+      {authServiceDown && !healthLoading ? (
+        <output className="vbg-error">{AUTH_UNAVAILABLE_MESSAGE}</output>
+      ) : (
+        <p className="vbg-lede">
+          We&apos;ll email you a one-time code. No password needed.
+        </p>
+      )}
       <div className="vbg-field">
         <label className="vbg-label" htmlFor={emailFieldId}>
           Email
@@ -252,7 +298,7 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
           autoComplete="email"
           inputMode="email"
           value={state.email}
-          disabled={state.busy}
+          disabled={state.busy || authServiceDown}
           placeholder="you@business.com"
           onChange={(event) =>
             dispatch({ email: event.target.value, type: "email" })
@@ -263,7 +309,7 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
         <button
           className="listwell-report__button"
           type="submit"
-          disabled={state.busy}
+          disabled={state.busy || authServiceDown}
         >
           {state.busy ? "Sending code" : "Send code"}
         </button>

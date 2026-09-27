@@ -8,6 +8,8 @@ import {
   entitlementKindFromCheckout,
   entitlementKindFromPolarData,
   polarWebhookEventSchema,
+  REPORT_MONTHLY_PRICE,
+  REPORT_ONCE_PRICE,
   signPolarWebhook,
   verifyPolarSignature,
 } from "./polar";
@@ -17,6 +19,13 @@ const secret = "polar_whsec_test";
 
 const event = (type: string, data: Record<string, unknown>) =>
   polarWebhookEventSchema.parse({ data, type });
+
+describe("report pricing copy", () => {
+  it("uses AUD list prices", () => {
+    expect(REPORT_ONCE_PRICE).toBe("A$9.99");
+    expect(REPORT_MONTHLY_PRICE).toBe("A$4.99/mo per business");
+  });
+});
 
 describe(checkoutReturnPath, () => {
   it("returns a same-origin report path for a business id", () => {

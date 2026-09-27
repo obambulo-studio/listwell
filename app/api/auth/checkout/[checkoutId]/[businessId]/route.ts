@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { copyAuthCookies } from "@/lib/auth";
+import { CheckoutGrantError } from "@/lib/checkout-grant-error";
 import { checkoutReturnPath } from "@/lib/polar";
 import { confirmPolarCheckout, publicOrigin } from "@/lib/polar-server";
 
@@ -20,6 +21,7 @@ export const GET = async (
 
   let { businessId } = params;
   let cookies: string[] = [];
+  let purchasePending = false;
 
   try {
     const confirmed = await confirmPolarCheckout(params.checkoutId, request);
@@ -29,13 +31,39 @@ export const GET = async (
       businessId = confirmedBusinessId;
     }
     cookies = confirmedCookies;
-  } catch {
-    // Webhook can still grant access if Polar confirm is slow or fails.
+  } catch (error) {
+    if (error instanceof CheckoutGrantError) {
+      const {
+        businessId: failedBusinessId,
+        checkoutId: failedCheckoutId,
+        message,
+      } = error;
+      businessId = failedBusinessId;
+      purchasePending = true;
+      console.error("Checkout return could not grant entitlement", {
+        businessId: failedBusinessId,
+        checkoutId: failedCheckoutId,
+        message,
+      });
+    } else {
+      console.error("Checkout return confirmation failed", {
+        businessId: params.businessId,
+        checkoutId: params.checkoutId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
 
-  const response = NextResponse.redirect(
-    new URL(checkoutReturnPath(businessId), `${publicOrigin(request)}/`)
-  );
+  const returnPath = checkoutReturnPath(businessId);
+  const redirectUrl = new URL(returnPath, `${publicOrigin(request)}/`);
+  if (purchasePending) {
+    redirectUrl.searchParams.set("purchase_pending", "1");
+    redirectUrl.searchParams.set("checkout_retry", params.checkoutId);
+  } else {
+    redirectUrl.searchParams.set("checkout_returned", "1");
+  }
+
+  const response = NextResponse.redirect(redirectUrl);
   copyAuthCookies(cookies, response.headers);
   return response;
 };

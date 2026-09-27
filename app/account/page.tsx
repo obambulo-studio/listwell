@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getSessionUser, listReportsForUser } from "@/lib/auth";
+import { probeConvexBusinesses } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,33 @@ const AccountPage = async () => {
     );
   }
 
-  const reports = await listReportsForUser(user.id);
+  const convexHealth = await probeConvexBusinesses();
+  if (convexHealth === "error") {
+    return (
+      <section className="listwell-app-page">
+        <h1 className="vbg-title">Your businesses</h1>
+        <output className="vbg-lede">
+          Account services are temporarily unavailable. Your sign-in is fine,
+          but we cannot load your saved businesses right now. Try again shortly.
+        </output>
+      </section>
+    );
+  }
+
+  let reports: Awaited<ReturnType<typeof listReportsForUser>> = [];
+  try {
+    reports = await listReportsForUser(user.id);
+  } catch {
+    return (
+      <section className="listwell-app-page">
+        <h1 className="vbg-title">Your businesses</h1>
+        <output className="vbg-lede">
+          We could not load your account data. Try again in a few minutes.
+        </output>
+      </section>
+    );
+  }
+
   return (
     <section className="listwell-app-page">
       <h1 className="vbg-title">Your businesses</h1>

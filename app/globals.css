@@ -2056,6 +2056,18 @@ tbody:first-of-type .vbg-custom-channel-group th {
   line-height: var(--vbg-leading-lede);
 }
 
+.listwell-report__notice {
+  margin-block-end: var(--vbg-space-6);
+  padding: var(--vbg-space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--vbg-radius-small);
+  background: color-mix(in srgb, var(--page) 92%, var(--ink));
+}
+
+.listwell-report__notice .vbg-lede {
+  margin: 0;
+}
+
 .listwell-report__unlock {
   display: grid;
   gap: var(--vbg-space-4);
