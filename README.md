@@ -26,7 +26,7 @@ The project does not use D1 or Drizzle. Discover does not need a D1 database. If
 
 Scheduled monthly scans use a **Convex cron** (`convex/crons.ts` → `internal.scans.runDue` hourly at `:00` UTC). Convex owns entitlement due dates (`nextScanAt` on active `report_monthly` rows). Each due job calls the Worker at `POST /api/internal/scans/run-one`, which runs Chromium checks and writes Convex `scans` history. Scan execution stays on the Worker because Browser Rendering does not run in Convex. There is no Cloudflare Worker cron for scans (avoid duplicating schedulers).
 
-After a scheduled scan completes, the Worker may send a UseSend email (monthly summary or alert if the score drops or a listing breaks). Users can opt out via the link in the email (`GET /api/notifications/unsubscribe`).
+After a scheduled scan completes, the Worker may send a UseSend email (monthly summary or alert if the score drops or a listing breaks). Users can opt out via the link in the email (`/unsubscribe`, which posts to `/api/notifications/unsubscribe`; mail clients may one-click POST the API URL).
 
 One-off buyers get **one free re-scan within 30 days** of purchase (`lib/scan-config.ts`: `ONCE_RESCAN_FREE_LIMIT`, `ONCE_RESCAN_WINDOW_DAYS`), enforced server-side at `POST /api/businesses/{id}/rescan`.
 
@@ -335,11 +335,11 @@ Google/Apple keys are optional for this OSM path. Full Google Business Profile q
 
 ### Zacchary-only
 
-This agent cannot log into Cloudflare or Convex. Production Convex (`hallowed-mallard-135`) currently serves `businesses:getByExternalId` as a generic Server Error, and `https://hallowed-mallard-135.convex.site` reports that HTTP actions are not enabled. Set env **before** deploy.
+Production Convex is `fine-elephant-894` (`https://fine-elephant-894.ap-southeast-2.convex.cloud`). `SITE_URL` on that deployment must be `https://listwell.dev` with no trailing slash. Auth returns 500 until that variable is set. The previous deployment `hallowed-mallard-135` no longer serves queries or auth routes.
 
 Confirm `AUDIT_KV` stays bound on the `listwell` Worker (live id already in `wrangler.jsonc`). Do not create D1. Do not add `www.listwell.dev` as a Listwell custom domain.
 
-On Convex production `hallowed-mallard-135`, set env (no trailing slash on `SITE_URL`):
+On Convex production `fine-elephant-894`, set env (no trailing slash on `SITE_URL`):
 
 ```bash
 npx convex env set SITE_URL https://listwell.dev --prod
@@ -359,14 +359,14 @@ From a machine linked to the Listwell Convex project, deploy functions, schema, 
 bun run convex:deploy
 ```
 
-This targets prod `hallowed-mallard-135`. Do not run `npx convex deploy` from local feature work except this production restore.
+This targets prod `fine-elephant-894`. Do not run `npx convex deploy` from local feature work except this production restore.
 
 Optional Worker secrets: `GOOGLE_API_KEY`, `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID`, Apple MapKit keys, Browser Rendering `LISTWELL_*`.
 
 Verify:
 
 ```bash
-curl -sS -X POST https://hallowed-mallard-135.convex.cloud/api/query \
+curl -sS -X POST https://fine-elephant-894.ap-southeast-2.convex.cloud/api/query \
   -H 'content-type: application/json' \
   -d '{"path":"businesses:getByExternalId","args":{"externalId":"health-probe"},"format":"json"}'
 # expect {"status":"success","value":null}
@@ -374,6 +374,6 @@ curl -sS -X POST https://hallowed-mallard-135.convex.cloud/api/query \
 curl -fsS https://listwell.dev/api/health
 # expect convex:"ok"
 
-curl -sS https://hallowed-mallard-135.convex.site/api/auth/ok
+curl -sS https://fine-elephant-894.ap-southeast-2.convex.site/api/auth/ok
 # must not say "HTTP actions are not enabled"
 ```

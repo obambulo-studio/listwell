@@ -85,9 +85,13 @@ export const listSiteInterests = async (
   const rawRecords = await Promise.all(
     list.keys.map((key) => kv.get(key.name, "json"))
   );
-  const records = rawRecords
-    .map((raw) => parseSiteInterestRecord(raw))
-    .filter((record): record is SiteInterestRecord => record !== null);
+  const records: SiteInterestRecord[] = [];
+  for (const raw of rawRecords) {
+    const record = parseSiteInterestRecord(raw);
+    if (record !== null) {
+      records.push(record);
+    }
+  }
   records.sort((left, right) => right.createdAt - left.createdAt);
   return records;
 };

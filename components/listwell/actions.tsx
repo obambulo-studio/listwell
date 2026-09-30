@@ -37,6 +37,38 @@ export const QuietButton = ({
   </Button>
 );
 
+/** Round arrow submit used inside chat-style composers. */
+export const ComposerSubmit = ({
+  label,
+  disabled,
+}: {
+  label: string;
+  disabled?: boolean;
+}) => (
+  <Button
+    type="submit"
+    variant="primary"
+    size="sm"
+    className="listwell-chat__send shrink-0 rounded-full px-3"
+    disabled={disabled}
+    aria-label={label}
+  >
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </svg>
+  </Button>
+);
+
 export const QuietLink = ({
   children,
   className,

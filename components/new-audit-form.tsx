@@ -8,21 +8,18 @@ import {
   PrimaryButton,
   QuietButton,
 } from "@/components/listwell/actions";
-import { ListwellSelect } from "@/components/listwell/select-field";
+import {
+  ListwellCategoryField,
+  ListwellSelect,
+} from "@/components/listwell/select-field";
 import { PlaceSearch } from "@/components/place-search";
-import { Alert, AlertDescription } from "@/components/reui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { SelectItem } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { CATEGORY_CONFIG, categoryIdSchema } from "@/lib/category";
+  categoryDisplayLabel,
+  persistedCategoryLabel,
+  resolveTypedCategory,
+} from "@/lib/category";
 import type { CategoryId } from "@/lib/category";
 import { CHANNEL_CONFIG, channelIdSchema } from "@/lib/channel";
 import type { ChannelId, DiscoveredProfile } from "@/lib/channel";
@@ -37,7 +34,7 @@ import { addBusinessId } from "@/lib/storage";
 
 interface AuditFormState {
   addressDraft: string | null;
-  categoryDraft: CategoryId | null;
+  categoryDraft: string | null;
   channelId: ChannelId | "";
   error: string | null;
   nameDraft: string | null;
@@ -50,7 +47,7 @@ interface AuditFormState {
 
 type AuditFormAction =
   | { type: "address"; address: string }
-  | { type: "category"; category: CategoryId }
+  | { type: "category"; category: string }
   | { type: "channel"; channelId: ChannelId | "" }
   | { type: "error"; error: string | null }
   | { type: "listing-added"; profiles: DiscoveredProfile[] }
@@ -164,46 +161,49 @@ const AuditListingsTable = ({
 }: {
   profiles: DiscoveredProfile[];
   onRemove: (profile: DiscoveredProfile) => void;
-}) => (
-  <Table>
-    <caption className="vbg-visually-hidden">
-      Listings attached to this audit
-    </caption>
-    <TableHeader>
-      <TableRow>
-        <TableHead scope="col">Channel</TableHead>
-        <TableHead scope="col">Listing</TableHead>
-        <TableHead scope="col">Action</TableHead>
-      </TableRow>
-    </TableHeader>
-    <TableBody>
-      {profiles.length === 0 ? (
-        <TableRow>
-          <TableCell colSpan={3}>
-            None yet. Add a website or listing below.
-          </TableCell>
-        </TableRow>
-      ) : (
-        profiles.map((profile) => (
-          <TableRow key={`${profile.type}-${profile.title}`}>
-            <TableCell>{CHANNEL_CONFIG[profile.type].name}</TableCell>
-            <TableCell>
+}) => {
+  if (profiles.length === 0) {
+    return (
+      <div className="listwell-panel__body">
+        <p className="listwell-panel__note">
+          None yet. Add a website or listing.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <ul
+      className="listwell-panel__rows"
+      aria-label="Listings attached to this audit"
+    >
+      {profiles.map((profile) => (
+        <li
+          key={`${profile.type}-${profile.title}`}
+          className="listwell-panel__row"
+        >
+          <span className="listwell-panel__row-main">
+            <span className="listwell-panel__row-title break-all">
               {profile.title}
-              {profile.subtitle ? (
-                <div className="vbg-meta">{profile.subtitle}</div>
-              ) : null}
-            </TableCell>
-            <TableCell>
-              <QuietButton type="button" onClick={() => onRemove(profile)}>
-                Not mine
-              </QuietButton>
-            </TableCell>
-          </TableRow>
-        ))
-      )}
-    </TableBody>
-  </Table>
-);
+            </span>
+            <span className="listwell-panel__row-meta">
+              {[CHANNEL_CONFIG[profile.type].name, profile.subtitle]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="listwell-panel__action"
+            onClick={() => onRemove(profile)}
+            aria-label={`Not mine: ${profile.title}`}
+          >
+            Not mine
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 const AddListingForm = ({
   available,
@@ -228,7 +228,7 @@ const AddListingForm = ({
 }) => {
   const mapsChannel = channelId === "google-maps" || channelId === "apple-maps";
   return (
-    <form className="flex flex-col gap-4" action={onSubmitListing}>
+    <form className="listwell-panel__body" action={onSubmitListing}>
       <ListwellSelect
         id="channel"
         label="Channel"
@@ -240,15 +240,14 @@ const AddListingForm = ({
           }
           onChannelChange(channelIdSchema.parse(next));
         }}
-        placeholder="Select a channel"
-      >
-        <SelectItem value="__none__">Select a channel</SelectItem>
-        {available.map((id) => (
-          <SelectItem key={id} value={id}>
-            {CHANNEL_CONFIG[id].name}
-          </SelectItem>
-        ))}
-      </ListwellSelect>
+        items={[
+          { label: "Select a channel", value: "__none__" },
+          ...available.map((id) => ({
+            label: CHANNEL_CONFIG[id].name,
+            value: id,
+          })),
+        ]}
+      />
       {channelId === "google-maps" ? (
         <>
           <PlaceSearch
@@ -323,12 +322,14 @@ const AddListingForm = ({
 export const NewAuditForm = ({
   businessName,
   categoryId,
+  categoryLabel = null,
   initialProfiles,
   initialAddress,
   existingId,
 }: {
   businessName: string;
   categoryId: CategoryId;
+  categoryLabel?: string | null;
   initialProfiles: DiscoveredProfile[];
   initialAddress?: string;
   existingId?: string;
@@ -336,7 +337,8 @@ export const NewAuditForm = ({
   const { push } = useRouter();
   const [state, dispatch] = useReducer(auditFormReducer, initialAuditFormState);
   const name = state.nameDraft ?? businessName;
-  const category = state.categoryDraft ?? categoryId;
+  const category =
+    state.categoryDraft ?? categoryDisplayLabel(categoryId, categoryLabel);
   const profiles = state.profilesDraft ?? initialProfiles;
   const address = state.addressDraft ?? initialAddress ?? "";
   const available = useMemo(() => unusedChannels(profiles), [profiles]);
@@ -347,11 +349,13 @@ export const NewAuditForm = ({
     }
     dispatch({ saving: true, type: "saving" });
     try {
+      const choice = resolveTypedCategory(category);
       const payload = businessInputFromDiscovery(
         name,
-        category,
+        choice.categoryId,
         profiles,
-        address
+        address,
+        persistedCategoryLabel(choice)
       );
       const response = await fetch(
         existingId ? `/api/businesses/${existingId}` : "/api/businesses",
@@ -421,60 +425,70 @@ export const NewAuditForm = ({
   };
 
   return (
-    <div className="vbg-custom-profiles">
-      <section className="vbg-section">
-        <h1 className="vbg-title">Here is what we found</h1>
-        <p className="vbg-lede">
-          Add any listing we missed and remove any that are not yours. Then run
-          the report.
-        </p>
-      </section>
-
-      <section className="vbg-section">
-        <FieldGroup className="gap-4">
-          <Field>
-            <FieldLabel htmlFor="name">Business name</FieldLabel>
-            <Input
-              id="name"
-              value={name}
-              onChange={(event) =>
-                dispatch({ name: event.target.value, type: "name" })
+    <div className="listwell-page">
+      <section className="listwell-panel" aria-labelledby="audit-details">
+        <div className="listwell-panel__head">
+          <h1 id="audit-details" className="listwell-panel__title">
+            {existingId ? "Edit business" : "Here is what we found"}
+          </h1>
+        </div>
+        <div className="listwell-panel__body">
+          <p className="listwell-panel__note">
+            Add any listing we missed and remove any that are not yours. Then
+            run the report.
+          </p>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="name">Business name</FieldLabel>
+              <Input
+                id="name"
+                value={name}
+                onChange={(event) =>
+                  dispatch({ name: event.target.value, type: "name" })
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="address">Address</FieldLabel>
+              <Input
+                id="address"
+                value={address}
+                onChange={(event) =>
+                  dispatch({ address: event.target.value, type: "address" })
+                }
+                autoComplete="street-address"
+              />
+            </Field>
+            <ListwellCategoryField
+              id="category"
+              label="Business category"
+              value={category}
+              onValueChange={(next) =>
+                dispatch({
+                  category: next,
+                  type: "category",
+                })
               }
             />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="address">Address</FieldLabel>
-            <Input
-              id="address"
-              value={address}
-              onChange={(event) =>
-                dispatch({ address: event.target.value, type: "address" })
-              }
-              autoComplete="street-address"
-            />
-          </Field>
-          <ListwellSelect
-            id="category"
-            label="Business category"
-            value={category}
-            onValueChange={(next) =>
-              dispatch({
-                category: categoryIdSchema.parse(next),
-                type: "category",
-              })
-            }
-          >
-            {Object.values(CATEGORY_CONFIG).map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </ListwellSelect>
-        </FieldGroup>
+          </FieldGroup>
+        </div>
       </section>
 
-      <section className="vbg-section">
-        <h2 className="vbg-heading-20">Listings we found</h2>
+      <section className="listwell-panel" aria-labelledby="audit-listings">
+        <div className="listwell-panel__head">
+          <h2 id="audit-listings" className="listwell-panel__title">
+            Listings
+          </h2>
+          {state.showAdd || available.length === 0 ? null : (
+            <button
+              type="button"
+              className="listwell-panel__action"
+              onClick={() => dispatch({ showAdd: true, type: "show-add" })}
+            >
+              Add missing
+            </button>
+          )}
+        </div>
         <AuditListingsTable
           profiles={profiles}
           onRemove={(profile) => {
@@ -510,39 +524,32 @@ export const NewAuditForm = ({
             place={state.place}
             value={state.value}
           />
-        ) : (
-          <FormActions className="mt-6">
-            {available.length > 0 ? (
-              <QuietButton
-                type="button"
-                onClick={() => dispatch({ showAdd: true, type: "show-add" })}
-              >
-                Add missing
-              </QuietButton>
-            ) : (
-              <p className="vbg-meta">All available channels have been added</p>
-            )}
-          </FormActions>
-        )}
+        ) : null}
+        {!state.showAdd && available.length === 0 ? (
+          <div className="listwell-panel__foot">
+            <p className="listwell-panel__fine">
+              All available channels have been added
+            </p>
+          </div>
+        ) : null}
       </section>
 
       {state.error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
+        <p className="listwell-notice listwell-notice--error" role="alert">
+          {state.error}
+        </p>
       ) : null}
 
-      <FormActions>
-        <PrimaryButton
-          type="button"
-          onClick={() => {
-            void saveAudit();
-          }}
-          disabled={state.saving || !name.trim()}
-        >
-          {state.saving ? "Saving" : "Get report"}
-        </PrimaryButton>
-      </FormActions>
+      <PrimaryButton
+        type="button"
+        className="w-full"
+        onClick={() => {
+          void saveAudit();
+        }}
+        disabled={state.saving || !name.trim()}
+      >
+        {state.saving ? "Saving" : "Get report"}
+      </PrimaryButton>
     </div>
   );
 };

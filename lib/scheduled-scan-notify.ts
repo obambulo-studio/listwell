@@ -67,12 +67,10 @@ export const notifyScheduledScanComplete = async (input: {
     return { sent: false, skipped: true };
   }
 
-  const unsubscribeToken = await resolveUnsubscribeToken(
-    input.businessId,
-    recipient.unsubscribeToken
-  );
-
-  const workerEnv = await getCloudflareEnv();
+  const [unsubscribeToken, workerEnv] = await Promise.all([
+    resolveUnsubscribeToken(input.businessId, recipient.unsubscribeToken),
+    getCloudflareEnv(),
+  ]);
   const config =
     readUseSendConfig({
       USESEND_API_KEY:
@@ -98,7 +96,8 @@ export const notifyScheduledScanComplete = async (input: {
     return { sent: false, skipped: true };
   }
 
-  const unsubscribeUrl = `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
+  const unsubscribeUrl = `${siteBase}/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
+  const listUnsubscribeUrl = `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
 
   let email;
   try {
@@ -106,6 +105,7 @@ export const notifyScheduledScanComplete = async (input: {
       businessCategory: input.businessCategory,
       businessName: input.businessName,
       current: toSnapshot(input.scan),
+      listUnsubscribeUrl,
       previous: input.previousComplete
         ? toSnapshot(input.previousComplete)
         : null,

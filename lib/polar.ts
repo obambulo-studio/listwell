@@ -72,6 +72,20 @@ export const unlockPricingNote = (access: {
   return null;
 };
 
+const LOOPBACK_CUSTOMER_IP =
+  /^(?:::1|0:0:0:0:0:0:0:1|127\.\d{1,3}\.\d{1,3}\.\d{1,3})$/u;
+
+/** A loopback address is not the customer's network address. */
+export const checkoutCustomerIp = (
+  ip: string | undefined
+): string | undefined => {
+  const trimmed = ip?.trim();
+  if (!trimmed || LOOPBACK_CUSTOMER_IP.test(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+};
+
 export interface PolarProductIds {
   monthlyProductId?: string;
   yearlyProductId?: string;
@@ -363,5 +377,15 @@ export const verifySignInCode = async (
   });
   if (result.error) {
     throw new Error(result.error.message ?? "Invalid code");
+  }
+  try {
+    await fetch("/api/businesses/claim", {
+      body: JSON.stringify({ ids: [] }),
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+  } catch {
+    // The report page links the purchase again after reload.
   }
 };

@@ -20,6 +20,7 @@ export const locationResponseValidator = v.object({
 
 export const businessResponseValidator = v.object({
   category: v.string(),
+  categoryLabel: v.union(v.string(), v.null()),
   createdAt: v.string(),
   deliverooUrl: v.union(v.string(), v.null()),
   doorDashUrl: v.union(v.string(), v.null()),

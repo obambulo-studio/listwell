@@ -51,6 +51,7 @@ const toBusinessResponse = (doc: {
   externalId: string;
   name: string;
   category: string;
+  categoryLabel?: string;
   websiteUrl?: string;
   facebookUsername?: string;
   instagramUsername?: string;
@@ -73,6 +74,7 @@ const toBusinessResponse = (doc: {
   updatedAt: string;
 }) => ({
   category: doc.category,
+  categoryLabel: doc.categoryLabel ?? null,
   createdAt: doc.createdAt,
   deliverooUrl: doc.deliverooUrl ?? null,
   doorDashUrl: doc.doorDashUrl ?? null,
@@ -139,6 +141,7 @@ export const getOwnerId = query({
 export const create = mutation({
   args: {
     category: v.string(),
+    categoryLabel: v.optional(v.string()),
     deliverooUrl: v.optional(v.string()),
     doorDashUrl: v.optional(v.string()),
     externalId: v.optional(v.string()),
@@ -174,8 +177,15 @@ export const create = mutation({
       return toBusinessResponse(existing);
     }
 
+    if (
+      args.categoryLabel !== undefined &&
+      (args.categoryLabel.length === 0 || args.categoryLabel.length > 100)
+    ) {
+      throw new Error("Invalid category");
+    }
     const id = await ctx.db.insert("businesses", {
       category: args.category,
+      categoryLabel: args.categoryLabel,
       createdAt: timestamp,
       deliverooUrl: args.deliverooUrl,
       doorDashUrl: args.doorDashUrl,
@@ -206,6 +216,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     category: v.optional(v.string()),
+    categoryLabel: v.optional(v.union(v.string(), v.null())),
     deliverooUrl: v.optional(v.string()),
     doorDashUrl: v.optional(v.string()),
     externalId: v.string(),
@@ -234,12 +245,25 @@ export const update = mutation({
     }
 
     const timestamp = nowIso();
-    const { externalId: _externalId, secret: _secret, ...updates } = args;
+    const {
+      categoryLabel,
+      externalId: _externalId,
+      secret: _secret,
+      ...updates
+    } = args;
     const patch: Record<string, unknown> = { updatedAt: timestamp };
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
         patch[key] = value;
       }
+    }
+    if (categoryLabel === null) {
+      patch.categoryLabel = undefined;
+    } else if (categoryLabel !== undefined) {
+      if (categoryLabel.length === 0 || categoryLabel.length > 100) {
+        throw new Error("Invalid category");
+      }
+      patch.categoryLabel = categoryLabel;
     }
 
     await ctx.db.patch("businesses", doc._id, patch);

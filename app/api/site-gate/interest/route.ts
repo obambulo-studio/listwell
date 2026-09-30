@@ -10,10 +10,17 @@ export const dynamic = "force-dynamic";
 export const POST = async (request: Request) => {
   try {
     const env = await getCloudflareEnv();
+    if (!env?.AUDIT_KV) {
+      return NextResponse.json(
+        { error: "Interest sign-ups are not available right now." },
+        { status: 503 }
+      );
+    }
+
     const allowed = await consumeRateLimit({
       bucket: "site-interest",
       env,
-      failClosed: Boolean(env?.AUDIT_KV),
+      failClosed: true,
       maxRequests: 8,
       request,
     });
@@ -26,12 +33,6 @@ export const POST = async (request: Request) => {
 
     const body: unknown = await request.json();
     const payload = siteInterestInputSchema.parse(body);
-    if (!env?.AUDIT_KV) {
-      return NextResponse.json(
-        { error: "Interest sign-ups are not available right now." },
-        { status: 503 }
-      );
-    }
 
     const result = await saveSiteInterest({ env, payload });
     return NextResponse.json({

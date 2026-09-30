@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { consumeRateLimit } from "./rate-limit-kv";
+import { runInSeries } from "./run-in-series";
 
 const memoryKv = () => {
   const store = new Map<string, { value: string; expiresAt: number }>();
@@ -31,12 +32,11 @@ describe(consumeRateLimit, () => {
     const kv = memoryKv();
     const env = { AUDIT_KV: kv } as unknown as CloudflareEnv;
     const request = new Request("https://listwell.dev/api/discover");
-    for (let index = 0; index < 3; index += 1) {
-      // eslint-disable-next-line no-await-in-loop
+    await runInSeries([0, 1, 2], async () => {
       await expect(
         consumeRateLimit({ bucket: "test", env, maxRequests: 3, request })
       ).resolves.toBeTruthy();
-    }
+    });
     await expect(
       consumeRateLimit({ bucket: "test", env, maxRequests: 3, request })
     ).resolves.toBeFalsy();

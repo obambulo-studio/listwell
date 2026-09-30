@@ -241,7 +241,13 @@ export const prefersMarkdown = (acceptHeader: string | null): boolean => {
       continue;
     }
 
-    const qParameter = segments.find((parameter) => parameter.startsWith("q="));
+    let qParameter: string | undefined;
+    for (const parameter of segments) {
+      if (parameter.startsWith("q=")) {
+        qParameter = parameter;
+        break;
+      }
+    }
     const quality = qParameter ? Number(qParameter.slice(2)) : 1;
     if (!Number.isFinite(quality) || quality <= 0) {
       continue;

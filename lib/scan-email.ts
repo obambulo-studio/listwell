@@ -196,12 +196,15 @@ export const buildScanEmail = (input: {
   businessName: string;
   current: ScanSnapshot;
   previous: ScanSnapshot | null;
+  listUnsubscribeUrl?: string;
   reportUrl: string;
   unsubscribeUrl: string;
 }): ScanEmailContent => {
   if (!input.unsubscribeUrl.trim()) {
     throw new Error("unsubscribeUrl is required for scan emails");
   }
+  const listUnsubscribeUrl =
+    input.listUnsubscribeUrl?.trim() || input.unsubscribeUrl;
 
   const delta = scoreDelta(input.previous, input.current);
   const newlyBroken = newlyBrokenChecks(input.previous, input.current);
@@ -240,7 +243,7 @@ export const buildScanEmail = (input: {
         unsubscribeUrl: input.unsubscribeUrl,
       }),
       kind,
-      listUnsubscribeUrl: input.unsubscribeUrl,
+      listUnsubscribeUrl,
       subject,
       text,
     };
@@ -269,7 +272,7 @@ export const buildScanEmail = (input: {
       unsubscribeUrl: input.unsubscribeUrl,
     }),
     kind,
-    listUnsubscribeUrl: input.unsubscribeUrl,
+    listUnsubscribeUrl,
     subject,
     text,
   };

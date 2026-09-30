@@ -88,6 +88,7 @@ export const POST = async (request: Request) => {
       try {
         const created = await fetchAuthMutation(api.businesses.create, {
           category: parsed.category,
+          categoryLabel: parsed.categoryLabel ?? undefined,
           deliverooUrl: parsed.deliverooUrl,
           doorDashUrl: parsed.doorDashUrl,
           externalId: parsed.id,

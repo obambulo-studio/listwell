@@ -1,3 +1,4 @@
+import { isHttpUrl } from "@listwell/audit-engine";
 import { z } from "zod";
 
 import { CHANNEL_CONFIG, channelIdSchema } from "./channel";
@@ -169,9 +170,13 @@ export const businessInputFromDiscovery = (
   name: string,
   category: CreateBusinessRequest["category"],
   profiles: DiscoveredProfile[],
-  address?: string
+  address?: string,
+  categoryLabel?: string | null
 ): CreateBusinessRequest => {
   const payload = mapProfilesToBusinessData(name, category, profiles);
+  if (categoryLabel !== undefined) {
+    payload.categoryLabel = categoryLabel;
+  }
   const trimmed = address?.trim();
   if (!trimmed) {
     return payload;
@@ -248,3 +253,61 @@ export const unusedChannels = (profiles: DiscoveredProfile[]): ChannelId[] => {
 };
 
 export const channelName = (id: ChannelId): string => CHANNEL_CONFIG[id].name;
+
+const stripAtPrefix = (value: string): string => value.replace(/^@/u, "");
+
+export const profileViewHref = (profile: DiscoveredProfile): string | null => {
+  const title = profile.title.trim();
+  if (!title) {
+    return null;
+  }
+  if (isHttpUrl(title)) {
+    return title;
+  }
+
+  switch (profile.type) {
+    case "facebook": {
+      return `https://www.facebook.com/${stripAtPrefix(title)}/`;
+    }
+    case "instagram": {
+      return `https://www.instagram.com/${stripAtPrefix(title)}/`;
+    }
+    case "tiktok": {
+      return `https://www.tiktok.com/@${stripAtPrefix(title)}`;
+    }
+    case "x": {
+      return `https://x.com/${stripAtPrefix(title)}`;
+    }
+    case "google-maps": {
+      if (profile.googlePlaceId) {
+        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}&query_place_id=${encodeURIComponent(profile.googlePlaceId)}`;
+      }
+      return null;
+    }
+    case "apple-maps": {
+      if (profile.appleMapsId) {
+        return `https://maps.apple.com/?auid=${encodeURIComponent(profile.appleMapsId)}`;
+      }
+      return null;
+    }
+    default: {
+      return null;
+    }
+  }
+};
+
+export const taskDetailsFromDiscoveredProfiles = (
+  profiles: DiscoveredProfile[]
+): { href?: string; label: string; meta: string }[] =>
+  [...profiles]
+    .toSorted((left, right) =>
+      channelName(left.type).localeCompare(channelName(right.type))
+    )
+    .map((profile) => {
+      const href = profileViewHref(profile);
+      return {
+        href: href ?? undefined,
+        label: channelName(profile.type),
+        meta: href ? "" : profile.title.trim(),
+      };
+    });

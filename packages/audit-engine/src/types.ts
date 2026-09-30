@@ -40,6 +40,9 @@ export interface GooglePlace {
   websiteUri?: string;
   userRatingCount?: number;
   formattedAddress?: string;
+  location?: { latitude: number; longitude: number };
+  primaryType?: string;
+  primaryTypeDisplayName?: { text?: string; languageCode?: string };
   rating?: number;
   photos?: unknown[];
   types?: string[];
@@ -106,4 +109,6 @@ export interface AuditEngineEnv {
   appleMapkitPrivateKey?: string;
   cloudflareAccountId?: string;
   cloudflareApiToken?: string;
+  typesafeApiKey?: string;
+  typesafeModel?: string;
 }

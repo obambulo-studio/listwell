@@ -33,13 +33,17 @@ export const checkIdSchema = z.enum([
   "website-gbp-name-address-phone",
   "google-listing",
   "google-listing-phone-number",
-  "google-listing-reviews",
+  "google-listing-rating",
+  "google-listing-review-count",
   "google-listing-photos",
   "google-listing-opening-times",
   "google-listing-primary-category",
   "google-listing-website-matches",
   "facebook-page",
   "instagram-profile",
+  "social-profile-banner",
+  "social-profile-freshness",
+  "social-profile-image-match",
   "tiktok-profile",
   "linkedin-profile",
   "youtube-profile",
@@ -90,8 +94,21 @@ export const googlePlaceSchema = z.object({
   displayName: z.object({ text: z.string() }).optional(),
   formattedAddress: z.string().optional(),
   id: z.string().optional(),
+  location: z
+    .object({
+      latitude: z.number(),
+      longitude: z.number(),
+    })
+    .optional(),
   nationalPhoneNumber: z.string().optional(),
   photos: z.array(z.unknown()).optional(),
+  primaryType: z.string().optional(),
+  primaryTypeDisplayName: z
+    .object({
+      languageCode: z.string().optional(),
+      text: z.string().optional(),
+    })
+    .optional(),
   rating: z.number().optional(),
   types: z.array(z.string()).optional(),
   userRatingCount: z.number().optional(),

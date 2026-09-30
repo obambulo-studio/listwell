@@ -44,7 +44,24 @@ export const auditSummaryResultSchema = z.object({
   source: z.enum(["workers-ai", "fallback"]),
 });
 
+export const SUMMARY_CACHE_TTL_SECONDS = 60 * 60;
+
 export type CompletedCheck = z.infer<typeof completedCheckSchema>;
+
+export const summaryCacheKey = async (
+  businessId: string,
+  checks: readonly CompletedCheck[]
+): Promise<string> => {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify(checks))
+  );
+  const hex = [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `summary:${businessId}:${hex}`;
+};
+
 export type CitedClaim = z.infer<typeof citedClaimSchema>;
 export type NextAction = z.infer<typeof nextActionSchema>;
 export type AuditSummaryResult = z.infer<typeof auditSummaryResultSchema>;

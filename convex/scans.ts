@@ -15,6 +15,7 @@ import {
   scanResponseValidator,
   scanSummaryValidator,
 } from "./lib/response-validators";
+import { runInSeries } from "./lib/run-in-series";
 import { parseScanResultsJson } from "./lib/scan-results";
 import { scanStatusValidator, scanTriggerValidator } from "./lib/validators";
 
@@ -307,10 +308,8 @@ export const runDue = internalAction({
     });
 
     // Sequential to avoid concurrent Chromium bursts on the Worker.
-    const outcomes: boolean[] = [];
-    for (const entitlement of due) {
+    const outcomes = await runInSeries(due, async (entitlement) => {
       try {
-        // eslint-disable-next-line no-await-in-loop
         const response = await fetch(`${baseUrl}/api/internal/scans/run-one`, {
           body: JSON.stringify({
             businessId: entitlement.businessExternalId,
@@ -322,11 +321,11 @@ export const runDue = internalAction({
           },
           method: "POST",
         });
-        outcomes.push(response.ok);
+        return response.ok;
       } catch {
-        outcomes.push(false);
+        return false;
       }
-    }
+    });
 
     return {
       failed: outcomes.filter((ok: boolean) => !ok).length,

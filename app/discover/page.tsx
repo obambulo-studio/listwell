@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { ButtonLink } from "@/components/atoms/button";
 import { DiscoverClient } from "@/components/discover-client";
 import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
 
@@ -27,7 +28,7 @@ const DiscoverPage = async ({
   const near = firstSearchParam(params.near);
 
   return (
-    <section className="vbg-opening">
+    <section className="listwell-page">
       {businessName ? (
         <DiscoverClient
           businessName={businessName}
@@ -42,9 +43,18 @@ const DiscoverPage = async ({
           near={near}
         />
       ) : (
-        <p className="vbg-lede">
-          Enter a business name on the home page to start an audit.
-        </p>
+        <div className="listwell-panel">
+          <div className="listwell-panel__body">
+            <p className="listwell-panel__text">
+              Enter a business name on the home page to start an audit.
+            </p>
+          </div>
+          <div className="listwell-panel__foot">
+            <ButtonLink variant="primary" href="/">
+              Check a business
+            </ButtonLink>
+          </div>
+        </div>
       )}
     </section>
   );

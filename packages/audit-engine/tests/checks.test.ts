@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { freshnessScore } from "../src/lookups/social-profiles";
 import { runCheck, runChecks } from "../src/run";
 import { checkResult } from "../src/schemas";
 import type { BusinessSnapshot } from "../src/types";
@@ -223,7 +224,8 @@ describe("google listing checks", () => {
       placesCafe,
       [
         "google-listing-phone-number",
-        "google-listing-reviews",
+        "google-listing-rating",
+        "google-listing-review-count",
         "google-listing-photos",
         "google-listing-opening-times",
         "google-listing-primary-category",
@@ -239,8 +241,12 @@ describe("google listing checks", () => {
       "google-listing-primary-category": {
         label: "Primary category: restaurant",
       },
-      "google-listing-reviews": {
-        label: expect.stringContaining("Need ≥ 20 reviews"),
+      "google-listing-rating": {
+        label: expect.stringContaining("Need ≥ 4.0"),
+        value: false,
+      },
+      "google-listing-review-count": {
+        label: expect.stringContaining("Need at least 20 reviews"),
         value: false,
       },
       "google-listing-website-matches": { value: true },
@@ -257,7 +263,8 @@ describe("google listing checks", () => {
       cafe,
       [
         "google-listing-phone-number",
-        "google-listing-reviews",
+        "google-listing-rating",
+        "google-listing-review-count",
         "google-listing-photos",
         "google-listing-opening-times",
         "google-listing-primary-category",
@@ -274,8 +281,12 @@ describe("google listing checks", () => {
       "google-listing-primary-category": {
         label: expect.stringContaining("LocalBusiness"),
       },
-      "google-listing-reviews": {
-        label: expect.stringContaining("Need ≥ 20 reviews"),
+      "google-listing-rating": {
+        label: expect.stringContaining("Need ≥ 4.0"),
+        value: false,
+      },
+      "google-listing-review-count": {
+        label: expect.stringContaining("Need at least 20 reviews"),
         value: false,
       },
       "google-listing-website-matches": { value: true },
@@ -316,7 +327,7 @@ describe("google listing checks", () => {
       "maps.example/seoul-bistro":
         "<html><body><h1>Seoul Bistro</h1></body></html>",
     });
-    const result = await runCheck("google-listing-reviews", cafe, {
+    const result = await runCheck("google-listing-review-count", cafe, {
       env: {},
       fetchImpl,
     });
@@ -368,5 +379,200 @@ describe("website performance", () => {
     expect(result.value).toBeNull();
     expect(result.label).toContain("Browser Rendering");
     expect(result.label).not.toContain("API key");
+  });
+});
+
+const pngBytes = (base64: string): ArrayBuffer => {
+  const decoded = Uint8Array.from(
+    atob(base64),
+    (char) => char.codePointAt(0) ?? 0
+  );
+  const buffer = new ArrayBuffer(decoded.length);
+  new Uint8Array(buffer).set(decoded);
+  return buffer;
+};
+
+const daysAgoIso = (days: number): string =>
+  new Date(Date.now() - days * 86_400_000).toISOString();
+
+const profileHtml = (options: {
+  avatar?: string;
+  banner?: string;
+  login?: boolean;
+  postedDaysAgo?: number;
+}): string => {
+  if (options.login) {
+    return "<!doctype html><html><head><title>Log in</title></head><body>Log in to continue</body></html>";
+  }
+  const banner = options.banner
+    ? `<img data-listwell-banner="${options.banner}" alt="Cover photo" />`
+    : "";
+  const avatar = options.avatar
+    ? `<img data-listwell-avatar="${options.avatar}" alt="Profile photo" />`
+    : "";
+  const posted =
+    options.postedDaysAgo === undefined
+      ? ""
+      : `<time datetime="${daysAgoIso(options.postedDaysAgo)}"></time>`;
+  return `<!doctype html><html><body>${banner}${avatar}${posted}Haddon Institute public profile for students.</body></html>`;
+};
+
+const socialBusiness: BusinessSnapshot = {
+  category: "other",
+  facebookUsername: "haddoninstitute",
+  id: "social-1",
+  instagramUsername: "haddoninstitute",
+  locations: [],
+  name: "Haddon Institute",
+};
+
+describe("social profile checks", () => {
+  it("scores freshness in week, month, quarter, and stale bands", () => {
+    expect(freshnessScore(3)).toBe(100);
+    expect(freshnessScore(12)).toBe(80);
+    expect(freshnessScore(64)).toBe(50);
+    expect(freshnessScore(120)).toBe(0);
+  });
+
+  it("passes when every readable profile has a banner", async () => {
+    const result = await runCheck("social-profile-banner", socialBusiness, {
+      fetchImpl: mockFetch({
+        "facebook.com": profileHtml({
+          banner: "https://cdn.example/banner.jpg",
+        }),
+        "instagram.com": profileHtml({
+          banner: "https://cdn.example/banner.jpg",
+        }),
+      }),
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("Facebook");
+    expect(result.label).toContain("Instagram");
+  });
+
+  it("fails when a readable profile has no banner", async () => {
+    const result = await runCheck("social-profile-banner", socialBusiness, {
+      fetchImpl: mockFetch({
+        "facebook.com": profileHtml({ avatar: "https://cdn.example/logo.png" }),
+        "instagram.com": profileHtml({
+          banner: "https://cdn.example/banner.jpg",
+        }),
+      }),
+    });
+    expect(result.value).toBeFalsy();
+    expect(result.label).toContain("Facebook");
+  });
+
+  it("does not treat an Open Graph image as a banner", async () => {
+    const result = await runCheck(
+      "social-profile-banner",
+      { ...socialBusiness, instagramUsername: null },
+      {
+        fetchImpl: mockFetch({
+          "facebook.com": `<!doctype html><html><head><meta property="og:image" content="https://cdn.example/post.jpg" /></head><body>Haddon Institute public profile for students and visitors.</body></html>`,
+        }),
+      }
+    );
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("could not be read");
+  });
+
+  it("stays inconclusive when the profile page is a login wall", async () => {
+    const result = await runCheck("social-profile-banner", socialBusiness, {
+      fetchImpl: mockFetch({
+        "facebook.com": profileHtml({ login: true }),
+        "instagram.com": profileHtml({ login: true }),
+      }),
+    });
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("login");
+  });
+
+  it("stays inconclusive when no social profile is linked", async () => {
+    const result = await runCheck(
+      "social-profile-freshness",
+      {
+        category: "services",
+        id: "quiet",
+        locations: [],
+        name: "Quiet Co",
+      },
+      { fetchImpl: mockFetch({}) }
+    );
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("No social profiles");
+  });
+
+  it("matches profiles that share the same avatar URL", async () => {
+    const result = await runCheck(
+      "social-profile-image-match",
+      socialBusiness,
+      {
+        fetchImpl: mockFetch({
+          "cdn.example/logo.png": new Response(new Uint8Array([1, 2, 3, 4])),
+          "facebook.com": profileHtml({
+            avatar: "https://cdn.example/logo.png",
+          }),
+          "instagram.com": profileHtml({
+            avatar: "https://cdn.example/logo.png",
+          }),
+        }),
+      }
+    );
+    expect(result.value).toBeTruthy();
+  });
+
+  it("fails when profile avatars are different images", async () => {
+    const left = pngBytes(
+      "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAGUlEQVR4nGNgwAH+4wC41I9qGA0lhqGfNADqSX6QjxtfxwAAAABJRU5ErkJggg=="
+    );
+    const right = pngBytes(
+      "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4jwMw4AKjGkZDiWHYJg0AyGV+kDMCpwkAAAAASUVORK5CYII="
+    );
+    const result = await runCheck(
+      "social-profile-image-match",
+      socialBusiness,
+      {
+        fetchImpl: mockFetch({
+          "cdn.example/left.png": new Response(left, {
+            headers: { "content-type": "image/png" },
+          }),
+          "cdn.example/right.png": new Response(right, {
+            headers: { "content-type": "image/png" },
+          }),
+          "facebook.com": profileHtml({
+            avatar: "https://cdn.example/left.png",
+          }),
+          "instagram.com": profileHtml({
+            avatar: "https://cdn.example/right.png",
+          }),
+        }),
+      }
+    );
+    expect(result.value).toBeFalsy();
+    expect(result.label).toContain("do not match");
+  });
+
+  it("shows a freshness score and passes when posts are within 90 days", async () => {
+    const result = await runCheck("social-profile-freshness", socialBusiness, {
+      fetchImpl: mockFetch({
+        "facebook.com": profileHtml({ postedDaysAgo: 12 }),
+        "instagram.com": profileHtml({ postedDaysAgo: 64 }),
+      }),
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("Facebook 12 days ago (80)");
+    expect(result.label).toContain("Instagram 64 days ago (50)");
+  });
+
+  it("fails freshness when a profile has not posted within 90 days", async () => {
+    const result = await runCheck("social-profile-freshness", socialBusiness, {
+      fetchImpl: mockFetch({
+        "facebook.com": profileHtml({ postedDaysAgo: 3 }),
+        "instagram.com": profileHtml({ postedDaysAgo: 120 }),
+      }),
+    });
+    expect(result.value).toBeFalsy();
+    expect(result.label).toContain("Instagram 120 days ago (0)");
   });
 });

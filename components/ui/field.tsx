@@ -173,6 +173,41 @@ function FieldSeparator({
   );
 }
 
+function FieldErrorList({
+  errors,
+}: {
+  errors: Array<{ message?: string } | undefined>;
+}) {
+  const messages = useMemo(() => {
+    const uniqueErrors = [
+      ...new Map(errors.map((error) => [error?.message, error])).values(),
+    ];
+    const collected: string[] = [];
+    for (const error of uniqueErrors) {
+      if (error?.message) {
+        collected.push(error.message);
+      }
+    }
+    return collected;
+  }, [errors]);
+
+  if (messages.length === 0) {
+    return null;
+  }
+
+  if (messages.length === 1) {
+    return messages[0];
+  }
+
+  return (
+    <ul className="ml-4 flex list-disc flex-col gap-1">
+      {messages.map((message) => (
+        <li key={message}>{message}</li>
+      ))}
+    </ul>
+  );
+}
+
 function FieldError({
   className,
   children,
@@ -181,34 +216,20 @@ function FieldError({
 }: React.ComponentProps<"div"> & {
   errors?: Array<{ message?: string } | undefined>;
 }) {
-  const content = useMemo(() => {
-    if (children) {
-      return children;
-    }
-
-    if (!errors?.length) {
-      return null;
-    }
-
-    const uniqueErrors = [
-      ...new Map(errors.map((error) => [error?.message, error])).values(),
-    ];
-
-    if (uniqueErrors?.length == 1) {
-      return uniqueErrors[0]?.message;
-    }
-
+  if (children) {
     return (
-      <ul className="ml-4 flex list-disc flex-col gap-1">
-        {uniqueErrors.map(
-          (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>
-        )}
-      </ul>
+      <div
+        role="alert"
+        data-slot="field-error"
+        className={cn("text-destructive text-sm font-normal", className)}
+        {...props}
+      >
+        {children}
+      </div>
     );
-  }, [children, errors]);
+  }
 
-  if (!content) {
+  if (!errors?.length) {
     return null;
   }
 
@@ -219,7 +240,7 @@ function FieldError({
       className={cn("text-destructive text-sm font-normal", className)}
       {...props}
     >
-      {content}
+      <FieldErrorList errors={errors} />
     </div>
   );
 }

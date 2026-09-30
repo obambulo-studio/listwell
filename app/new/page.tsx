@@ -27,6 +27,7 @@ const NewAuditPage = async ({
         <NewAuditForm
           businessName={business.name}
           categoryId={business.category}
+          categoryLabel={business.categoryLabel}
           initialProfiles={businessToProfiles(business)}
           initialAddress={
             business.locations.find((location) => location.address)?.address ??

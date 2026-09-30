@@ -6,6 +6,7 @@ import {
   toBusinessSnapshot,
 } from "./audit-env";
 import { scorePercent, statusFromResult } from "./chat-onboarding";
+import { publishSharedCheckRun } from "./check-snapshots";
 import { checksForCategory } from "./checks/registry";
 import { getBusiness, insertScan, updateScan } from "./data";
 import { checkResultSchema } from "./schema";
@@ -75,12 +76,14 @@ export const runScanForBusiness = async (
     }
 
     const counts = countsFromResults(results);
-    return updateScan(scan.id, {
+    const completed = await updateScan(scan.id, {
       ...counts,
       finishedAt: new Date().toISOString(),
       results,
       status: "complete",
     });
+    await publishSharedCheckRun(business, results);
+    return completed;
   } catch (error) {
     return updateScan(scan.id, {
       error: error instanceof Error ? error.message : "Scan failed",

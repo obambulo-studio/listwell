@@ -4,6 +4,7 @@ import {
   uiFixtureBusiness,
   uiFixtureCheckResults,
   uiFixtureListingReview,
+  uiFixturePeerAudit,
   uiFixtureUnlockedAccess,
   uiFixtureScanHistory,
   uiFixtureSummary,
@@ -30,6 +31,7 @@ const DevUiFixtureReportPage = () => {
       showKvExpiryNotice={false}
       kvExpiryDays={7}
       listingReviewOverride={uiFixtureListingReview()}
+      peerAuditOverride={uiFixturePeerAudit()}
       scanHistoryOverride={uiFixtureScanHistory()}
     />
   );

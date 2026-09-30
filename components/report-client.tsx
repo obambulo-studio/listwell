@@ -6,28 +6,24 @@ import type { ReactNode } from "react";
 import useSWR from "swr";
 import { z } from "zod";
 
-import { CheckBody } from "@/components/check-body";
-import { ListingReviewSection } from "@/components/listing-review-section";
+import { Button } from "@/components/atoms/button";
 import {
-  FormActions,
-  PrimaryButton,
-  QuietButton,
-} from "@/components/listwell/actions";
-import { CheckStatusBadge } from "@/components/listwell/report-ui";
+  formatCheckCount,
+  ReportActionLabel,
+  reportActionClass,
+  ReportAllocation,
+} from "@/components/chat-report-insight";
+import { FixGuide } from "@/components/check-body";
+import { ListingReviewSection } from "@/components/listing-review-section";
+import { PrimaryButton, QuietButton } from "@/components/listwell/actions";
+import {
+  CheckStatusMark,
+  checkStatusText,
+} from "@/components/listwell/report-ui";
+import { PeerComparisonSection } from "@/components/peer-comparison-section";
 import { ReportShareDialog } from "@/components/report-share-dialog";
-import { Alert, AlertDescription } from "@/components/reui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -41,7 +37,15 @@ import {
   entitlementCheckoutRetryPath,
   reportShowsFixSteps,
 } from "@/lib/entitlements-access";
+import {
+  FIX_DIFFICULTY_LABEL,
+  FIX_SEVERITY_LABEL,
+  formatFixDuration,
+  planNextActions,
+} from "@/lib/fix-plan";
+import type { PlannedFix, PlannedFixGroup } from "@/lib/fix-plan";
 import type { ListingReviewResult } from "@/lib/listing-review";
+import type { PeerAuditJob } from "@/lib/peers";
 import {
   fetchEntitlement,
   REPORT_MONTHLY_PRICE,
@@ -52,7 +56,12 @@ import {
   requestSignInCode,
   verifySignInCode,
 } from "@/lib/polar";
-import { businessToProfiles } from "@/lib/profiles";
+import { businessToProfiles, profileViewHref } from "@/lib/profiles";
+import {
+  buildReportPdf,
+  downloadReportPdf,
+  reportPdfFilename,
+} from "@/lib/report-pdf";
 import {
   auditJobPollSchema,
   businessSchema,
@@ -74,7 +83,6 @@ import {
   completedCheckSchema,
 } from "@/lib/summaries";
 import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
-import { cn } from "@/lib/utils";
 
 const initialResultsSchema = z.record(z.string(), checkResultSchema);
 const JOB_POLL_INTERVAL_MS = 2000;
@@ -87,6 +95,7 @@ const missingCheckResult = checkResultSchema.parse({
 const CHANNEL_GROUP_ORDER: readonly string[] = [
   "Website",
   "Google Business Profile",
+  "Apple Business Profile",
   "Social Media",
   "Food Delivery",
 ];
@@ -164,7 +173,7 @@ const formatScanDate = (iso: string): string => {
   if (Number.isNaN(date.getTime())) {
     return iso;
   }
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-AU", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -184,9 +193,62 @@ const formatScanDelta = (delta: number | null): string => {
 const CITATION_PREVIEW = 2;
 
 const ReportSystemNotice = ({ children }: { children: ReactNode }) => (
-  <output className="listwell-report__notice">
-    <p className="vbg-lede">{children}</p>
-  </output>
+  <output className="listwell-notice">{children}</output>
+);
+
+const ChevronIcon = () => (
+  <svg
+    className="listwell-panel__chevron"
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
+const Disclosure = ({
+  children,
+  id,
+  open,
+}: {
+  children: ReactNode;
+  id: string;
+  open: boolean;
+}) => (
+  <div
+    className="listwell-disclosure"
+    data-open={open ? "true" : "false"}
+    id={id}
+    inert={open ? undefined : true}
+  >
+    <div className="listwell-disclosure__clip">{children}</div>
+  </div>
+);
+
+const PanelHead = ({
+  id,
+  title,
+  children,
+}: {
+  id?: string;
+  title: string;
+  children?: ReactNode;
+}) => (
+  <div className="listwell-panel__head">
+    <h2 id={id} className="listwell-panel__title">
+      {title}
+    </h2>
+    {children ? (
+      <div className="listwell-panel__actions">{children}</div>
+    ) : null}
+  </div>
 );
 
 const ReportKvExpiryNotice = ({ days }: { days: number }) => (
@@ -200,7 +262,7 @@ const ReportKvExpiryNotice = ({ days }: { days: number }) => (
 const ReportBackendUnavailableNotice = () => (
   <ReportSystemNotice>
     We cannot verify unlock status right now. If you have already paid, use
-    retry below or check back shortly — your purchase is still recorded.
+    retry below or check back shortly. Your purchase is still recorded.
   </ReportSystemNotice>
 );
 
@@ -240,11 +302,11 @@ const CitationLinks = ({
   const named = checkIds.slice(0, CITATION_PREVIEW);
   const extra = checkIds.length - named.length;
   return (
-    <span className="listwell-report__citations">
+    <span className="listwell-chips">
       {named.map((checkId) => (
         <button
           key={checkId}
-          className="listwell-report__citation"
+          className="listwell-chip"
           type="button"
           onClick={() => onSelect(checkId)}
         >
@@ -252,7 +314,7 @@ const CitationLinks = ({
         </button>
       ))}
       {extra > 0 ? (
-        <span className="listwell-report__citation-rest">{extra} more</span>
+        <span className="listwell-panel__fine">+{extra} more</span>
       ) : null}
     </span>
   );
@@ -267,10 +329,10 @@ const ReportSource = ({
   checks: { id: string; title: string }[];
   onSelect: (id: string) => void;
 }) => (
-  <p className="listwell-report__source">
-    <span>From</span>
+  <div className="flex flex-wrap items-center gap-1.5">
+    <span className="listwell-panel__fine">From</span>
     <CitationLinks checkIds={checkIds} checks={checks} onSelect={onSelect} />
-  </p>
+  </div>
 );
 
 const detailLabel = (item: LiveCheck): string | undefined => {
@@ -315,6 +377,9 @@ const groupVisibleByChannel = (
     })
     .map(([category, grouped]) => ({ category, items: grouped }));
 };
+
+const needsWork = (item: LiveCheck): boolean =>
+  item.status === "fail" || item.status === "error";
 
 const recommendedCheckId = (
   summary: AuditSummaryResult | null,
@@ -428,45 +493,61 @@ const UnlockCodeForm = ({
   };
 
   return (
-    <form className="listwell-report__unlock" action={verifyUnlockCode}>
-      <h2 className="vbg-heading-24">Full report with fix steps</h2>
-      <p className="vbg-lede">{lede}</p>
-      <FieldGroup className="gap-4 py-2">
-        <Field>
-          <FieldLabel htmlFor="unlock-email">Email</FieldLabel>
-          <Input
-            id="unlock-email"
-            type="email"
-            name="email"
-            autoComplete="email"
-            value={state.email}
-            onChange={(event) =>
-              dispatch({ email: event.target.value, type: "email" })
-            }
-            required
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="unlock-code">Code</FieldLabel>
-          <Input
-            id="unlock-code"
-            className={cn("font-mono tracking-widest")}
-            name="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={state.code}
-            onChange={(event) =>
-              dispatch({
-                code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
-                type: "code",
-              })
-            }
-            required
-          />
-        </Field>
-      </FieldGroup>
-      <FormActions>
+    <form
+      className="listwell-panel"
+      action={verifyUnlockCode}
+      aria-labelledby="report-unlock"
+    >
+      <PanelHead id="report-unlock" title="Full report with fix steps" />
+      <div className="listwell-panel__body">
+        <p className="listwell-panel__text">{lede}</p>
+        <FieldGroup className="gap-4">
+          <Field>
+            <FieldLabel htmlFor="unlock-email">Email</FieldLabel>
+            <Input
+              id="unlock-email"
+              type="email"
+              name="email"
+              autoComplete="email"
+              value={state.email}
+              onChange={(event) =>
+                dispatch({ email: event.target.value, type: "email" })
+              }
+              required
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="unlock-code">Code</FieldLabel>
+            <Input
+              id="unlock-code"
+              className="font-mono tracking-widest"
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={state.code}
+              onChange={(event) =>
+                dispatch({
+                  code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+                  type: "code",
+                })
+              }
+              required
+            />
+          </Field>
+        </FieldGroup>
+        {state.error ? (
+          <p className="listwell-panel__error" role="alert">
+            {state.error}
+          </p>
+        ) : null}
+        {state.resent && !state.error ? (
+          <p className="listwell-panel__note" aria-live="polite">
+            If that email has a Listwell account, we sent a new code.
+          </p>
+        ) : null}
+      </div>
+      <div className="listwell-panel__foot">
         <PrimaryButton type="submit" disabled={state.busy !== null}>
           {state.busy === "verify" ? "Checking…" : "Unlock report"}
         </PrimaryButton>
@@ -479,17 +560,7 @@ const UnlockCodeForm = ({
         >
           {state.busy === "resend" ? "Sending…" : "Send a new code"}
         </QuietButton>
-      </FormActions>
-      {state.error ? (
-        <Alert variant="destructive" className="mt-3">
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {state.resent && !state.error ? (
-        <p className="vbg-caption">
-          If that email has a Listwell account, we sent a new code.
-        </p>
-      ) : null}
+      </div>
     </form>
   );
 };
@@ -509,68 +580,198 @@ const ReportOverviewSection = ({
     return null;
   }
   return (
-    <section className="listwell-report__chapter">
-      <h2 className="vbg-heading-24">What the checks found</h2>
-      <div className="listwell-report__brief">
-        {summary.overview.map((claim) => (
-          <div key={claim.text} className="listwell-report__claim">
-            <p>{claim.text}</p>
-            <ReportSource
-              checkIds={claim.checkIds}
-              checks={citationChecks}
-              onSelect={onSelectCheck}
-            />
-          </div>
-        ))}
-      </div>
-      {briefCaption ? <p className="vbg-caption">{briefCaption}</p> : null}
+    <section className="listwell-panel" aria-labelledby="report-overview">
+      <PanelHead id="report-overview" title="What the checks found" />
+      {summary.overview.map((claim) => (
+        <div key={claim.text} className="listwell-panel__body">
+          <p className="listwell-panel__text">{claim.text}</p>
+          <ReportSource
+            checkIds={claim.checkIds}
+            checks={citationChecks}
+            onSelect={onSelectCheck}
+          />
+        </div>
+      ))}
+      {briefCaption ? (
+        <div className="listwell-panel__foot">
+          <p className="listwell-panel__fine">{briefCaption}</p>
+        </div>
+      ) : null}
     </section>
+  );
+};
+
+const nextActionKey = (action: PlannedFix["action"]): string =>
+  `${action.priority}-${action.checkIds.join("-")}`;
+
+const NextActionRow = ({
+  item,
+  openKey,
+  citationChecks,
+  definitions,
+  onOpen,
+  onSelectCheck,
+}: {
+  item: PlannedFix;
+  openKey: string | null;
+  citationChecks: { id: string; title: string }[];
+  definitions: CheckDefinition[];
+  onOpen: (key: string) => void;
+  onSelectCheck: (id: string) => void;
+}) => {
+  const key = nextActionKey(item.action);
+  const open = openKey === key;
+  const panelId = `next-${key}`;
+  const guides = item.action.checkIds.flatMap((checkId) => {
+    const definition = definitions.find((entry) => entry.id === checkId);
+    return definition ? [definition] : [];
+  });
+  return (
+    <li>
+      <button
+        type="button"
+        className="listwell-panel__row listwell-panel__row--top"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => onOpen(key)}
+      >
+        <span className="listwell-step" aria-hidden>
+          {item.rank}
+        </span>
+        <span className="listwell-panel__row-main">
+          <span className="listwell-panel__row-title">{item.action.text}</span>
+          {item.minutes === null ? null : (
+            <span className="listwell-panel__row-meta">
+              {formatFixDuration(item.minutes)}
+            </span>
+          )}
+        </span>
+        <ChevronIcon />
+      </button>
+      <div className="listwell-action__rest">
+        <ReportSource
+          checkIds={item.action.checkIds}
+          checks={citationChecks}
+          onSelect={onSelectCheck}
+        />
+        <Disclosure id={panelId} open={open}>
+          <div className="listwell-fix-stack">
+            {guides.map((definition) => (
+              <div key={definition.id}>
+                {guides.length > 1 ? (
+                  <p className="listwell-panel__row-title">
+                    {definition.title}
+                  </p>
+                ) : null}
+                <FixGuide body={definition.body} />
+              </div>
+            ))}
+          </div>
+        </Disclosure>
+      </div>
+    </li>
   );
 };
 
 const ReportNextActionsSection = ({
   summary,
+  groups,
   citationChecks,
+  definitions,
   onSelectCheck,
 }: {
   summary: AuditSummaryResult;
+  groups: PlannedFixGroup[];
   citationChecks: { id: string; title: string }[];
+  definitions: CheckDefinition[];
   onSelectCheck: (id: string) => void;
 }) => {
-  if (summary.nextActions.length > 0) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const toggle = (key: string) => {
+    setOpenKey(openKey === key ? null : key);
+  };
+
+  if (groups.length > 0) {
     return (
-      <section className="listwell-report__chapter">
-        <h2 className="vbg-heading-24">What to do next</h2>
-        <ol className="listwell-report__actions">
-          {summary.nextActions.map((action) => (
-            <li key={`${action.priority}-${action.text}`}>
-              <span className="listwell-report__action-n">
-                {action.priority}
-              </span>
-              <div>
-                <p>{action.text}</p>
-                <ReportSource
-                  checkIds={action.checkIds}
-                  checks={citationChecks}
-                  onSelect={onSelectCheck}
-                />
-              </div>
-            </li>
-          ))}
-        </ol>
+      <section className="listwell-panel" aria-labelledby="report-next">
+        <PanelHead id="report-next" title="What to do next" />
+        {groups.map((group, groupIndex) => {
+          let count = 0;
+          for (const band of group.bands) {
+            count += band.actions.length;
+          }
+          return (
+            <div key={group.difficulty} className="listwell-next-group">
+              <h3 className="listwell-panel__group m-0">
+                <span>{FIX_DIFFICULTY_LABEL[group.difficulty]}</span>
+                <span className="listwell-panel__mono">
+                  {groupIndex === 0 ? "Start here" : count}
+                </span>
+              </h3>
+              {group.bands.map((band) => {
+                const bandId = `next-${group.difficulty}-${band.severity}`;
+                return (
+                  <div key={band.severity}>
+                    <h4
+                      id={bandId}
+                      className="listwell-panel__group listwell-panel__group--sub m-0"
+                    >
+                      <span>{FIX_SEVERITY_LABEL[band.severity]}</span>
+                      <span className="listwell-panel__mono">
+                        {band.actions.length}
+                      </span>
+                    </h4>
+                    <ol
+                      className="listwell-panel__rows"
+                      aria-labelledby={bandId}
+                    >
+                      {band.actions.map((item) => (
+                        <NextActionRow
+                          key={nextActionKey(item.action)}
+                          item={item}
+                          openKey={openKey}
+                          citationChecks={citationChecks}
+                          definitions={definitions}
+                          onOpen={toggle}
+                          onSelectCheck={onSelectCheck}
+                        />
+                      ))}
+                    </ol>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </section>
     );
   }
   if (summary.overview.length > 0) {
     return (
-      <section className="listwell-report__chapter">
-        <h2 className="vbg-heading-24">What to do next</h2>
-        <p className="vbg-caption">No failed checks to act on.</p>
+      <section className="listwell-panel" aria-labelledby="report-next">
+        <PanelHead id="report-next" title="What to do next" />
+        <div className="listwell-panel__body">
+          <p className="listwell-panel__note">No failed checks to act on.</p>
+        </div>
       </section>
     );
   }
   return null;
 };
+
+const PaywallPanel = ({
+  children,
+  foot,
+}: {
+  children: ReactNode;
+  foot?: ReactNode;
+}) => (
+  <section className="listwell-panel" aria-labelledby="report-paywall">
+    <PanelHead id="report-paywall" title="Full report with fix steps" />
+    <div className="listwell-panel__body">{children}</div>
+    {foot ? <div className="listwell-panel__foot">{foot}</div> : null}
+  </section>
+);
 
 const ReportPaywallSection = ({
   access,
@@ -585,28 +786,22 @@ const ReportPaywallSection = ({
 }) => {
   if (!access.backendAvailable) {
     return (
-      <section className="listwell-report__chapter">
-        <div className="listwell-report__unlock">
-          <h2 className="vbg-heading-24">Full report with fix steps</h2>
-          <p className="vbg-lede">
-            Account services are temporarily unavailable. Fix steps stay locked
-            until we can confirm your entitlement.
-          </p>
-        </div>
-      </section>
+      <PaywallPanel>
+        <p className="listwell-panel__note">
+          Account services are temporarily unavailable. Fix steps stay locked
+          until we can confirm your entitlement.
+        </p>
+      </PaywallPanel>
     );
   }
 
   if (!access.paymentsEnabled) {
     return (
-      <section className="listwell-report__chapter">
-        <div className="listwell-report__unlock">
-          <h2 className="vbg-heading-24">Full report with fix steps</h2>
-          <p className="vbg-lede">
-            Payments are not configured on this environment yet.
-          </p>
-        </div>
-      </section>
+      <PaywallPanel>
+        <p className="listwell-panel__note">
+          Payments are not configured on this environment yet.
+        </p>
+      </PaywallPanel>
     );
   }
 
@@ -617,46 +812,68 @@ const ReportPaywallSection = ({
     : `Pay ${REPORT_ONCE_PRICE} once to unlock the step-by-step fixes for this business.`;
 
   return (
-    <section className="listwell-report__chapter">
-      <div className="listwell-report__unlock">
-        <h2 className="vbg-heading-24">Full report with fix steps</h2>
-        <p className="vbg-lede">{lede}</p>
-        <FormActions>
-          <QuietButton
+    <PaywallPanel
+      foot={
+        <>
+          <Button
             type="button"
+            variant="secondary"
+            className={reportActionClass}
             disabled={redirecting !== null}
             onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
           >
-            {redirecting === "once"
-              ? "Redirecting…"
-              : `Full report · ${REPORT_ONCE_PRICE} once`}
-          </QuietButton>
+            <ReportActionLabel
+              title={redirecting === "once" ? "Redirecting…" : "Full report"}
+              caption={
+                redirecting === "once" ? undefined : `${REPORT_ONCE_PRICE} once`
+              }
+            />
+          </Button>
           {access.yearlyAvailable ? (
             <PrimaryButton
               type="button"
+              className={reportActionClass}
               disabled={redirecting !== null}
               onClick={() => onCheckout(checkoutPlanSchema.parse("yearly"))}
             >
-              {redirecting === "yearly"
-                ? "Redirecting…"
-                : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
+              <ReportActionLabel
+                title={redirecting === "yearly" ? "Redirecting…" : "Best value"}
+                caption={
+                  redirecting === "yearly"
+                    ? undefined
+                    : `${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`
+                }
+              />
             </PrimaryButton>
           ) : null}
           {access.monthlyAvailable ? (
-            <QuietButton
+            <Button
               type="button"
+              variant="secondary"
+              className={reportActionClass}
               disabled={redirecting !== null}
               onClick={() => onCheckout(checkoutPlanSchema.parse("monthly"))}
             >
-              {redirecting === "monthly"
-                ? "Redirecting…"
-                : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
-            </QuietButton>
+              <ReportActionLabel
+                title={
+                  redirecting === "monthly" ? "Redirecting…" : "Monthly scans"
+                }
+                caption={
+                  redirecting === "monthly" ? undefined : REPORT_MONTHLY_PRICE
+                }
+              />
+            </Button>
           ) : null}
-        </FormActions>
-        {checkoutError ? <p className="vbg-caption">{checkoutError}</p> : null}
-      </div>
-    </section>
+        </>
+      }
+    >
+      <p className="listwell-panel__text">{lede}</p>
+      {checkoutError ? (
+        <p className="listwell-panel__error" role="alert">
+          {checkoutError}
+        </p>
+      ) : null}
+    </PaywallPanel>
   );
 };
 
@@ -664,7 +881,9 @@ const ReportAccessSection = ({
   access,
   checkoutReturned,
   summary,
+  fixPlan,
   citationChecks,
+  definitions,
   redirecting,
   checkoutError,
   onSelectCheck,
@@ -674,7 +893,9 @@ const ReportAccessSection = ({
   access: EntitlementState;
   checkoutReturned: boolean;
   summary: AuditSummaryResult;
+  fixPlan: PlannedFixGroup[];
   citationChecks: { id: string; title: string }[];
+  definitions: CheckDefinition[];
   redirecting: CheckoutPlan | null;
   checkoutError: string | null;
   onSelectCheck: (id: string) => void;
@@ -686,20 +907,20 @@ const ReportAccessSection = ({
 
   if (showCodePrompt) {
     return (
-      <section className="listwell-report__chapter">
-        <UnlockCodeForm
-          maskedEmail={access.maskedEmail}
-          checkoutReturned={checkoutReturned}
-          onUnlocked={onUnlocked}
-        />
-      </section>
+      <UnlockCodeForm
+        maskedEmail={access.maskedEmail}
+        checkoutReturned={checkoutReturned}
+        onUnlocked={onUnlocked}
+      />
     );
   }
   if (showFixSteps) {
     return (
       <ReportNextActionsSection
         summary={summary}
+        groups={fixPlan}
         citationChecks={citationChecks}
+        definitions={definitions}
         onSelectCheck={onSelectCheck}
       />
     );
@@ -734,56 +955,73 @@ const OnceRescanSection = ({
   }
 
   return (
-    <section className="listwell-report__chapter">
-      <h2 className="vbg-heading-24">Re-scan report</h2>
-      <p className="vbg-caption">
-        Run the checks again after you fix listings. You have{" "}
-        {access.onceRescan.remaining} free re-scan
-        {access.onceRescan.remaining === 1 ? "" : "s"} within 30 days of
-        purchase.
-      </p>
-      <PrimaryButton
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          void (async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              const response = await fetch(
-                `/api/businesses/${businessId}/rescan`,
-                { method: "POST" }
-              );
-              const payload: unknown = await response.json();
-              if (!response.ok) {
-                const message =
-                  typeof payload === "object" &&
-                  payload !== null &&
-                  "error" in payload &&
-                  typeof payload.error === "string"
-                    ? payload.error
-                    : "Re-scan failed";
-                setError(message);
+    <section className="listwell-panel" aria-labelledby="report-rescan">
+      <PanelHead id="report-rescan" title="Re-scan report" />
+      <div className="listwell-panel__body">
+        <p className="listwell-panel__note">
+          Run the checks again after you fix listings. You have{" "}
+          {access.onceRescan.remaining} free re-scan
+          {access.onceRescan.remaining === 1 ? "" : "s"} within 30 days of
+          purchase.
+        </p>
+      </div>
+      <div className="listwell-panel__foot">
+        <PrimaryButton
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            void (async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                const response = await fetch(
+                  `/api/businesses/${businessId}/rescan`,
+                  { method: "POST" }
+                );
+                const payload: unknown = await response.json();
+                if (!response.ok) {
+                  const message =
+                    typeof payload === "object" &&
+                    payload !== null &&
+                    "error" in payload &&
+                    typeof payload.error === "string"
+                      ? payload.error
+                      : "Re-scan failed";
+                  setError(message);
+                  setBusy(false);
+                  return;
+                }
+                window.location.reload();
+              } catch (rescanError) {
+                setError(
+                  rescanError instanceof Error
+                    ? rescanError.message
+                    : "Re-scan failed"
+                );
                 setBusy(false);
-                return;
               }
-              window.location.reload();
-            } catch (rescanError) {
-              setError(
-                rescanError instanceof Error
-                  ? rescanError.message
-                  : "Re-scan failed"
-              );
-              setBusy(false);
-            }
-          })();
-        }}
-      >
-        {busy ? "Re-scanning…" : "Re-scan now"}
-      </PrimaryButton>
-      {error ? <p className="vbg-caption">{error}</p> : null}
+            })();
+          }}
+        >
+          {busy ? "Re-scanning…" : "Re-scan now"}
+        </PrimaryButton>
+        {error ? (
+          <p className="listwell-panel__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
     </section>
   );
+};
+
+const scanDeltaClass = (delta: number | null): string => {
+  if (delta === null || delta === 0) {
+    return "listwell-panel__mono";
+  }
+  return delta > 0
+    ? "listwell-pill listwell-pill--green"
+    : "listwell-pill listwell-pill--red";
 };
 
 const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
@@ -791,18 +1029,24 @@ const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
     return null;
   }
   return (
-    <section className="listwell-report__chapter">
-      <h2 className="vbg-heading-24">Scan history</h2>
-      <Table>
-        <TableCaption>Monthly visibility scores over time.</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead scope="col">Date</TableHead>
-            <TableHead scope="col">Score</TableHead>
-            <TableHead scope="col">Change</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+    <section className="listwell-panel" aria-labelledby="report-scans">
+      <PanelHead id="report-scans" title="Scan history" />
+      <table className="listwell-panel__table">
+        <caption className="vbg-visually-hidden">
+          Monthly visibility scores over time.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col" className="listwell-panel__numeric">
+              Score
+            </th>
+            <th scope="col" className="listwell-panel__numeric">
+              Change
+            </th>
+          </tr>
+        </thead>
+        <tbody>
           {scans.map((scan, index) => {
             const previous = scans[index + 1];
             const delta =
@@ -812,20 +1056,86 @@ const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
                 ? scan.score - previous.score
                 : null;
             return (
-              <TableRow key={scan.id}>
-                <TableCell className="font-medium">
-                  {formatScanDate(scan.finishedAt ?? scan.startedAt)}
-                </TableCell>
-                <TableCell>
+              <tr key={scan.id}>
+                <td>{formatScanDate(scan.finishedAt ?? scan.startedAt)}</td>
+                <td className="listwell-panel__numeric font-medium">
                   {scan.score === null ? "—" : `${scan.score}%`}
-                </TableCell>
-                <TableCell>{formatScanDelta(delta)}</TableCell>
-              </TableRow>
+                </td>
+                <td className="listwell-panel__numeric">
+                  <span className={scanDeltaClass(delta)}>
+                    {formatScanDelta(delta)}
+                  </span>
+                </td>
+              </tr>
             );
           })}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </section>
+  );
+};
+
+const CheckRow = ({
+  item,
+  expanded,
+  businessCategory,
+  showFixSteps,
+  onToggle,
+}: {
+  item: LiveCheck;
+  expanded: boolean;
+  businessCategory: Business["category"];
+  showFixSteps: boolean;
+  onToggle: (id: string) => void;
+}) => {
+  const { id } = item.definition;
+  const detail = detailLabel(item);
+  const points = pointsFor(item.definition, businessCategory);
+  return (
+    <li id={`check-${id}`}>
+      <button
+        type="button"
+        className="listwell-panel__row"
+        aria-expanded={expanded}
+        aria-controls={`check-${id}-detail`}
+        onClick={() => onToggle(id)}
+      >
+        <CheckStatusMark status={item.status} />
+        <span className="listwell-panel__row-main">
+          <span className="listwell-panel__row-title">
+            {item.definition.title}
+          </span>
+          {detail && !expanded ? (
+            <span className="listwell-panel__row-meta line-clamp-1">
+              {detail}
+            </span>
+          ) : null}
+        </span>
+        <span className="listwell-panel__mono">
+          {points} {points === 1 ? "pt" : "pts"}
+        </span>
+        <ChevronIcon />
+      </button>
+      <Disclosure id={`check-${id}-detail`} open={expanded}>
+        <div className="listwell-panel__detail">
+          <p className="listwell-panel__row-meta">
+            {item.definition.channelCategory}
+            {" · "}
+            {points} {points === 1 ? "point" : "points"}
+            {" · "}
+            {checkStatusText(item.status)}
+            {detail ? ` · ${detail}` : ""}
+          </p>
+          {showFixSteps ? (
+            <FixGuide body={item.definition.body} />
+          ) : (
+            <p className="listwell-panel__note">
+              Unlock the full report to see fix steps.
+            </p>
+          )}
+        </div>
+      </Disclosure>
+    </li>
   );
 };
 
@@ -833,162 +1143,134 @@ const ChecksLedgerSection = ({
   groupedChecks,
   checksCaption,
   filter,
-  selectedId,
+  expandedId,
   businessCategory,
+  showFixSteps,
   onFilterChange,
-  onSelectCheck,
+  onToggleCheck,
 }: {
   groupedChecks: { category: string; items: LiveCheck[] }[];
   checksCaption: string;
   filter: "failures" | "all";
-  selectedId: string | undefined;
-  businessCategory: Business["category"];
-  onFilterChange: (filter: "failures" | "all") => void;
-  onSelectCheck: (id: string) => void;
-}) => (
-  <section className="listwell-report__chapter listwell-report__ledger">
-    <div className="listwell-report__ledger-head">
-      <h2 className="vbg-heading-24">Checks</h2>
-      <Tabs
-        value={filter}
-        onValueChange={(value) => {
-          if (value === "failures" || value === "all") {
-            onFilterChange(value);
-          }
-        }}
-        aria-label="Check filter"
-      >
-        <TabsList variant="line" className="h-auto">
-          <TabsTrigger value="failures">Failures first</TabsTrigger>
-          <TabsTrigger value="all">All checks</TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
-    <Table className="listwell-report__checks-table">
-      <TableCaption>{checksCaption}</TableCaption>
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col">Check</TableHead>
-          <TableHead scope="col">Status</TableHead>
-          <TableHead scope="col" className="text-right">
-            Points
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      {groupedChecks.map((group) => (
-        <TableBody key={group.category}>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableCell
-              colSpan={3}
-              className="text-muted-foreground text-xs font-medium tracking-wide uppercase"
-            >
-              {group.category}
-            </TableCell>
-          </TableRow>
-          {group.items.map((item) => (
-            <TableRow
-              key={item.definition.id}
-              data-state={
-                item.definition.id === selectedId ? "selected" : undefined
-              }
-              className={
-                item.definition.id === selectedId ? "bg-muted/60" : undefined
-              }
-            >
-              <TableCell className="font-medium">
-                <button
-                  type="button"
-                  className="text-left hover:underline"
-                  onClick={() => onSelectCheck(item.definition.id)}
-                >
-                  {item.definition.title}
-                </button>
-              </TableCell>
-              <TableCell>
-                <CheckStatusBadge status={item.status} />
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {pointsFor(item.definition, businessCategory)}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      ))}
-    </Table>
-  </section>
-);
-
-const SelectedCheckSection = ({
-  selected,
-  selectedDetail,
-  businessCategory,
-  showFixSteps,
-}: {
-  selected: LiveCheck;
-  selectedDetail: string | undefined;
+  expandedId: string | null | undefined;
   businessCategory: Business["category"];
   showFixSteps: boolean;
+  onFilterChange: (filter: "failures" | "all") => void;
+  onToggleCheck: (id: string) => void;
 }) => (
-  <section className="listwell-report__chapter">
-    <h2 className="vbg-heading-24">{selected.definition.title}</h2>
-    <p className="vbg-meta listwell-report__detail-meta">
-      {selected.definition.channelCategory}
-      {" · "}
-      {pointsFor(selected.definition, businessCategory)} points
-      {" · "}
-      {statusLabel(selected.status)}
-      {selectedDetail ? ` · ${selectedDetail}` : ""}
-    </p>
-    {showFixSteps ? (
-      <CheckBody markdown={selected.definition.body} />
-    ) : (
-      <p className="vbg-caption">Unlock the full report to see fix steps.</p>
-    )}
+  <section
+    className="listwell-panel listwell-report__ledger"
+    aria-labelledby="report-checks"
+  >
+    <PanelHead id="report-checks" title="Checks">
+      <button
+        type="button"
+        className="listwell-panel__action"
+        aria-pressed={filter === "failures"}
+        onClick={() => onFilterChange("failures")}
+      >
+        Needs work
+      </button>
+      <button
+        type="button"
+        className="listwell-panel__action"
+        aria-pressed={filter === "all"}
+        onClick={() => onFilterChange("all")}
+      >
+        All
+      </button>
+    </PanelHead>
+    {groupedChecks.length === 0 ? (
+      <div className="listwell-panel__body">
+        <p className="listwell-panel__note">
+          Nothing needs work right now. Show all checks to review what passed.
+        </p>
+      </div>
+    ) : null}
+    {groupedChecks.map((group) => (
+      <div key={group.category}>
+        <h3 className="listwell-panel__group m-0">
+          <span>{group.category}</span>
+          <span className="listwell-panel__mono">{group.items.length}</span>
+        </h3>
+        <ul className="listwell-panel__rows">
+          {group.items.map((item) => (
+            <CheckRow
+              key={item.definition.id}
+              item={item}
+              expanded={item.definition.id === expandedId}
+              businessCategory={businessCategory}
+              showFixSteps={showFixSteps}
+              onToggle={onToggleCheck}
+            />
+          ))}
+        </ul>
+      </div>
+    ))}
+    <div className="listwell-panel__foot">
+      <p className="listwell-panel__fine" aria-live="polite">
+        {checksCaption}
+      </p>
+    </div>
   </section>
 );
 
 const ListingsSection = ({
   businessId,
   profiles,
-  listingsCaption,
   showEditLink,
 }: {
   businessId: string;
   profiles: ReturnType<typeof businessToProfiles>;
-  listingsCaption: string;
   showEditLink: boolean;
 }) => (
-  <section className="listwell-report__chapter">
-    <h2 className="vbg-heading-24">Listings on this audit</h2>
-    {showEditLink ? (
-      <p className="vbg-meta listwell-report__detail-meta">
-        <Link href={`/${businessId}/edit`}>Edit listings</Link>
-      </p>
-    ) : null}
-    <Table>
-      <TableCaption>{listingsCaption}</TableCaption>
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col">Channel</TableHead>
-          <TableHead scope="col">Listing</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {profiles.map((profile) => (
-          <TableRow key={`${profile.type}-${profile.title}`}>
-            <TableCell>{CHANNEL_CONFIG[profile.type].name}</TableCell>
-            <TableCell>
-              {profile.title}
-              {profile.subtitle ? (
-                <div className="text-muted-foreground text-sm">
-                  {profile.subtitle}
-                </div>
-              ) : null}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+  <section className="listwell-panel" aria-labelledby="report-listings">
+    <PanelHead id="report-listings" title="Listings on this audit">
+      {showEditLink ? (
+        <Link className="listwell-panel__action" href={`/${businessId}/edit`}>
+          Edit listings
+        </Link>
+      ) : null}
+    </PanelHead>
+    {profiles.length === 0 ? (
+      <div className="listwell-panel__body">
+        <p className="listwell-panel__note">No listings yet.</p>
+      </div>
+    ) : (
+      <ul className="listwell-panel__rows">
+        {profiles.map((profile) => {
+          const href = profileViewHref(profile);
+          const content = (
+            <span className="listwell-panel__row-main">
+              <span className="listwell-panel__row-title break-all">
+                {profile.title}
+              </span>
+              <span className="listwell-panel__row-meta">
+                {[CHANNEL_CONFIG[profile.type].name, profile.subtitle]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </span>
+          );
+          return (
+            <li key={`${profile.type}-${profile.title}`}>
+              {href ? (
+                <a
+                  className="listwell-panel__row"
+                  href={href}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {content}
+                </a>
+              ) : (
+                <div className="listwell-panel__row">{content}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    )}
   </section>
 );
 
@@ -1187,7 +1469,7 @@ const ReportSharedBanner = ({
 }) => {
   const expiryLabel =
     expiresAt && !Number.isNaN(Date.parse(expiresAt))
-      ? new Date(expiresAt).toLocaleDateString(undefined, {
+      ? new Date(expiresAt).toLocaleDateString("en-AU", {
           day: "numeric",
           month: "short",
           year: "numeric",
@@ -1240,6 +1522,173 @@ const ReportTopNotices = ({
   return <ReportSharedBanner expiresAt={shareExpiresAt} />;
 };
 
+interface ReportUiState {
+  checkoutError: string | null;
+  filter: "failures" | "all";
+  pickedId: string | null | undefined;
+  redirecting: CheckoutPlan | null;
+  shareOpen: boolean;
+}
+
+type ReportUiAction =
+  | { type: "set-error"; error: string }
+  | { type: "clear-error" }
+  | { type: "set-redirecting"; plan: CheckoutPlan | null }
+  | { type: "set-picked-id"; id: string | null }
+  | { type: "set-filter"; filter: "failures" | "all" }
+  | { type: "set-share-open"; open: boolean };
+
+const initialReportUiState: ReportUiState = {
+  checkoutError: null,
+  filter: "failures",
+  pickedId: undefined,
+  redirecting: null,
+  shareOpen: false,
+};
+
+const reportUiReducer = (
+  state: ReportUiState,
+  action: ReportUiAction
+): ReportUiState => {
+  switch (action.type) {
+    case "set-error": {
+      return { ...state, checkoutError: action.error };
+    }
+    case "clear-error": {
+      return { ...state, checkoutError: null };
+    }
+    case "set-redirecting": {
+      return { ...state, redirecting: action.plan };
+    }
+    case "set-picked-id": {
+      return { ...state, pickedId: action.id };
+    }
+    case "set-filter": {
+      return { ...state, filter: action.filter };
+    }
+    case "set-share-open": {
+      return { ...state, shareOpen: action.open };
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
+const ReportHeader = ({
+  access,
+  businessName,
+  counts,
+  fixPlan,
+  isOwner,
+  liveChecks,
+  overview,
+  showFixSteps,
+  visibilityScore,
+  onShare,
+}: {
+  access: EntitlementState;
+  businessName: string;
+  counts: { pass: number; fail: number; error: number };
+  fixPlan: PlannedFixGroup[];
+  isOwner: boolean;
+  liveChecks: LiveCheck[];
+  overview: AuditSummaryResult["overview"];
+  showFixSteps: boolean;
+  visibilityScore: number;
+  onShare: () => void;
+}) => (
+  <header className="listwell-panel" aria-labelledby="report-title">
+    <div className="listwell-panel__head">
+      <p className="listwell-panel__title">
+        {isOwner ? "Visibility report" : "Shared report"}
+      </p>
+      <div className="listwell-panel__actions">
+        {isOwner ? (
+          <button
+            type="button"
+            className="listwell-panel__action"
+            onClick={onShare}
+          >
+            Share
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="listwell-panel__action"
+          onClick={() => window.print()}
+        >
+          Print
+        </button>
+        <button
+          type="button"
+          className="listwell-panel__action"
+          onClick={() => {
+            downloadReportPdf(
+              buildReportPdf({
+                businessName,
+                checks: liveChecks.map((item) => ({
+                  category: item.definition.channelCategory,
+                  status: checkStatusText(item.status),
+                  title: item.definition.title,
+                })),
+                needsWork: counts.fail,
+                nextActionSections: showFixSteps
+                  ? fixPlan.flatMap((group) =>
+                      group.bands.map((band) => ({
+                        actions: band.actions.map((item) => item.action.text),
+                        title: `${FIX_DIFFICULTY_LABEL[group.difficulty]}, ${FIX_SEVERITY_LABEL[band.severity].toLowerCase()}`,
+                      }))
+                    )
+                  : [],
+                nextActions: [],
+                overview: overview.map((claim) => claim.text),
+                passing: counts.pass,
+                score: visibilityScore,
+                skipped: counts.error,
+              }),
+              reportPdfFilename(businessName)
+            );
+          }}
+        >
+          Save PDF
+        </button>
+      </div>
+    </div>
+    <div className="listwell-panel__body">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 id="report-title" className="listwell-panel__question">
+          {businessName}
+        </h1>
+        {isOwner && access.kind === "report_monthly" ? (
+          <span className="listwell-pill listwell-pill--green">
+            Monthly scans active
+          </span>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-ink m-0 text-3xl font-semibold tracking-tight">
+          {visibilityScore}%
+          <span className="text-ink-2 text-lg font-normal"> visibility</span>
+        </p>
+        <p className="text-ink-2 m-0 text-sm">
+          {formatCheckCount(counts.pass)} passing ·{" "}
+          {formatCheckCount(counts.fail)} need work
+          {counts.error > 0
+            ? ` · ${formatCheckCount(counts.error)} skipped`
+            : ""}
+        </p>
+      </div>
+      <ReportAllocation
+        stats={{
+          ...counts,
+          total: counts.pass + counts.fail + counts.error,
+        }}
+      />
+    </div>
+  </header>
+);
+
 export const ReportClient = ({
   initialBusiness,
   checks,
@@ -1255,6 +1704,7 @@ export const ReportClient = ({
   variant = "owner",
   shareExpiresAt,
   listingReviewOverride,
+  peerAuditOverride,
   scanHistoryOverride,
 }: {
   initialBusiness: Business;
@@ -1272,6 +1722,8 @@ export const ReportClient = ({
   shareExpiresAt?: string | null;
   /** Dev UI fixture only — skips listing review fetch when set. */
   listingReviewOverride?: ListingReviewResult;
+  /** Dev UI fixture only — skips the nearby comparison fetch when set. */
+  peerAuditOverride?: PeerAuditJob;
   /** Dev UI fixture only — skips scan history fetch when set. */
   scanHistoryOverride?: ScanSummary[];
 }) => {
@@ -1294,16 +1746,12 @@ export const ReportClient = ({
       serverAccess,
       variant,
     });
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
-  const [pickedId, setPickedId] = useState<string | undefined>();
-  const [filter, setFilter] = useState<"failures" | "all">("failures");
-  const [shareOpen, setShareOpen] = useState(false);
+  const [ui, dispatch] = useReducer(reportUiReducer, initialReportUiState);
+  const { checkoutError, filter, pickedId, redirecting, shareOpen } = ui;
   const isOwner = variant === "owner";
 
-  const selectedId = pickedId ?? recommendedCheckId(summary, liveChecks);
-  const selected = liveChecks.find((item) => item.definition.id === selectedId);
-  const selectedDetail = selected ? detailLabel(selected) : undefined;
+  const expandedId =
+    pickedId === undefined ? recommendedCheckId(summary, liveChecks) : pickedId;
   const citationChecks = liveChecks.map((item) => ({
     id: item.definition.id,
     title: item.definition.title,
@@ -1311,49 +1759,65 @@ export const ReportClient = ({
   const briefCaption = degradedCaption(summary);
   const counts = visibilityCounts(liveChecks);
   const visibilityScore = scorePercent(counts);
-
-  const visible = liveChecks.filter((item) => {
-    if (filter === "all") {
-      return true;
-    }
-    return item.status === "fail" || item.status === "error";
-  });
+  const visible = liveChecks.filter(
+    (item) => filter === "all" || needsWork(item)
+  );
   const groupedChecks = groupVisibleByChannel(visible);
 
+  const fixPlan = useMemo(
+    () =>
+      planNextActions({
+        actions: summary.nextActions,
+        category: business.category,
+        definitions: liveChecks.map((item) => item.definition),
+      }),
+    [business.category, liveChecks, summary.nextActions]
+  );
   const profiles = businessToProfiles(business);
   const checksCaption =
     filter === "failures"
       ? `Showing checks that still need attention. ${visible.length} of ${liveChecks.length}.`
       : `Showing all checks. ${visible.length} of ${liveChecks.length}.`;
-  const listingsCaption =
-    profiles.length === 0
-      ? "No listings yet."
-      : `${profiles.length} ${profiles.length === 1 ? "listing" : "listings"} on this audit.`;
+
+  const toggleCheck = (id: string) => {
+    dispatch({ id: expandedId === id ? null : id, type: "set-picked-id" });
+  };
+
+  const revealCheck = (id: string) => {
+    const target = liveChecks.find((item) => item.definition.id === id);
+    if (target && !needsWork(target)) {
+      dispatch({ filter: "all", type: "set-filter" });
+    }
+    dispatch({ id, type: "set-picked-id" });
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector(`#check-${CSS.escape(id)}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   const startCheckout = async (plan: CheckoutPlan) => {
-    setCheckoutError(null);
-    setRedirecting(plan);
+    dispatch({ type: "clear-error" });
+    dispatch({ plan, type: "set-redirecting" });
     try {
       const url = await requestCheckoutUrl(business.id, plan);
       window.location.assign(url);
     } catch (error) {
-      setRedirecting(null);
-      setCheckoutError(
-        error instanceof Error ? error.message : "Checkout failed"
-      );
+      dispatch({ plan: null, type: "set-redirecting" });
+      dispatch({
+        error: error instanceof Error ? error.message : "Checkout failed",
+        type: "set-error",
+      });
     }
   };
 
   return (
-    <article
-      className={
-        isOwner ? "listwell-report" : "listwell-report listwell-report--shared"
-      }
-    >
-      {shareOpen ? (
+    <article className="listwell-page listwell-report">
+      {isOwner ? (
         <ReportShareDialog
           businessId={business.id}
-          onClose={() => setShareOpen(false)}
+          open={shareOpen}
+          onClose={() => dispatch({ open: false, type: "set-share-open" })}
         />
       ) : null}
       <ReportTopNotices
@@ -1366,51 +1830,24 @@ export const ReportClient = ({
         shareExpiresAt={shareExpiresAt}
         showKvExpiryNotice={showKvExpiryNotice}
       />
-      <header className="listwell-report__hero">
-        <div className="listwell-report__hero-top">
-          <h1 className="vbg-title">{business.name}</h1>
-          <div className="listwell-report__toolbar listwell-report__toolbar--screen">
-            {isOwner ? (
-              <QuietButton type="button" onClick={() => setShareOpen(true)}>
-                Share
-              </QuietButton>
-            ) : null}
-            <PrimaryButton type="button" onClick={() => window.print()}>
-              Download PDF / Print
-            </PrimaryButton>
-          </div>
-        </div>
-        {isOwner && access.kind === "report_monthly" ? (
-          <p className="vbg-caption listwell-report__badge">
-            Monthly scans active
-          </p>
-        ) : null}
-        <p className="vbg-display listwell-report__score-value">{`${visibilityScore}%`}</p>
-        <p className="vbg-caption listwell-report__score-caption">
-          of scored checks
-        </p>
-      </header>
-
-      <dl className="listwell-report__stats">
-        <div className="listwell-report__stat">
-          <dt className="vbg-stat-label">Passing</dt>
-          <dd className="vbg-stat-value">{counts.pass}</dd>
-        </div>
-        <div className="listwell-report__stat">
-          <dt className="vbg-stat-label">Need work</dt>
-          <dd className="vbg-stat-value">{counts.fail}</dd>
-        </div>
-        <div className="listwell-report__stat">
-          <dt className="vbg-stat-label">Skipped</dt>
-          <dd className="vbg-stat-value">{counts.error}</dd>
-        </div>
-      </dl>
+      <ReportHeader
+        access={access}
+        businessName={business.name}
+        counts={counts}
+        fixPlan={fixPlan}
+        isOwner={isOwner}
+        liveChecks={liveChecks}
+        overview={summary.overview}
+        showFixSteps={showFixSteps}
+        visibilityScore={visibilityScore}
+        onShare={() => dispatch({ open: true, type: "set-share-open" })}
+      />
 
       <ReportOverviewSection
         summary={summary}
         citationChecks={citationChecks}
         briefCaption={briefCaption}
-        onSelectCheck={setPickedId}
+        onSelectCheck={revealCheck}
       />
 
       {isOwner ? (
@@ -1418,10 +1855,12 @@ export const ReportClient = ({
           access={access}
           checkoutReturned={checkoutReturned}
           summary={summary}
+          fixPlan={fixPlan}
           citationChecks={citationChecks}
+          definitions={liveChecks.map((item) => item.definition)}
           redirecting={redirecting}
           checkoutError={checkoutError}
-          onSelectCheck={setPickedId}
+          onSelectCheck={revealCheck}
           onCheckout={(plan) => {
             void startCheckout(plan);
           }}
@@ -1451,33 +1890,38 @@ export const ReportClient = ({
         <ScanHistorySection scans={scanHistory} />
       ) : null}
 
+      <PeerComparisonSection
+        businessId={business.id}
+        businessName={business.name}
+        peerAuditOverride={peerAuditOverride}
+        subjectChecks={liveChecks.map((item) => ({
+          id: item.definition.id,
+          queued: item.result?.queued,
+          title: item.definition.title,
+          value: item.result?.value ?? null,
+        }))}
+      />
+
       <ChecksLedgerSection
         groupedChecks={groupedChecks}
         checksCaption={checksCaption}
         filter={filter}
-        selectedId={selectedId}
+        expandedId={expandedId}
         businessCategory={business.category}
-        onFilterChange={setFilter}
-        onSelectCheck={setPickedId}
+        showFixSteps={showFixSteps}
+        onFilterChange={(next) =>
+          dispatch({ filter: next, type: "set-filter" })
+        }
+        onToggleCheck={toggleCheck}
       />
-
-      {selected ? (
-        <SelectedCheckSection
-          selected={selected}
-          selectedDetail={selectedDetail}
-          businessCategory={business.category}
-          showFixSteps={showFixSteps}
-        />
-      ) : null}
 
       <ListingsSection
         businessId={business.id}
         profiles={profiles}
-        listingsCaption={listingsCaption}
         showEditLink={isOwner}
       />
       <footer aria-hidden="true" className="listwell-report__print-footer">
-        <p className="vbg-caption">
+        <p className="listwell-panel__fine">
           Listwell · listwell.dev · local SEO audit for Australian businesses
         </p>
       </footer>

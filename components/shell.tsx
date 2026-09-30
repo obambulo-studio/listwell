@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { AccountControl, PageControls } from "@/components/page-controls";
@@ -13,6 +14,11 @@ export const Shell = ({
     <a className="vbg-skip-link" href="#main">
       Skip to content
     </a>
+    {scrollable ? (
+      <Link className="listwell-page-home" href="/">
+        Listwell
+      </Link>
+    ) : null}
     <AccountControl />
     <PageControls />
     <main

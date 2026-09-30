@@ -84,6 +84,7 @@ export const businessFromCreateRequest = (
   const id = data.id ?? crypto.randomUUID();
   return businessSchema.parse({
     category: data.category,
+    categoryLabel: data.categoryLabel ?? null,
     createdAt: timestamp,
     deliverooUrl: optionalUrl(data.deliverooUrl),
     doorDashUrl: optionalUrl(data.doorDashUrl),
@@ -195,6 +196,7 @@ export const createBusiness = async (
   const created = await tryConvexQuery(() =>
     getConvexClient().mutation(api.businesses.create, {
       category: data.category,
+      categoryLabel: data.categoryLabel ?? undefined,
       deliverooUrl: data.deliverooUrl,
       doorDashUrl: data.doorDashUrl,
       externalId: data.id,
@@ -238,6 +240,10 @@ const mergeBusinessUpdate = (
 ): Business => {
   const next = businessFromCreateRequest({
     category: input.category ?? existing.category,
+    categoryLabel:
+      input.categoryLabel === undefined
+        ? existing.categoryLabel
+        : input.categoryLabel,
     deliverooUrl: keepUrl(input.deliverooUrl, existing.deliverooUrl),
     doorDashUrl: keepUrl(input.doorDashUrl, existing.doorDashUrl),
     facebookUsername: keepUrl(
@@ -273,6 +279,7 @@ export const updateBusiness = async (
   const updated = await tryConvexQuery(() =>
     convexMutation(api.businesses.update, {
       category: input.category,
+      categoryLabel: input.categoryLabel,
       deliverooUrl: input.deliverooUrl,
       doorDashUrl: input.doorDashUrl,
       externalId: id,
@@ -339,6 +346,7 @@ export const grantEntitlement = async (input: {
   kind: EntitlementKind;
   polarOrderId?: string;
   polarSubscriptionId?: string;
+  purchaserEmail?: string;
   userId?: string;
 }): Promise<EntitlementRow> => {
   const row = await convexMutation(api.entitlements.grant, {
@@ -346,6 +354,7 @@ export const grantEntitlement = async (input: {
     kind: input.kind,
     polarOrderId: input.polarOrderId,
     polarSubscriptionId: input.polarSubscriptionId,
+    purchaserEmail: input.purchaserEmail,
     userId: input.userId,
   });
   return entitlementRowSchema.parse({

@@ -51,8 +51,10 @@ export const POST = async (
     );
   }
 
-  const sessionUser = await getSessionUser();
-  const ownerId = await getBusinessOwnerId(id);
+  const [sessionUser, ownerId] = await Promise.all([
+    getSessionUser(),
+    getBusinessOwnerId(id),
+  ]);
   if (ownerId && sessionUser?.id !== ownerId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

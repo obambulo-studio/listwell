@@ -40,6 +40,10 @@ const mockListingNoneResponse = () =>
     },
   });
 
+const fetchListingMatchImpl = () => Promise.resolve(mockListingMatchResponse());
+
+const fetchListingNoneImpl = () => Promise.resolve(mockListingNoneResponse());
+
 const joesNewtown: PlaceCandidate = {
   address: "1 Main St, Newtown NSW",
   id: "google-joes-newtown",
@@ -101,13 +105,11 @@ describe("listing labels and lookup", () => {
 
 describe(jevRefineListingCandidates, () => {
   it("sets strongMatchId when Jev returns a confident same-place pick", async () => {
-    const fetchImpl = () => Promise.resolve(mockListingMatchResponse());
-
     const result = await jevRefineListingCandidates({
       businessName: "Joe's Pizza",
       candidates: [joesSurry, joesNewtown],
       config: testConfig,
-      fetchImpl,
+      fetchImpl: fetchListingMatchImpl,
       near: "Newtown",
     });
 
@@ -116,14 +118,12 @@ describe(jevRefineListingCandidates, () => {
   });
 
   it("leaves candidates unchanged when Jev chooses none", async () => {
-    const fetchImpl = () => Promise.resolve(mockListingNoneResponse());
-
     const input = [joesSurry, joesNewtown];
     const result = await jevRefineListingCandidates({
       businessName: "Joe's Pizza",
       candidates: input,
       config: testConfig,
-      fetchImpl,
+      fetchImpl: fetchListingNoneImpl,
       near: "Newtown",
     });
 

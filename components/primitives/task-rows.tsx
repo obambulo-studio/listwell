@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+import { LighthousePerformanceInsight } from "@/components/lighthouse-performance-insight";
+import type { ParsedPerformanceLabel } from "@/lib/performance-insight";
+
 /* ─────────────────────────────────────────────────────────
  * TASK ROWS
  *
@@ -30,28 +33,30 @@ const useTick = (intervals: number[]) => {
 const SpinnerRing = ({
   active,
   children,
+  size = "default",
 }: {
   active?: boolean;
   children?: React.ReactNode;
+  size?: "default" | "sm";
 }) => {
-  const size = 24;
-  const stroke = 2;
-  const r = (size - stroke) / 2;
+  const px = size === "sm" ? 16 : 24;
+  const stroke = size === "sm" ? 1.5 : 2;
+  const r = (px - stroke) / 2;
   const c = 2 * Math.PI * r;
   return (
     <span
       className="relative inline-flex shrink-0 items-center justify-center"
-      style={{ height: size, width: size }}
+      style={{ height: px, width: px }}
     >
       <svg
-        width={size}
-        height={size}
+        width={px}
+        height={px}
         className="absolute inset-0"
         style={active ? { animation: "spin 1.1s linear infinite" } : undefined}
       >
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx={px / 2}
+          cy={px / 2}
           r={r}
           fill="none"
           stroke="var(--line)"
@@ -59,8 +64,8 @@ const SpinnerRing = ({
         />
         {active && (
           <circle
-            cx={size / 2}
-            cy={size / 2}
+            cx={px / 2}
+            cy={px / 2}
             r={r}
             fill="none"
             stroke="var(--ink-3)"
@@ -77,25 +82,39 @@ const SpinnerRing = ({
   );
 };
 
+const badgeToneClass = (tone: "red" | "green" | "grey"): string => {
+  if (tone === "red") {
+    return "bg-red";
+  }
+  if (tone === "grey") {
+    return "bg-ink-3";
+  }
+  return "bg-green";
+};
+
 const Badge = ({
-  tone,
   children,
+  size = "default",
+  tone,
 }: {
-  tone: "red" | "green";
   children: React.ReactNode;
+  size?: "default" | "sm";
+  tone: "red" | "green" | "grey";
 }) => (
   <span
-    className={`flex size-5.5 shrink-0 items-center justify-center rounded-full text-white ${tone === "red" ? "bg-red" : "bg-green"}`}
+    className={`flex shrink-0 items-center justify-center rounded-full text-white ${size === "sm" ? "size-4" : "size-5.5"} ${badgeToneClass(tone)}`}
     style={{ animation: "pop-in 300ms cubic-bezier(0.23,1,0.32,1) both" }}
   >
     {children}
   </span>
 );
 
-const XIcon = (
+const iconSize = (size: "default" | "sm") => (size === "sm" ? 9 : 12);
+
+const XIcon = ({ size = "default" }: { size?: "default" | "sm" }) => (
   <svg
-    width="12"
-    height="12"
+    width={iconSize(size)}
+    height={iconSize(size)}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -105,10 +124,39 @@ const XIcon = (
     <path d="M18 6L6 18M6 6l12 12" />
   </svg>
 );
-const CheckIcon = (
+const DashIcon = ({ size = "default" }: { size?: "default" | "sm" }) => (
   <svg
-    width="13"
-    height="13"
+    width={iconSize(size)}
+    height={iconSize(size)}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="3.5"
+    strokeLinecap="round"
+  >
+    <path d="M5 12h14" />
+  </svg>
+);
+const ExternalLinkIcon = () => (
+  <svg
+    width={11}
+    height={11}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M7 17L17 7M17 7h-6M17 7v6" />
+  </svg>
+);
+
+const CheckIcon = ({ size = "default" }: { size?: "default" | "sm" }) => (
+  <svg
+    width={size === "sm" ? 9 : 13}
+    height={size === "sm" ? 9 : 13}
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -134,10 +182,25 @@ const RetryIcon = (
   </svg>
 );
 
+export interface TaskDetailInsight {
+  caption?: string;
+  kind: "lighthouse-performance";
+  parsed: ParsedPerformanceLabel;
+  status: "pass" | "fail" | "error" | "running" | "queued";
+}
+
 /* One detail line shown when a task row is expanded. */
 export interface TaskDetail {
+  checkCaption?: string;
+  href?: string;
   label: string;
   meta: string;
+  insight?: TaskDetailInsight;
+}
+
+export interface TaskDetailSection {
+  title: string;
+  details: TaskDetail[];
 }
 
 /* A single task row.
@@ -150,9 +213,11 @@ export interface TaskRow {
   key: string;
   label: string;
   amount: string;
-  status: "done" | "running" | "pending" | "sequence";
+  status: "done" | "running" | "pending" | "sequence" | "skipped";
   step?: number;
   details: TaskDetail[];
+  detailSections?: TaskDetailSection[];
+  expandable?: boolean;
 }
 
 export interface TaskRowsLabels {
@@ -163,6 +228,63 @@ export interface TaskRowsLabels {
 const DEFAULT_LABELS: TaskRowsLabels = {
   completed: "Completed",
   failed: "Failed",
+};
+
+const CHECK_DETAIL_STATUSES = new Set([
+  "pass",
+  "fail",
+  "error",
+  "running",
+  "queued",
+]);
+
+const DetailMeta = ({ meta }: { meta: string }) => {
+  if (meta === "pass") {
+    return (
+      <span aria-label="Pass" className="inline-flex shrink-0">
+        <Badge size="sm" tone="green">
+          <CheckIcon size="sm" />
+        </Badge>
+      </span>
+    );
+  }
+  if (meta === "fail") {
+    return (
+      <span aria-label="Fail" className="inline-flex shrink-0">
+        <Badge size="sm" tone="red">
+          <XIcon size="sm" />
+        </Badge>
+      </span>
+    );
+  }
+  if (meta === "error") {
+    return (
+      <span aria-label="Could not run" className="inline-flex shrink-0">
+        <Badge size="sm" tone="grey">
+          <DashIcon size="sm" />
+        </Badge>
+      </span>
+    );
+  }
+  if (meta === "running") {
+    return (
+      <span aria-label="Running" className="inline-flex shrink-0">
+        <SpinnerRing active size="sm" />
+      </span>
+    );
+  }
+  if (meta === "queued") {
+    return (
+      <span aria-label="Queued" className="inline-flex shrink-0">
+        <SpinnerRing size="sm" />
+      </span>
+    );
+  }
+  return (
+    <span className="text-ink-3 shrink-0 font-mono text-[11.5px] tabular-nums">
+      {meta}
+    </span>
+  );
 };
 
 const TASK_ROWS: TaskRow[] = [
@@ -200,6 +322,119 @@ const TASK_ROWS: TaskRow[] = [
   },
 ];
 
+const detailTrailingContent = (detail: TaskDetail) => {
+  if (detail.href) {
+    return (
+      <a
+        href={detail.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-ink-2 hover:text-ink inline-flex shrink-0 items-center gap-1 text-[12px] font-medium"
+      >
+        View
+        <ExternalLinkIcon />
+      </a>
+    );
+  }
+  if (CHECK_DETAIL_STATUSES.has(detail.meta)) {
+    return <DetailMeta meta={detail.meta} />;
+  }
+  if (!detail.meta) {
+    return null;
+  }
+  return (
+    <span className="text-ink-3 shrink-0 font-mono text-[11.5px] tabular-nums">
+      {detail.meta}
+    </span>
+  );
+};
+
+const detailLine = (detail: TaskDetail, animate: boolean, delayMs: number) => {
+  const motionStyle = animate
+    ? {
+        animation: `fade-up 300ms cubic-bezier(0.23,1,0.32,1) ${delayMs}ms both`,
+      }
+    : undefined;
+
+  if (detail.insight?.kind === "lighthouse-performance") {
+    return (
+      <div key={detail.label} className="w-full min-w-0" style={motionStyle}>
+        <LighthousePerformanceInsight
+          caption={detail.insight.caption}
+          parsed={detail.insight.parsed}
+          status={detail.insight.status}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      key={detail.label}
+      className="flex items-center justify-between gap-3"
+      style={motionStyle}
+    >
+      <span className="text-ink-2 min-w-0 text-[12px]">{detail.label}</span>
+      {detailTrailingContent(detail)}
+    </div>
+  );
+};
+
+const TaskRowDetails = ({
+  animate,
+  open,
+  row,
+}: {
+  animate: boolean;
+  open: boolean;
+  row: TaskRow;
+}) => {
+  if (row.detailSections && row.detailSections.length > 0) {
+    return (
+      <div className="flex flex-col gap-4">
+        {row.detailSections.map((section, sectionIndex) => {
+          const priorDetailCount = row.detailSections
+            ? row.detailSections
+                .slice(0, sectionIndex)
+                .reduce((sum, entry) => sum + entry.details.length, 0)
+            : 0;
+          return (
+            <div
+              key={section.title}
+              className={
+                sectionIndex > 0
+                  ? "border-line flex flex-col gap-2 border-t pt-3"
+                  : "flex flex-col gap-2"
+              }
+            >
+              <p className="text-ink text-[12px] leading-snug font-semibold">
+                {section.title}
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {section.details.map((detail, detailIndex) =>
+                  detailLine(
+                    detail,
+                    open && animate,
+                    120 + (priorDetailCount + detailIndex) * 100
+                  )
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {row.details.map((detail, index) =>
+        detailLine(detail, open && animate, 120 + index * 100)
+      )}
+    </div>
+  );
+};
+
 const sequenceState = (tick: number): "pending" | "failed" | "done" => {
   if (tick < 3) {
     return "pending";
@@ -230,7 +465,21 @@ const TaskRows = ({
 
   const badgeFor = (row: TaskRow) => {
     if (row.status === "done") {
-      return <Badge tone="green">{CheckIcon}</Badge>;
+      return (
+        <Badge tone="green">
+          <CheckIcon />
+        </Badge>
+      );
+    }
+    if (row.status === "skipped") {
+      return (
+        <span
+          className="flex size-5.5 items-center justify-center rounded-full text-white"
+          style={{ background: "var(--ink-3)" }}
+        >
+          <DashIcon />
+        </span>
+      );
     }
     if (row.status === "running") {
       return <SpinnerRing active>{row.step}</SpinnerRing>;
@@ -242,9 +491,17 @@ const TaskRows = ({
       return <SpinnerRing>{row.step}</SpinnerRing>;
     }
     if (row2 === "failed") {
-      return <Badge tone="red">{XIcon}</Badge>;
+      return (
+        <Badge tone="red">
+          <XIcon />
+        </Badge>
+      );
     }
-    return <Badge tone="green">{CheckIcon}</Badge>;
+    return (
+      <Badge tone="green">
+        <CheckIcon />
+      </Badge>
+    );
   };
 
   const pillFor = (row: TaskRow) => {
@@ -255,7 +512,11 @@ const TaskRows = ({
         </span>
       );
     }
-    if (row.status === "running" || row.status === "pending") {
+    if (
+      row.status === "running" ||
+      row.status === "pending" ||
+      row.status === "skipped"
+    ) {
       return null;
     }
     if (row2 === "failed") {
@@ -297,7 +558,12 @@ const TaskRows = ({
       }${className ? ` ${className}` : ""}`}
     >
       {rows.map((row, i) => {
-        const open = manualOpen[row.key] ?? (row.key === "index" && tick === 2);
+        const expands =
+          row.expandable !== false &&
+          (row.details.length > 0 || (row.detailSections?.length ?? 0) > 0);
+        const open =
+          expands &&
+          (manualOpen[row.key] ?? (row.key === "index" && tick === 2));
         const borderRadius = (() => {
           if (list) {
             return 0;
@@ -310,7 +576,7 @@ const TaskRows = ({
         return (
           <div
             key={row.key}
-            className={`hover:bg-inset self-stretch overflow-hidden transition-[border-radius,background-color] duration-300 ${
+            className={`${expands ? "hover:bg-inset" : ""} self-stretch overflow-hidden transition-[border-radius,background-color] duration-300 ${
               list
                 ? "border-line border-b last:border-0"
                 : "bg-surface shadow-card"
@@ -322,83 +588,84 @@ const TaskRows = ({
               borderRadius,
             }}
           >
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => {
-                setManualOpen((current) => ({ ...current, [row.key]: !open }));
-                onToggleRow?.(row.key, !open);
-              }}
-              className="flex h-11 w-full items-center gap-2.5 px-2.5 text-left"
-            >
-              <span className="flex size-6 shrink-0 items-center justify-center">
-                {badgeFor(row)}
-              </span>
-              <span className="text-ink min-w-0 flex-1 truncate text-[13px] font-medium">
-                {row.label}
-              </span>
-              <span className="text-ink-2 text-[12.5px] tabular-nums">
-                {row.amount}
-              </span>
-              {pillFor(row)}
-              <span
-                aria-hidden="true"
-                className="text-ink-3 -ml-2 flex size-7 shrink-0 items-center justify-center rounded-full"
+            {expands ? (
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => {
+                  setManualOpen((current) => ({
+                    ...current,
+                    [row.key]: !open,
+                  }));
+                  onToggleRow?.(row.key, !open);
+                }}
+                className="flex h-11 w-full items-center gap-2.5 px-2.5 text-left"
               >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="transition-transform duration-300"
-                  style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}
+                <span className="flex size-6 shrink-0 items-center justify-center">
+                  {badgeFor(row)}
+                </span>
+                <span className="text-ink min-w-0 flex-1 truncate text-[13px] font-medium">
+                  {row.label}
+                </span>
+                {row.amount ? (
+                  <span className="text-ink-2 text-[12.5px] tabular-nums">
+                    {row.amount}
+                  </span>
+                ) : null}
+                {pillFor(row)}
+                <span
+                  aria-hidden="true"
+                  className="text-ink-3 -ml-2 flex size-7 shrink-0 items-center justify-center rounded-full"
                 >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </span>
-            </button>
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="transition-transform duration-300"
+                    style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </span>
+              </button>
+            ) : (
+              <div className="flex h-11 w-full items-center gap-2.5 px-2.5 text-left">
+                <span className="flex size-6 shrink-0 items-center justify-center">
+                  {badgeFor(row)}
+                </span>
+                <span className="text-ink min-w-0 flex-1 truncate text-[13px] font-medium">
+                  {row.label}
+                </span>
+                {row.amount ? (
+                  <span className="text-ink-2 text-[12.5px] tabular-nums">
+                    {row.amount}
+                  </span>
+                ) : null}
+                {pillFor(row)}
+              </div>
+            )}
 
-            {/* dropdown detail — same expandable grammar as Chain of Thought */}
-            <div
-              className="grid transition-[grid-template-rows,opacity] duration-300"
-              style={{
-                gridTemplateRows: open ? "1fr" : "0fr",
-                opacity: open ? 1 : 0,
-                transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
-              }}
-            >
-              <div className="overflow-hidden">
-                <div className="mb-2.5 grid grid-cols-[24px_1fr] gap-2.5 px-2.5">
-                  <span aria-hidden className="bg-line mx-auto h-full w-px" />
-                  <div className="flex flex-col gap-1.5">
-                    {row.details.map((d, j) => (
-                      <div
-                        key={d.label}
-                        className="flex items-center justify-between"
-                        style={
-                          open && !list
-                            ? {
-                                animation: `fade-up 300ms cubic-bezier(0.23,1,0.32,1) ${120 + j * 100}ms both`,
-                              }
-                            : undefined
-                        }
-                      >
-                        <span className="text-ink-2 text-[12px]">
-                          {d.label}
-                        </span>
-                        <span className="text-ink-3 font-mono text-[11.5px] tabular-nums">
-                          {d.meta}
-                        </span>
-                      </div>
-                    ))}
+            {expands ? (
+              <div
+                className="grid transition-[grid-template-rows,opacity] duration-300"
+                style={{
+                  gridTemplateRows: open ? "1fr" : "0fr",
+                  opacity: open ? 1 : 0,
+                  transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+                }}
+              >
+                <div className="overflow-hidden">
+                  <div className="mb-2.5 pr-2.5 pl-11">
+                    <TaskRowDetails animate={!list} open={open} row={row} />
                   </div>
                 </div>
               </div>
-            </div>
+            ) : null}
           </div>
         );
       })}

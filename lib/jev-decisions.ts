@@ -29,7 +29,7 @@ const SOCIAL_CONFIDENCE_MIN = 0.6;
 const INTERPRET_CONFIDENCE_MIN = 0.55;
 const CATEGORY_CONFIDENCE_MIN = 0.55;
 
-export const LISTING_PICKER_MAX = 4;
+export const LISTING_PICKER_MAX = 3;
 
 export const listingShortlist = (
   candidates: PlaceCandidate[]
@@ -53,11 +53,12 @@ export const listingPickerOptions = (
   for (const label of baseLabels) {
     labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
   }
-  const duplicated = new Set(
-    [...labelCounts.entries()]
-      .filter(([, count]) => count > 1)
-      .map(([label]) => label)
-  );
+  const duplicated = new Set<string>();
+  for (const [label, count] of labelCounts.entries()) {
+    if (count > 1) {
+      duplicated.add(label);
+    }
+  }
   const options = shortlist.map((candidate, index) => {
     const base = baseLabels[index] ?? listingOptionLabel(candidate);
     if (!duplicated.has(base)) {
@@ -145,7 +146,7 @@ export const jevRefineListingCandidates = async (input: {
   config?: TypeSafeConfig | null;
   fetchImpl?: typeof fetch;
 }): Promise<{ candidates: PlaceCandidate[]; strongMatchId?: string }> => {
-  const shortlist = input.candidates.slice(0, 4);
+  const shortlist = input.candidates.slice(0, LISTING_PICKER_MAX);
   if (shortlist.length === 0) {
     return { candidates: input.candidates };
   }
@@ -588,4 +589,77 @@ export const categoryFromInputWithJev = async (input: {
     categoryId: categoryParsed.data,
     displayLabel: CATEGORY_CONFIG[categoryParsed.data].label,
   };
+};
+
+const BUSINESS_TYPE_DISPLAY: Record<string, string> = {
+  accommodation: "Accommodation",
+  arts: "Arts and entertainment",
+  automotive: "Automotive",
+  education: "Education",
+  health_beauty: "Health and beauty",
+  hospitality: "Food and drink",
+  other: "Other",
+  professional: "Professional services",
+  religious: "Religious organisation",
+  retail: "Retail",
+  trades: "Trades",
+};
+
+const BUSINESS_TYPE_CRITERIA: Record<string, string> = {
+  accommodation: "Hotels, motels, holiday parks",
+  arts: "Galleries, venues, entertainment",
+  automotive: "Mechanics, dealers, car wash",
+  education: "Schools, universities, colleges, training",
+  health_beauty: "Clinics, salons, wellness",
+  hospitality: "Restaurants, cafés, bars, catering",
+  other: "Nothing else fits",
+  professional: "Legal, accounting, consulting",
+  religious: "Churches, ministries, faith groups",
+  retail: "Shops and stores",
+  trades: "Plumbers, electricians, builders",
+};
+
+export const businessTypeDisplayLabelWithJev = async (input: {
+  hint: string;
+  config?: TypeSafeConfig | null;
+  fetchImpl?: typeof fetch;
+}): Promise<string | null> => {
+  const hint = input.hint.trim();
+  if (!hint) {
+    return null;
+  }
+
+  const config = input.config ?? (await getTypeSafeConfig());
+  if (!config) {
+    return null;
+  }
+
+  const response = await systemOne({
+    config,
+    fetchImpl: input.fetchImpl,
+    questions: {
+      business_type: {
+        criteria: BUSINESS_TYPE_CRITERIA,
+        instructions:
+          "Pick the one customer-facing label that best describes this Australian business.",
+        type: "choice",
+      },
+    },
+    state: { hint },
+  });
+
+  if (!response) {
+    return null;
+  }
+
+  const choice = parseChoiceAnswer(response, "business_type");
+  if (!choice || choice.confidence < CATEGORY_CONFIDENCE_MIN) {
+    return null;
+  }
+
+  const display = BUSINESS_TYPE_DISPLAY[choice.choice];
+  if (!display || display === "Other") {
+    return null;
+  }
+  return display;
 };

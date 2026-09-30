@@ -5,6 +5,8 @@ import * as React from "react";
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
   return (
+    // Callers pass htmlFor or wrap a control; this primitive stays unassociated by design.
+    // eslint-disable-next-line jsx-a11y/label-has-associated-control -- htmlFor supplied by callers
     <label
       data-slot="label"
       className={cn(

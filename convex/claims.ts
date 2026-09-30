@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
+import { linkPurchasedBusinesses } from "./entitlements";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -28,6 +29,10 @@ export const claim = mutation({
   args: { externalIds: v.array(v.string()) },
   handler: async (ctx, args) => {
     const user = await authComponent.getAuthUser(ctx);
+    await linkPurchasedBusinesses(ctx, {
+      email: user.email,
+      userId: user._id,
+    });
     const timestamp = nowIso();
 
     const claimResults = await Promise.all(

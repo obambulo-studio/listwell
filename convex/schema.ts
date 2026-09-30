@@ -12,6 +12,7 @@ import {
 export default defineSchema({
   businesses: defineTable({
     category: v.string(),
+    categoryLabel: v.optional(v.string()),
     createdAt: v.string(),
     deliverooUrl: v.optional(v.string()),
     doorDashUrl: v.optional(v.string()),
@@ -33,6 +34,18 @@ export default defineSchema({
     .index("by_externalId", ["externalId"])
     .index("by_userId", ["userId"]),
 
+  checkSnapshots: defineTable({
+    fingerprint: v.string(),
+    finishedAt: v.optional(v.string()),
+    payloadJson: v.optional(v.string()),
+    startedAt: v.string(),
+    status: v.union(
+      v.literal("running"),
+      v.literal("complete"),
+      v.literal("error")
+    ),
+  }).index("by_fingerprint", ["fingerprint"]),
+
   entitlements: defineTable({
     businessExternalId: v.string(),
     createdAt: v.string(),
@@ -41,12 +54,14 @@ export default defineSchema({
     onceRescansUsed: v.optional(v.number()),
     polarOrderId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
+    purchaserEmail: v.optional(v.string()),
     status: entitlementStatusValidator,
     updatedAt: v.string(),
     userId: v.optional(v.string()),
   })
     .index("by_businessExternalId", ["businessExternalId"])
     .index("by_userId", ["userId"])
+    .index("by_purchaserEmail", ["purchaserEmail"])
     .index("by_polarOrderId", ["polarOrderId"])
     .index("by_polarSubscriptionId", ["polarSubscriptionId"])
     .index("by_status_and_nextScanAt", ["status", "nextScanAt"]),

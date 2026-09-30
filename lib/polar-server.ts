@@ -8,6 +8,7 @@ import {
   isAuthEnabled,
   maskEmail,
 } from "./auth";
+import { fetchAuthMutation } from "./auth-server";
 import { CheckoutGrantError } from "./checkout-grant-error";
 import { api, convexAction } from "./convex/server";
 import {
@@ -23,6 +24,7 @@ import {
 } from "./entitlements-access";
 import {
   businessIdFromMetadata,
+  checkoutCustomerIp,
   customerEmailFromPolarData,
   entitlementActionFromPolarEvent,
   entitlementKindFromCheckout,
@@ -139,17 +141,37 @@ export const getSharedReportViewerAccess =
     );
   };
 
+const attachUnlockedPurchase = async (
+  businessId: string,
+  sessionUserId: string | undefined
+): Promise<Awaited<ReturnType<typeof getActiveEntitlementOwner>>> => {
+  const owner = await getActiveEntitlementOwner(businessId);
+  const unlockedWithoutOwner =
+    sessionUserId !== undefined &&
+    owner.backendAvailable &&
+    owner.unlocked &&
+    owner.ownerUserId === null;
+  if (!unlockedWithoutOwner) {
+    return owner;
+  }
+  try {
+    await fetchAuthMutation(api.entitlements.attachPurchasesForCurrentUser, {});
+  } catch {
+    return owner;
+  }
+  return await getActiveEntitlementOwner(businessId);
+};
+
 export const getReportAccess = async (
   businessId: string
 ): Promise<EntitlementState> => {
-  const [config, authEnabled, sessionUser, owner, paymentsDisabledFlag] =
-    await Promise.all([
-      getPolarConfig(),
-      isAuthEnabled(),
-      getSessionUser(),
-      getActiveEntitlementOwner(businessId),
-      readPaymentsDisabledFlag(),
-    ]);
+  const sessionUser = await getSessionUser();
+  const [config, authEnabled, owner, paymentsDisabledFlag] = await Promise.all([
+    getPolarConfig(),
+    isAuthEnabled(),
+    attachUnlockedPurchase(businessId, sessionUser?.id),
+    readPaymentsDisabledFlag(),
+  ]);
 
   const { backendAvailable } = owner;
   const unlocked = backendAvailable ? owner.unlocked : false;
@@ -273,6 +295,7 @@ const grantPaidAccess = async (input: {
     kind: input.kind,
     polarOrderId: input.polarOrderId,
     polarSubscriptionId: input.polarSubscriptionId,
+    purchaserEmail: input.email,
     userId: userId ?? undefined,
   });
   if (input.kind === "report_monthly") {
@@ -397,15 +420,15 @@ const signInPaidCustomer = async (
 };
 
 export const customerIpAddress = (request: Request): string | undefined => {
-  const cf = request.headers.get("CF-Connecting-IP")?.trim();
+  const cf = checkoutCustomerIp(
+    request.headers.get("CF-Connecting-IP") ?? undefined
+  );
   if (cf) {
     return cf;
   }
-  const forwarded = request.headers
-    .get("x-forwarded-for")
-    ?.split(",")[0]
-    ?.trim();
-  return forwarded || undefined;
+  return checkoutCustomerIp(
+    request.headers.get("x-forwarded-for")?.split(",")[0]
+  );
 };
 
 export const createPolarCheckout = async (input: {

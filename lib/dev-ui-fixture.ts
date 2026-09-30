@@ -1,6 +1,8 @@
 import { checksForCategory } from "@/lib/checks/registry";
 import { pointsFor } from "@/lib/checks/types";
 import type { ListingReviewResult } from "@/lib/listing-review";
+import { peerAuditJobSchema, scoreFromCheckValues } from "@/lib/peers";
+import type { PeerAuditJob } from "@/lib/peers";
 import {
   businessSchema,
   checkResultSchema,
@@ -219,3 +221,35 @@ export const uiFixtureListingReview = (): ListingReviewResult => ({
   fingerprint: "ui-fixture-listing-review",
   source: "fallback",
 });
+
+export const uiFixturePeerAudit = (): PeerAuditJob => {
+  const checks: PeerAuditJob["peers"][number]["checks"] = {};
+  const values: (boolean | null)[] = [];
+  for (const [id, result] of Object.entries(uiFixtureCheckResults())) {
+    const value = result.value === false ? true : result.value;
+    checks[id] = { value };
+    values.push(value);
+  }
+  const scored = scoreFromCheckValues(values);
+  return peerAuditJobSchema.parse({
+    businessId: UI_FIXTURE_BUSINESS_ID,
+    createdAt: Date.parse("2026-09-01T00:00:00.000Z"),
+    id: "peer-job-fixture",
+    peers: [
+      {
+        checks,
+        fail: scored.fail,
+        name: "Other Cafe",
+        pass: scored.pass,
+        placeId: "peer-fixture",
+        score: scored.score,
+        skipped: scored.skipped,
+      },
+    ],
+    placeTypeLabel: "Cafe",
+    primaryType: "cafe",
+    radiusMeters: 5000,
+    status: "complete",
+    updatedAt: Date.parse("2026-09-01T00:00:00.000Z"),
+  });
+};

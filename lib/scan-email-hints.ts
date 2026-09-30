@@ -69,9 +69,13 @@ export const failingCheckIds = (snapshot: {
   if (!snapshot.results) {
     return [];
   }
-  return Object.entries(snapshot.results)
-    .filter(([, result]) => result.value === false)
-    .map(([id]) => id);
+  const ids: string[] = [];
+  for (const [id, result] of Object.entries(snapshot.results)) {
+    if (result.value === false) {
+      ids.push(id);
+    }
+  }
+  return ids;
 };
 
 export const rankFailingChecks = (

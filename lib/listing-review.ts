@@ -116,6 +116,7 @@ const detectNapMismatches = (
 ): ListingReviewContent["napMismatches"] => {
   const fields = ["name", "address", "phone", "website"] as const;
   const mismatches: ListingReviewContent["napMismatches"] = [];
+  const auditRecord = input.sources.find((item) => item.id === "audit_record");
 
   for (const field of fields) {
     const valuesBySource: {
@@ -143,9 +144,8 @@ const detectNapMismatches = (
       continue;
     }
     const canonical =
-      input.sources.find((item) => item.id === "audit_record")?.[
-        field === "website" ? "website" : field
-      ] ?? valuesBySource[0]?.value;
+      auditRecord?.[field === "website" ? "website" : field] ??
+      valuesBySource[0]?.value;
     mismatches.push({
       field,
       suggestedFix: canonical

@@ -1,17 +1,15 @@
-import { Badge } from "@/components/ui/badge";
 import type { CheckStatus } from "@/lib/chat-onboarding";
-import { cn } from "@/lib/utils";
 
-const statusLabel = (status: CheckStatus): string => {
+export const checkStatusText = (status: CheckStatus): string => {
   switch (status) {
     case "pass": {
       return "Pass";
     }
     case "fail": {
-      return "Fail";
+      return "Needs work";
     }
     case "error": {
-      return "Error";
+      return "Could not run";
     }
     case "queued":
     case "pending": {
@@ -23,32 +21,60 @@ const statusLabel = (status: CheckStatus): string => {
   }
 };
 
-const badgeToneClass = (status: CheckStatus): string | undefined => {
+const markToneClass = (status: CheckStatus): string => {
   if (status === "pass") {
-    return "border-success/40 text-success-foreground bg-success/10";
+    return "bg-green text-white";
   }
   if (status === "fail") {
-    return "border-destructive/40 text-destructive bg-destructive/10";
+    return "bg-red text-white";
   }
   if (status === "error") {
-    return "border-warning/40 text-warning-foreground bg-warning/10";
+    return "bg-ink-3 text-white";
   }
-  return undefined;
+  return "text-ink-3";
 };
 
-export const CheckStatusBadge = ({
-  status,
-  className,
-}: {
-  status: CheckStatus;
-  className?: string;
-}) => {
-  const label = statusLabel(status);
+const markPath = (status: CheckStatus): string | null => {
+  if (status === "pass") {
+    return "M20 6L9 17l-5-5";
+  }
+  if (status === "fail") {
+    return "M18 6L6 18M6 6l12 12";
+  }
+  if (status === "error") {
+    return "M5 12h14";
+  }
+  return null;
+};
 
+/** Round status mark matching the chat task rows. */
+export const CheckStatusMark = ({ status }: { status: CheckStatus }) => {
+  const path = markPath(status);
   return (
-    <Badge variant="outline" className={cn(badgeToneClass(status), className)}>
-      <span className="sr-only">Status: </span>
-      {label}
-    </Badge>
+    <span
+      className={`flex size-5.5 shrink-0 items-center justify-center rounded-full ${markToneClass(status)}`}
+    >
+      <span className="sr-only">{checkStatusText(status)}</span>
+      {path ? (
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d={path} />
+        </svg>
+      ) : (
+        <span
+          className="border-line border-t-ink-3 size-4 animate-spin rounded-full border-2"
+          aria-hidden
+        />
+      )}
+    </span>
   );
 };

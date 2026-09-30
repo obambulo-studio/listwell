@@ -1,5 +1,6 @@
 import {
   checkIdSchema,
+  runCheck,
   runChecks,
   splitQueuedChecks,
 } from "@listwell/audit-engine";
@@ -19,9 +20,18 @@ import {
   getFetchWebsiteOptions,
   toBusinessSnapshot,
 } from "./audit-env";
+import {
+  beginSharedCheckRun,
+  failSharedCheckRun,
+  finishSharedCheckRun,
+} from "./check-snapshots";
 import { checksForCategory } from "./checks/registry";
 import { checkResultSchema } from "./schema";
-import type { Business, CheckResult as AppCheckResult } from "./schema";
+import type {
+  Business,
+  CheckBatchResponse,
+  CheckResult as AppCheckResult,
+} from "./schema";
 
 /** Zod v4 schema — do not compose audit-engine's Zod v3 checkIdSchema into z.record. */
 const auditJobStorageSchema = z.object({
@@ -165,14 +175,41 @@ export const writeAuditJob = async (
 export const runQueuedChecks = async (
   business: BusinessSnapshot,
   checkIds: CheckId[],
-  options: FetchWebsiteOptions
+  options: FetchWebsiteOptions,
+  onCheckComplete?: (checkId: CheckId, result: CheckResult) => Promise<void>
 ): Promise<Partial<Record<CheckId, CheckResult>>> => {
   const engineEnv = await getAuditEngineEnv();
-  return runChecks(business, checkIds, {
+  const runOptions = {
     ...options,
     env: engineEnv,
     includeQueued: true,
-  });
+  };
+  const results: Partial<Record<CheckId, CheckResult>> = {};
+  let persistChain: Promise<void> = Promise.resolve();
+  const queuePersist = (
+    checkId: CheckId,
+    result: CheckResult
+  ): Promise<void> => {
+    if (!onCheckComplete) {
+      return Promise.resolve();
+    }
+    const previous = persistChain;
+    persistChain = (async () => {
+      await previous;
+      await onCheckComplete(checkId, result);
+    })();
+    return persistChain;
+  };
+
+  await Promise.all(
+    checkIds.map(async (checkId) => {
+      const result = await runCheck(checkId, business, runOptions);
+      results[checkId] = result;
+      await queuePersist(checkId, result);
+    })
+  );
+  await persistChain;
+  return results;
 };
 
 export const enqueueQueuedChecks = async (input: {
@@ -197,20 +234,28 @@ export const enqueueQueuedChecks = async (input: {
     current.updatedAt = Date.now();
     await writeAuditJob(current, input.business.id);
     try {
-      const results = await runQueuedChecks(
+      await runQueuedChecks(
         input.business,
         input.checkIds,
-        options
+        options,
+        async (checkId, result) => {
+          const latest = (await readAuditJob(job.id)) ?? current;
+          latest.results = { ...latest.results, [checkId]: result };
+          latest.status = "running";
+          latest.updatedAt = Date.now();
+          await writeAuditJob(latest, input.business.id);
+        }
       );
-      current.results = { ...current.results, ...results };
-      current.status = "complete";
-      current.updatedAt = Date.now();
-      await writeAuditJob(current, input.business.id);
+      const finished = (await readAuditJob(job.id)) ?? current;
+      finished.status = "complete";
+      finished.updatedAt = Date.now();
+      await writeAuditJob(finished, input.business.id);
     } catch (error) {
-      current.status = "error";
-      current.error = error instanceof Error ? error.message : "Unknown error";
-      current.updatedAt = Date.now();
-      await writeAuditJob(current, input.business.id);
+      const failed = (await readAuditJob(job.id)) ?? current;
+      failed.status = "error";
+      failed.error = error instanceof Error ? error.message : "Unknown error";
+      failed.updatedAt = Date.now();
+      await writeAuditJob(failed, input.business.id);
     }
   };
 
@@ -337,7 +382,41 @@ const settleQueuedJob = async (
   };
 };
 
-export const runBusinessCheckBatch = async (
+const hydrateSharedPayload = async (
+  payload: CheckBatchResponse
+): Promise<{
+  jobId?: string;
+  pending: string[];
+  results: Record<string, AppCheckResult>;
+}> => {
+  if (!payload.jobId || payload.pending.length === 0) {
+    return {
+      jobId: payload.jobId,
+      pending: payload.pending,
+      results: payload.results,
+    };
+  }
+  const finished = await readAuditJob(payload.jobId);
+  if (finished?.status !== "complete") {
+    return {
+      jobId: payload.jobId,
+      pending: payload.pending,
+      results: payload.results,
+    };
+  }
+  const results = { ...payload.results };
+  for (const [id, result] of Object.entries(finished.results)) {
+    if (result) {
+      results[id] = toAppCheckResult(result);
+    }
+  }
+  return {
+    pending: [],
+    results,
+  };
+};
+
+const executeBusinessCheckBatch = async (
   business: Business,
   options: { reuseStoredQueued?: boolean } = {}
 ): Promise<{
@@ -419,4 +498,38 @@ export const runBusinessCheckBatch = async (
       immediateResults: computed,
     })
   );
+};
+
+export const runBusinessCheckBatch = async (
+  business: Business,
+  options: { forceFresh?: boolean; reuseStoredQueued?: boolean } = {}
+): Promise<{
+  jobId?: string;
+  pending: string[];
+  results: Record<string, AppCheckResult>;
+}> => {
+  const shared = await beginSharedCheckRun(
+    business,
+    options.forceFresh ?? false
+  );
+  if (shared.outcome === "reuse") {
+    return hydrateSharedPayload(shared.payload);
+  }
+
+  try {
+    const batch = await executeBusinessCheckBatch(business, options);
+    if (shared.outcome === "owned") {
+      await finishSharedCheckRun(shared.snapshotId, {
+        pending: batch.pending,
+        results: batch.results,
+        ...(batch.jobId ? { jobId: batch.jobId } : {}),
+      });
+    }
+    return batch;
+  } catch (error) {
+    if (shared.outcome === "owned") {
+      await failSharedCheckRun(shared.snapshotId);
+    }
+    throw error;
+  }
 };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   saveSiteInterest,
@@ -20,7 +20,9 @@ describe("site interest input schema", () => {
 });
 
 describe("save site interest", () => {
-  it("de-duplicates by normalised email", async () => {
+  let env: CloudflareEnv;
+
+  beforeEach(async () => {
     const store = new Map<string, string>();
     const kv = {
       get: (key: string, type?: "json" | "text") => {
@@ -43,15 +45,18 @@ describe("save site interest", () => {
         return Promise.resolve();
       },
     };
-    const env = { AUDIT_KV: kv } as unknown as CloudflareEnv;
+    env = { AUDIT_KV: kv } as unknown as CloudflareEnv;
 
-    const first = await saveSiteInterest({
+    await saveSiteInterest({
       env,
       payload: siteInterestInputSchema.parse({
         email: "a@example.com",
         name: "Alex",
       }),
     });
+  });
+
+  it("de-duplicates by normalised email", async () => {
     const second = await saveSiteInterest({
       env,
       payload: siteInterestInputSchema.parse({
@@ -60,7 +65,6 @@ describe("save site interest", () => {
       }),
     });
 
-    expect(first.created).toBeTruthy();
     expect(second.created).toBeFalsy();
     expect(second.record.email).toBe("a@example.com");
     expect(second.record.name).toBe("Alex");

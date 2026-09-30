@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { persistedCategoryLabel, resolveTypedCategory } from "./category";
 import {
   businessFromCreateRequest,
   createBusiness,
@@ -21,6 +22,31 @@ describe("anonymous audit store", () => {
     expect(business.websiteUrl).toBe("https://example.com");
     expect(business.locations[0]?.address).toBe("West End, Brisbane");
     expect(business.userId).toBeNull();
+    expect(business.categoryLabel).toBeNull();
+  });
+
+  it("keeps a typed category label beside the other scoring bucket", () => {
+    const choice = resolveTypedCategory("florist");
+    expect(choice).toStrictEqual({ categoryId: "other", label: "Florist" });
+    const business = businessFromCreateRequest({
+      category: choice.categoryId,
+      categoryLabel: persistedCategoryLabel(choice),
+      id: "audit-florist",
+      locations: [],
+      name: "Stem",
+    });
+    expect(business.category).toBe("other");
+    expect(business.categoryLabel).toBe("Florist");
+    expect(resolveTypedCategory("Food and drink")).toStrictEqual({
+      categoryId: "food",
+      label: "Food and drink",
+    });
+    expect(
+      persistedCategoryLabel({
+        categoryId: "food",
+        label: "Food and drink",
+      })
+    ).toBeNull();
   });
 
   it("saves and loads an audit when Convex is down", async () => {

@@ -9,8 +9,10 @@ const productionPublicEnvSchema = z.object({
 });
 
 const productionPublicEnv = productionPublicEnvSchema.parse({
-  NEXT_PUBLIC_CONVEX_SITE_URL: "https://hallowed-mallard-135.convex.site",
-  NEXT_PUBLIC_CONVEX_URL: "https://hallowed-mallard-135.convex.cloud",
+  NEXT_PUBLIC_CONVEX_SITE_URL:
+    "https://fine-elephant-894.ap-southeast-2.convex.site",
+  NEXT_PUBLIC_CONVEX_URL:
+    "https://fine-elephant-894.ap-southeast-2.convex.cloud",
   NEXT_PUBLIC_SITE_URL: "https://listwell.dev",
 });
 

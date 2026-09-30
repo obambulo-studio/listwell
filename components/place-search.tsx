@@ -2,13 +2,11 @@
 
 import { useRef, useState } from "react";
 
-import { Button } from "@/components/atoms/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { CATEGORY_CONFIG } from "@/lib/category";
 import { lookupResponseSchema } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
-import { cn } from "@/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -36,7 +34,7 @@ export const ListingChoices = ({
   }
 
   return (
-    <ul className="mt-2 flex flex-col gap-2">
+    <ul className="listwell-panel__rows" aria-label="Matching listings">
       {candidates.map((candidate) => {
         const pressed =
           selected?.id === candidate.id && selected.source === candidate.source;
@@ -45,31 +43,49 @@ export const ListingChoices = ({
           : null;
         return (
           <li key={`${candidate.source}-${candidate.id}`}>
-            <Button
+            <button
               type="button"
-              variant={pressed ? "primary" : "secondary"}
-              className={cn(
-                "h-auto w-full flex-col items-start gap-0.5 px-3 py-2 text-left whitespace-normal"
-              )}
+              className="listwell-panel__row listwell-panel__row--top"
               aria-pressed={pressed}
               onClick={() => onSelect(candidate)}
             >
-              <span className="font-medium">{candidate.name}</span>
-              {candidate.address ? (
-                <span className="text-muted-foreground text-sm font-normal">
-                  {candidate.address}
+              <span className="listwell-panel__row-main">
+                <span className="listwell-panel__row-title">
+                  {candidate.name}
+                </span>
+                {candidate.address ? (
+                  <span className="listwell-panel__row-meta">
+                    {candidate.address}
+                  </span>
+                ) : null}
+                <span className="listwell-panel__fine">
+                  {[
+                    candidate.suburb,
+                    categoryLabel,
+                    sourceLabel(candidate.source),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+              {pressed ? (
+                <span className="bg-green flex size-5.5 shrink-0 items-center justify-center rounded-full text-white">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
                 </span>
               ) : null}
-              <span className="text-muted-foreground text-xs font-normal">
-                {[
-                  candidate.suburb,
-                  categoryLabel,
-                  sourceLabel(candidate.source),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </Button>
+            </button>
           </li>
         );
       })}
@@ -153,14 +169,18 @@ export const PlaceSearch = ({
         placeholder="Search by name"
       />
       {status ? <FieldDescription>{status}</FieldDescription> : null}
-      <ListingChoices
-        candidates={candidates}
-        selected={selected}
-        onSelect={(candidate) => {
-          setSelected(candidate);
-          onSelect(candidate);
-        }}
-      />
+      {candidates.length > 0 ? (
+        <div className="listwell-panel">
+          <ListingChoices
+            candidates={candidates}
+            selected={selected}
+            onSelect={(candidate) => {
+              setSelected(candidate);
+              onSelect(candidate);
+            }}
+          />
+        </div>
+      ) : null}
     </Field>
   );
 };

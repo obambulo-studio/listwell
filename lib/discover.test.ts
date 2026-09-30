@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { CATEGORY_CONFIG, primaryGooglePlaceTypeLabel } from "./category";
 import { listingLookupSkipMessage } from "./chat-onboarding";
 import {
   addUniqueProfile,
@@ -10,6 +11,7 @@ import {
   dedupePlaceCandidates,
   discoverBusiness,
   filterProfilesForCandidate,
+  resolveCategoryDisplayLabel,
   namesMatch,
   pickSocialHit,
   profilesFromCandidates,
@@ -266,6 +268,13 @@ describe("discover helpers", () => {
     expect(appleAddress()).toBeUndefined();
   });
 
+  it("formats a specific google place type label", () => {
+    expect(
+      primaryGooglePlaceTypeLabel(["point_of_interest", "university"])
+    ).toBe("University");
+    expect(primaryGooglePlaceTypeLabel(["establishment"])).toBeNull();
+  });
+
   it("maps a Google place to a candidate", () => {
     expect(
       candidateFromGooglePlace({
@@ -303,6 +312,24 @@ describe("discover helpers", () => {
       result.profiles.some((profile) => profile.type === "google-maps")
     ).toBeTruthy();
     expect(result.categoryId).toBe("food");
+    expect(result.categoryDisplayLabel).toBe(CATEGORY_CONFIG.food.label);
+  });
+
+  it("uses google place types when category is other", async () => {
+    const label = await resolveCategoryDisplayLabel({
+      businessName: "Haddon Institute",
+      candidates: [
+        {
+          address: "Brisbane",
+          id: "places/abc",
+          name: "Haddon Institute",
+          source: "google",
+          types: ["point_of_interest", "university"],
+        },
+      ],
+      categoryId: "other",
+    });
+    expect(label).toBe("University");
   });
 
   it("retries Nominatim without the suburb when the first search is empty", async () => {

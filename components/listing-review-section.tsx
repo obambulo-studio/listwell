@@ -1,18 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import useSWR from "swr";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { listingReviewResultSchema } from "@/lib/listing-review";
 import type { ListingReviewResult } from "@/lib/listing-review";
-import { cn } from "@/lib/utils";
 
 const fetchListingReview = async (
   businessId: string
@@ -49,155 +41,128 @@ const degradedCaption = (result: ListingReviewResult): string | null => {
   }
 };
 
-const SourceBadge = () => (
-  <Badge variant="secondary" className="ml-2 align-middle font-normal">
-    AI suggestion
-  </Badge>
-);
+const SourceBadge = () => <span className="listwell-pill">AI suggestion</span>;
 
-const CopyBlock = ({
+const ReviewBlock = ({
+  title,
+  aiSuggestion = false,
+  note,
   children,
-  className,
 }: {
-  children: string;
-  className?: string;
+  title: string;
+  aiSuggestion?: boolean;
+  note?: string;
+  children: ReactNode;
 }) => (
-  <pre
-    className={cn(
-      "bg-muted/50 rounded-lg border px-3 py-2 font-mono text-sm leading-relaxed whitespace-pre-wrap",
-      className
-    )}
-  >
+  <div className="listwell-panel__body">
+    <div className="flex flex-wrap items-center gap-2">
+      <h3 className="text-ink m-0 text-[13px] font-semibold">{title}</h3>
+      {aiSuggestion ? <SourceBadge /> : null}
+    </div>
+    {note ? <p className="listwell-panel__note">{note}</p> : null}
     {children}
-  </pre>
+  </div>
 );
 
 const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
-  const caption = degradedCaption(result);
   const { content } = result;
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="vbg-caption">{result.disclaimer}</p>
-      {caption ? <p className="vbg-caption">{caption}</p> : null}
-      {result.cached ? (
-        <p className="vbg-caption">Cached for this report snapshot.</p>
-      ) : null}
-
+    <>
       {content.businessDescription ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Suggested business description
-              <SourceBadge />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CopyBlock>{content.businessDescription.suggestedText}</CopyBlock>
-          </CardContent>
-        </Card>
+        <ReviewBlock title="Suggested business description" aiSuggestion>
+          <p className="listwell-copy">
+            {content.businessDescription.suggestedText}
+          </p>
+        </ReviewBlock>
       ) : null}
 
       {content.categories ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Suggested categories
-              <SourceBadge />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <p className="vbg-lede">
-              Primary: <strong>{content.categories.primary}</strong>
-            </p>
-            {content.categories.secondary.length > 0 ? (
-              <ul className="listwell-report__actions">
-                {content.categories.secondary.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : null}
-          </CardContent>
-        </Card>
+        <ReviewBlock title="Suggested categories" aiSuggestion>
+          <p className="listwell-panel__text">
+            Primary: <strong>{content.categories.primary}</strong>
+          </p>
+          {content.categories.secondary.length > 0 ? (
+            <ul className="listwell-chips m-0 list-none p-0">
+              {content.categories.secondary.map((item) => (
+                <li key={item} className="listwell-pill">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </ReviewBlock>
       ) : null}
 
       {content.photoChecklistGaps.length > 0 ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">Photo checklist</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="listwell-report__actions">
-              {content.photoChecklistGaps.map((gap) => (
-                <li key={gap.item}>
-                  <strong>{gap.item}</strong>
-                  <span className="text-muted-foreground text-sm">
-                    {" "}
-                    — {gap.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <ReviewBlock title="Photo checklist">
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {content.photoChecklistGaps.map((gap) => (
+              <li key={gap.item} className="text-[13px] leading-normal">
+                <span className="text-ink font-medium">{gap.item}</span>
+                <span className="text-ink-2"> · {gap.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </ReviewBlock>
       ) : null}
 
       {content.napMismatches.length > 0 ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">NAP mismatches</CardTitle>
-            <CardDescription>
-              Name, address and phone should match across listings.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="listwell-report__actions">
-              {content.napMismatches.map((row) => (
-                <li key={row.field}>
-                  <strong>{row.field}</strong>
-                  <ul className="mt-1 font-mono text-sm">
-                    {row.values.map((entry) => (
-                      <li key={`${entry.sourceId}-${entry.value}`}>
-                        {entry.sourceId}: {entry.value}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    {row.suggestedFix}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <ReviewBlock
+          title="Name, address and phone mismatches"
+          note="Name, address and phone should match across listings."
+        >
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            {content.napMismatches.map((row) => (
+              <li key={row.field} className="flex flex-col gap-1.5">
+                <span className="text-ink text-[13px] font-medium">
+                  {row.field}
+                </span>
+                <ul className="listwell-copy m-0 list-none">
+                  {row.values.map((entry) => (
+                    <li key={`${entry.sourceId}-${entry.value}`}>
+                      {entry.sourceId}: {entry.value}
+                    </li>
+                  ))}
+                </ul>
+                <p className="listwell-panel__note">{row.suggestedFix}</p>
+              </li>
+            ))}
+          </ul>
+        </ReviewBlock>
       ) : null}
 
       {content.reviewReplyTemplates.length > 0 ? (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Suggested review replies
-              <SourceBadge />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {content.reviewReplyTemplates.map((template) => (
-              <div key={template.reviewSnippet}>
-                <p className="text-muted-foreground text-sm">Review excerpt</p>
-                <CopyBlock className="mt-1 italic">
-                  {template.reviewSnippet}
-                </CopyBlock>
-                <p className="text-muted-foreground mt-3 text-sm">
-                  Suggested reply
-                </p>
-                <CopyBlock className="mt-1">
-                  {template.suggestedReply}
-                </CopyBlock>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <ReviewBlock title="Suggested review replies" aiSuggestion>
+          {content.reviewReplyTemplates.map((template) => (
+            <div key={template.reviewSnippet} className="flex flex-col gap-1.5">
+              <p className="listwell-panel__fine">Review excerpt</p>
+              <p className="listwell-copy listwell-copy--quote">
+                {template.reviewSnippet}
+              </p>
+              <p className="listwell-panel__fine mt-1.5">Suggested reply</p>
+              <p className="listwell-copy">{template.suggestedReply}</p>
+            </div>
+          ))}
+        </ReviewBlock>
       ) : null}
+    </>
+  );
+};
+
+const ListingReviewFoot = ({ result }: { result: ListingReviewResult }) => {
+  const caption = degradedCaption(result);
+  return (
+    <div className="listwell-panel__foot">
+      <div className="flex flex-col gap-1">
+        <p className="listwell-panel__fine">{result.disclaimer}</p>
+        {caption ? <p className="listwell-panel__fine">{caption}</p> : null}
+        {result.cached ? (
+          <p className="listwell-panel__fine">
+            Cached for this report snapshot.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -222,33 +187,40 @@ export const ListingReviewSection = ({
 
   return (
     <section
-      className="listwell-report__chapter"
+      className="listwell-panel"
       aria-labelledby="listing-review-heading"
     >
-      <h2 className="vbg-heading-24" id="listing-review-heading">
-        AI listing review
-      </h2>
-      <p className="vbg-meta listwell-report__detail-meta">
-        Copy-paste improvements from your website and map listings.
-      </p>
-
-      {showContent ? (
-        <>
-          {isLoading && listingReviewOverride === undefined ? (
-            <p className="vbg-caption">Generating listing suggestions…</p>
-          ) : null}
-          {error && listingReviewOverride === undefined ? (
-            <p className="vbg-caption">
-              Listing suggestions could not be loaded. Try refreshing the page.
-            </p>
-          ) : null}
-          {resolved ? <ListingReviewBody result={resolved} /> : null}
-        </>
-      ) : (
-        <p className="vbg-caption">
-          Unlock the full report to see AI listing suggestions.
+      <div className="listwell-panel__head">
+        <h2 className="listwell-panel__title" id="listing-review-heading">
+          AI listing review
+        </h2>
+      </div>
+      <div className="listwell-panel__body">
+        <p className="listwell-panel__note">
+          Copy-paste improvements from your website and map listings.
         </p>
-      )}
+        {showContent && isLoading && listingReviewOverride === undefined ? (
+          <p className="listwell-panel__fine" aria-live="polite">
+            Generating listing suggestions…
+          </p>
+        ) : null}
+        {showContent && error && listingReviewOverride === undefined ? (
+          <p className="listwell-panel__error" role="alert">
+            Listing suggestions could not be loaded. Try refreshing the page.
+          </p>
+        ) : null}
+        {showContent ? null : (
+          <p className="listwell-panel__fine">
+            Unlock the full report to see AI listing suggestions.
+          </p>
+        )}
+      </div>
+      {showContent && resolved ? (
+        <>
+          <ListingReviewBody result={resolved} />
+          <ListingReviewFoot result={resolved} />
+        </>
+      ) : null}
     </section>
   );
 };

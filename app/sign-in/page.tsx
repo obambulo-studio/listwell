@@ -14,7 +14,7 @@ const SignInPage = async ({
   const returnPath = safeAppPath(firstSearchParam(params.return));
 
   return (
-    <section className="listwell-app-page">
+    <section className="listwell-page">
       <SignInForm returnPath={returnPath} />
     </section>
   );

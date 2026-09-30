@@ -204,12 +204,16 @@ describe("agent discovery", () => {
     });
 
     it("serves the ARD catalog and skills index", async () => {
-      const catalog = await agentReadyResponse(
-        new Request("https://listwell.dev/.well-known/ai-catalog.json")
-      );
-      const skills = await agentReadyResponse(
-        new Request("https://listwell.dev/.well-known/agent-skills/index.json")
-      );
+      const [catalog, skills] = await Promise.all([
+        agentReadyResponse(
+          new Request("https://listwell.dev/.well-known/ai-catalog.json")
+        ),
+        agentReadyResponse(
+          new Request(
+            "https://listwell.dev/.well-known/agent-skills/index.json"
+          )
+        ),
+      ]);
       if (!catalog || !skills) {
         throw new Error("expected well-known documents");
       }
@@ -223,11 +227,10 @@ describe("agent discovery", () => {
 
   describe(discoveryDocument, () => {
     it("aliases ard.json to the same catalog", async () => {
-      const catalog = await discoveryDocument(
-        "/.well-known/ai-catalog.json",
-        origin
-      );
-      const alias = await discoveryDocument("/.well-known/ard.json", origin);
+      const [catalog, alias] = await Promise.all([
+        discoveryDocument("/.well-known/ai-catalog.json", origin),
+        discoveryDocument("/.well-known/ard.json", origin),
+      ]);
       expect(catalog?.body).toBe(alias?.body);
     });
   });

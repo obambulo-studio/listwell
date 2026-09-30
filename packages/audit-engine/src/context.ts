@@ -18,6 +18,8 @@ import {
   measureSyntheticPerformance,
 } from "./lookups/performance";
 import type { PerformanceData } from "./lookups/performance";
+import { loadSocialProfileEvidence } from "./lookups/social-profiles";
+import type { SocialProfileEvidence } from "./lookups/social-profiles";
 import { checkResult } from "./schemas";
 import type {
   AuditEngineEnv,
@@ -36,6 +38,7 @@ export interface CheckContext {
   getWebsiteResponse: () => Promise<SerializedHttpResponse>;
   getWebsiteEvidence: () => Promise<ListingEvidence>;
   getListingEvidence: () => Promise<ListingEvidence>;
+  getSocialProfileEvidence: () => Promise<SocialProfileEvidence[]>;
   getGooglePlace: () => Promise<GooglePlace | null>;
   googleSearch: (query: string) => Promise<GoogleSearchResult[]>;
   fetchText: (
@@ -91,6 +94,7 @@ export const createCheckContext = (
   let websiteEvidencePromise: Promise<ListingEvidence> | undefined;
   let listingEvidencePromise: Promise<ListingEvidence> | undefined;
   let placePromise: Promise<GooglePlace | null> | undefined;
+  let socialPromise: Promise<SocialProfileEvidence[]> | undefined;
 
   return {
     business,
@@ -131,6 +135,10 @@ export const createCheckContext = (
         }
       })();
       return listingEvidencePromise;
+    },
+    getSocialProfileEvidence: () => {
+      socialPromise ??= loadSocialProfileEvidence(business, browserOptions);
+      return socialPromise;
     },
     getWebsiteDocument: () => {
       documentPromise ??= (async () =>

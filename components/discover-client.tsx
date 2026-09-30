@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import useSWR from "swr";
 
 import { ListingChoices } from "@/components/place-search";
+import { CATEGORY_CONFIG } from "@/lib/category";
 import type { CategoryId } from "@/lib/category";
 import {
   discoverResponseSchema,
@@ -105,6 +106,7 @@ const buildFallbackDiscovery = ({
 }): DiscoverResponse => ({
   address,
   candidates: [],
+  categoryDisplayLabel: CATEGORY_CONFIG[categoryId].label,
   categoryId,
   profiles: [
     websiteUrl ? { title: websiteUrl, type: "website" as const } : null,
@@ -267,11 +269,27 @@ export const DiscoverClient = ({
     void goToConfirm(replace, typedName, result, candidate, address);
   };
 
+  const working = !(needsChoice || error);
+
   return (
-    <div className="vbg-custom-progress">
-      <p className="vbg-lede" aria-live="polite">
-        {status}.
-      </p>
+    <div className="listwell-panel">
+      <div className="listwell-panel__head">
+        <h1 className="listwell-panel__title">{businessName}</h1>
+      </div>
+      <div className="listwell-panel__body">
+        <p
+          className="listwell-panel__text flex items-center gap-2.5"
+          aria-live="polite"
+        >
+          {working ? (
+            <span
+              className="border-line-strong border-t-ink size-4 shrink-0 animate-spin rounded-full border-2"
+              aria-hidden
+            />
+          ) : null}
+          {status}.
+        </p>
+      </div>
       {needsChoice && result ? (
         <ListingChoices
           candidates={result.candidates}

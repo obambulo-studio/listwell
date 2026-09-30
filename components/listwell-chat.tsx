@@ -16,7 +16,7 @@ import useSWR from "swr";
 
 import { Button } from "@/components/atoms/button";
 import { ReportSummary } from "@/components/chat-report-insight";
-import { QuietButton } from "@/components/listwell/actions";
+import { ComposerSubmit, QuietButton } from "@/components/listwell/actions";
 import {
   LISTWELL_LOGOUT_EVENT,
   LISTWELL_RESET_EVENT,
@@ -24,13 +24,15 @@ import {
 import ApprovalCard from "@/components/primitives/approval-card";
 import LoadingState from "@/components/primitives/loading-state";
 import TaskRows from "@/components/primitives/task-rows";
-import type { TaskDetail, TaskRow } from "@/components/primitives/task-rows";
-import { Card, CardContent, CardDescription } from "@/components/ui/card";
+import type {
+  TaskDetail,
+  TaskDetailSection,
+  TaskRow,
+} from "@/components/primitives/task-rows";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -38,7 +40,6 @@ import { Input } from "@/components/ui/input";
 import {
   buildBasicReportStats,
   categoryFromInputAsync,
-  categoryLabel,
   commonCategoryLabels,
   createMessage,
   createPromptMessage,
@@ -49,19 +50,25 @@ import {
   isPromptInputPhase,
   isTextInputPhase,
   listingLookupSkipMessage,
+  listingLookupTooManyMessage,
   listingQuestion,
   promptForPhase,
   requestChatInterpret,
-  resolveListingAutoPick,
-  scorePercent,
+  resolveListingLookupNext,
 } from "@/lib/chat-onboarding";
 import type {
   BasicReportStats,
   ChatDraft,
   ChatMessage,
   ChatPhase,
+  ChatSessionSnapshot,
 } from "@/lib/chat-onboarding";
-import { checksForCategory } from "@/lib/checks/registry";
+import {
+  channelSectionTitle,
+  checksForCategory,
+  groupByChannelCategory,
+} from "@/lib/checks/registry";
+import { pointsFor } from "@/lib/checks/types";
 import type { CheckDefinition } from "@/lib/checks/types";
 import {
   discoverResponseSchema,
@@ -75,7 +82,10 @@ import {
   REPORT_YEARLY_PRICE,
   REPORT_YEARLY_VALUE_NOTE,
 } from "@/lib/polar";
-import { mapProfilesToBusinessData } from "@/lib/profiles";
+import {
+  mapProfilesToBusinessData,
+  taskDetailsFromDiscoveredProfiles,
+} from "@/lib/profiles";
 import {
   auditJobPollSchema,
   businessSchema,
@@ -124,6 +134,7 @@ const isRestoredSession = (input: {
   Boolean(input.messages[0]?.userAnswer);
 
 interface CheckProgressResult {
+  label?: string;
   value: boolean | null;
 }
 
@@ -139,9 +150,13 @@ const parseCheckResults = (
   const parsed: Record<string, CheckProgressResult> = {};
   for (const [checkId, value] of Object.entries(raw)) {
     const result = checkResultSchema.safeParse(value);
-    if (result.success) {
-      parsed[checkId] = { value: result.data.value };
+    if (!result.success || result.data.queued) {
+      continue;
     }
+    parsed[checkId] = {
+      label: result.data.label,
+      value: result.data.value,
+    };
   }
   return parsed;
 };
@@ -158,7 +173,7 @@ const checkDetailMeta = (checkId: string, progress: CheckProgress): string => {
     return "error";
   }
   if (progress.pending.has(checkId)) {
-    if (progress.jobStatus === "running" || progress.jobStatus === "queued") {
+    if (progress.jobStatus === "running") {
       return "running";
     }
     return "queued";
@@ -175,11 +190,21 @@ const buildCheckDetails = (
     meta: checkDetailMeta(definition.id, progress),
   }));
 
-const checksRowStatus = (
-  definitions: CheckDefinition[],
-  progress: CheckProgress
-): TaskRow["status"] => {
-  const details = buildCheckDetails(definitions, progress);
+const checkCountLabel = (count: number): string =>
+  count === 1 ? "1 check" : `${count} checks`;
+
+const skippedChecksRow = (stats: BasicReportStats): TaskRow => ({
+  amount: checkCountLabel(stats.couldNotRun.length),
+  details: stats.couldNotRun.map((check) => ({
+    label: check.title,
+    meta: "",
+  })),
+  key: "could-not-run",
+  label: "Could not run",
+  status: "skipped",
+});
+
+const detailStatus = (details: TaskDetail[]): TaskRow["status"] => {
   if (
     details.every(
       (detail) =>
@@ -196,20 +221,116 @@ const checksRowStatus = (
   return "pending";
 };
 
-const checksTaskRow = (
+const isCheckTaskKey = (key: string): boolean =>
+  key === "checks" || key.startsWith("checks:");
+
+const channelTaskRow = (category: string, details: TaskDetail[]): TaskRow => ({
+  amount: checkCountLabel(details.length),
+  details,
+  key: `checks:${category}`,
+  label: channelSectionTitle(category),
+  status: detailStatus(details),
+});
+
+const channelTaskRows = (
   definitions: CheckDefinition[],
   progress: CheckProgress
-): TaskRow => {
-  const status = checksRowStatus(definitions, progress);
-  return {
-    amount: `${definitions.length} checks`,
-    details: buildCheckDetails(definitions, progress),
-    key: "checks",
-    label: "Run visibility checks",
-    status,
-    step: status === "done" ? undefined : 2,
-  };
+): TaskRow[] =>
+  groupByChannelCategory(
+    definitions,
+    (definition) => definition.channelCategory
+  ).map(({ category, items }) =>
+    channelTaskRow(category, buildCheckDetails(items, progress))
+  );
+
+const rowsFromCheckSections = (sections: TaskDetailSection[]): TaskRow[] =>
+  sections.map((section) => ({
+    amount: checkCountLabel(section.details.length),
+    details: section.details,
+    key: `checks:${section.title}`,
+    label: section.title,
+    status: detailStatus(section.details),
+  }));
+
+const replaceCheckRows = (
+  rows: TaskRow[],
+  nextChecks: TaskRow[]
+): TaskRow[] => {
+  const firstIndex = rows.findIndex((row) => isCheckTaskKey(row.key));
+  if (firstIndex === -1) {
+    const summaryIndex = rows.findIndex((row) => row.key === "summary");
+    if (summaryIndex === -1) {
+      return [...rows, ...nextChecks];
+    }
+    return [
+      ...rows.slice(0, summaryIndex),
+      ...nextChecks,
+      ...rows.slice(summaryIndex),
+    ];
+  }
+  const after = rows
+    .slice(firstIndex)
+    .filter((row) => !isCheckTaskKey(row.key));
+  return [...rows.slice(0, firstIndex), ...nextChecks, ...after];
 };
+
+const channelTaskRowsFromStored = (
+  definitions: CheckDefinition[],
+  stored: TaskDetail[]
+): TaskRow[] => {
+  const detailByLabel = new Map(stored.map((detail) => [detail.label, detail]));
+  return groupByChannelCategory(
+    definitions,
+    (definition) => definition.channelCategory
+  ).map(({ category, items }) =>
+    channelTaskRow(
+      category,
+      items.map(
+        (definition) =>
+          detailByLabel.get(definition.title) ?? {
+            label: definition.title,
+            meta: "queued",
+          }
+      )
+    )
+  );
+};
+
+const rehydrateAuditTasks = (
+  tasks: TaskRow[],
+  categoryId: ChatDraft["categoryId"]
+): TaskRow[] => {
+  const legacy = tasks.find((row) => row.key === "checks");
+  if (!legacy) {
+    return tasks;
+  }
+  const nextChecks =
+    legacy.detailSections && legacy.detailSections.length > 0
+      ? rowsFromCheckSections(legacy.detailSections)
+      : channelTaskRowsFromStored(
+          checksForCategory(categoryId),
+          legacy.details
+        );
+  return replaceCheckRows(tasks, nextChecks);
+};
+
+const presentSummaryRow = (row: TaskRow): TaskRow =>
+  row.key === "summary"
+    ? {
+        ...row,
+        amount: "",
+        detailSections: undefined,
+        details: [],
+        expandable: false,
+        label: "Finalise report",
+      }
+    : row;
+
+const numberAuditSteps = (rows: TaskRow[]): TaskRow[] =>
+  rows.map((row, index) => ({
+    ...presentSummaryRow(row),
+    step: index + 1,
+  }));
 
 const buildInitialAuditTasks = (
   categoryId: ChatDraft["categoryId"]
@@ -225,16 +346,17 @@ const buildInitialAuditTasks = (
       status: "running",
       step: 1,
     },
-    checksTaskRow(checkDefinitions, {
+    ...channelTaskRows(checkDefinitions, {
       jobStatus: "queued",
       pending,
       results: {},
     }),
     {
-      amount: "Preview",
-      details: [{ label: "Score and top issues", meta: "queued" }],
+      amount: "",
+      details: [],
+      expandable: false,
       key: "summary",
-      label: "Write basic report",
+      label: "Finalise report",
       status: "pending",
       step: 3,
     },
@@ -246,26 +368,26 @@ const applySummaryRunning = (rows: TaskRow[]): TaskRow[] =>
     row.key === "summary"
       ? {
           ...row,
-          details: [{ label: "Score and top issues", meta: "running" }],
+          amount: "",
+          detailSections: undefined,
+          details: [],
+          expandable: false,
+          label: "Finalise report",
           status: "running",
-          step: 3,
         }
       : row
   );
 
-const applySummaryDone = (
-  rows: TaskRow[],
-  stats: BasicReportStats
-): TaskRow[] =>
+const applySummaryDone = (rows: TaskRow[]): TaskRow[] =>
   rows.map((row) =>
     row.key === "summary"
       ? {
           ...row,
-          details: [
-            { label: "Score and top issues", meta: `${scorePercent(stats)}%` },
-            { label: "Checks passed", meta: String(stats.pass) },
-            { label: "Needs work", meta: String(stats.fail) },
-          ],
+          amount: "",
+          detailSections: undefined,
+          details: [],
+          expandable: false,
+          label: "Finalise report",
           status: "done",
         }
       : row
@@ -274,7 +396,8 @@ const applySummaryDone = (
 const messageEnterDelay = (index: number): string =>
   `${Math.min(index * 45, 240)}ms`;
 
-const JOB_POLL_INTERVAL_MS = 2000;
+const JOB_POLL_INTERVAL_MS = 500;
+const JOB_POLL_MAX_ATTEMPTS = 120;
 
 const pause = (ms: number): Promise<void> => waitForMs(ms);
 
@@ -318,12 +441,11 @@ const pollAuditJob = async ({
   parsedResults: Record<string, CheckProgressResult>;
   pending: Set<string>;
 }> => {
-  if (attempt >= 30) {
+  if (attempt >= JOB_POLL_MAX_ATTEMPTS) {
     const pending = pendingCheckIds(activeCheckDefinitions, parsedResults);
     return { jobStatus: "complete", parsedResults, pending };
   }
 
-  await pause(JOB_POLL_INTERVAL_MS);
   const jobResponse = await fetch(`/api/jobs/${jobId}`);
   if (!jobResponse.ok) {
     const pending = pendingCheckIds(activeCheckDefinitions, parsedResults);
@@ -355,6 +477,7 @@ const pollAuditJob = async ({
     return { jobStatus, parsedResults: nextResults, pending };
   }
 
+  await pause(JOB_POLL_INTERVAL_MS);
   return pollAuditJob({
     activeCheckDefinitions,
     attempt: attempt + 1,
@@ -458,33 +581,15 @@ const ChatComposer = ({
         enterKeyHint="send"
         aria-label={placeholder}
       />
-      <Button
-        type="submit"
-        variant="primary"
-        size="sm"
-        className="listwell-chat__send shrink-0 rounded-full px-3"
-        disabled={!canSend}
-        aria-label="Send"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M12 19V5M5 12l7-7 7 7" />
-        </svg>
-      </Button>
+      <ComposerSubmit label="Send" disabled={!canSend} />
     </form>
   );
 };
 
 const ABOUT_COPY = `Listwell checks local listings and website SEO for Australian small businesses. The basic report is free. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
+
+const aboutDialogMotion =
+  "transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-starting-style:opacity-0 data-ending-style:opacity-0 data-starting-style:translate-y-[calc(-50%+12px)] data-ending-style:translate-y-[calc(-50%+12px)]";
 
 const AboutDialog = ({
   open,
@@ -494,18 +599,16 @@ const AboutDialog = ({
   onClose: () => void;
 }) => (
   <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-    <DialogContent className="max-w-md">
+    <DialogContent
+      className={`max-w-md ${aboutDialogMotion}`}
+      overlayClassName="transition-opacity duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-starting-style:opacity-0 data-ending-style:opacity-0"
+    >
       <DialogHeader>
         <DialogTitle>About Listwell</DialogTitle>
         <DialogDescription className="text-foreground leading-relaxed">
           {ABOUT_COPY}
         </DialogDescription>
       </DialogHeader>
-      <DialogFooter>
-        <QuietButton type="button" onClick={onClose}>
-          Close
-        </QuietButton>
-      </DialogFooter>
     </DialogContent>
   </Dialog>
 );
@@ -618,7 +721,7 @@ const PromptCard = ({
           <p className="listwell-chat__starter-title">Listwell</p>
           <QuietButton
             type="button"
-            className="listwell-chat__starter-about h-auto px-0 py-0 text-sm"
+            className="listwell-chat__starter-about h-auto p-0 text-sm"
             aria-haspopup="dialog"
             aria-expanded={aboutOpen}
             onClick={() => setAboutOpen(true)}
@@ -628,17 +731,6 @@ const PromptCard = ({
         </div>
         {card}
       </div>
-      {promptInput ? (
-        <Card size="sm" className="listwell-chat__starter-pricing ring-0">
-          <CardContent className="px-4 py-3">
-            <CardDescription className="text-foreground text-sm leading-snug">
-              Full report with fix steps: {REPORT_ONCE_PRICE} once. Continued
-              reports: {REPORT_MONTHLY_PRICE} or {REPORT_YEARLY_PRICE} per
-              business ({REPORT_YEARLY_VALUE_NOTE} on yearly).
-            </CardDescription>
-          </CardContent>
-        </Card>
-      ) : null}
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );
@@ -766,6 +858,21 @@ const ListwellChatLayout = ({
                 labels={{ completed: "Done", failed: "Retrying" }}
                 className="max-w-full"
               />
+              {phase === "report" &&
+              reportStats &&
+              reportStats.couldNotRun.length > 0 ? (
+                <div
+                  className="mt-3"
+                  style={{ animation: "fade-in 400ms ease-out both" }}
+                >
+                  <TaskRows
+                    rows={[skippedChecksRow(reportStats)]}
+                    variant="List"
+                    labels={{ completed: "Done", failed: "Retrying" }}
+                    className="max-w-full"
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -850,7 +957,8 @@ type ChatSessionAction =
     }
   | { type: "messages"; updater: (current: ChatMessage[]) => ChatMessage[] }
   | { type: "patch"; patch: Partial<ChatSessionState> }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "restore"; snapshot: ChatSessionSnapshot };
 
 const emptyChatSession = (): ChatSessionState => ({
   auditTasks: buildInitialAuditTasks("other"),
@@ -864,26 +972,22 @@ const emptyChatSession = (): ChatSessionState => ({
   reportStats: null,
 });
 
-const loadInitialChatSession = (): ChatSessionState => {
-  const stored = loadChatSession();
-  if (!(stored && isRestoredSession(stored))) {
-    return emptyChatSession();
-  }
-  return {
-    auditTasks:
-      stored.auditTasks.length > 0
-        ? stored.auditTasks
-        : buildInitialAuditTasks(stored.draft.categoryId),
-    businessId: stored.businessId,
-    candidates: stored.candidates,
-    draft: stored.draft,
-    isTyping: false,
-    locationHint: stored.locationHint,
-    messages: stored.messages,
-    phase: stored.phase,
-    reportStats: stored.reportStats,
-  };
-};
+const chatSessionFromSnapshot = (
+  stored: ChatSessionSnapshot
+): ChatSessionState => ({
+  auditTasks:
+    stored.auditTasks.length > 0
+      ? rehydrateAuditTasks(stored.auditTasks, stored.draft.categoryId)
+      : buildInitialAuditTasks(stored.draft.categoryId),
+  businessId: stored.businessId,
+  candidates: stored.candidates,
+  draft: stored.draft,
+  isTyping: false,
+  locationHint: stored.locationHint,
+  messages: stored.messages,
+  phase: stored.phase,
+  reportStats: stored.reportStats,
+});
 
 const chatSessionReducer = (
   state: ChatSessionState,
@@ -912,6 +1016,9 @@ const chatSessionReducer = (
     case "reset": {
       return emptyChatSession();
     }
+    case "restore": {
+      return chatSessionFromSnapshot(action.snapshot);
+    }
     default: {
       return state;
     }
@@ -929,16 +1036,12 @@ const fetchReverseLocality = async (url: string) => {
 const useListwellChat = () => {
   const { push } = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const skipRestoreScroll = useRef(
-    (() => {
-      const stored = loadChatSession();
-      return Boolean(stored && isRestoredSession(stored));
-    })()
-  );
+  const skipRestoreScroll = useRef(false);
+  const sessionHydratedRef = useRef(false);
   const [state, dispatch] = useReducer(
     chatSessionReducer,
     undefined,
-    loadInitialChatSession
+    emptyChatSession
   );
   const {
     auditTasks,
@@ -951,6 +1054,10 @@ const useListwellChat = () => {
     phase,
     reportStats,
   } = state;
+  const visibleAuditTasks = useMemo(
+    () => numberAuditSteps(rehydrateAuditTasks(auditTasks, draft.categoryId)),
+    [auditTasks, draft.categoryId]
+  );
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(
     null
   );
@@ -990,7 +1097,23 @@ const useListwellChat = () => {
   );
   const restored = isRestoredSession({ messages, phase });
 
+  useLayoutEffect(() => {
+    if (sessionHydratedRef.current) {
+      return;
+    }
+    sessionHydratedRef.current = true;
+    const stored = loadChatSession();
+    if (!(stored && isRestoredSession(stored))) {
+      return;
+    }
+    skipRestoreScroll.current = true;
+    dispatch({ snapshot: stored, type: "restore" });
+  }, []);
+
   useEffect(() => {
+    if (!sessionHydratedRef.current) {
+      return;
+    }
     saveChatSession({
       auditTasks,
       businessId,
@@ -1147,10 +1270,9 @@ const useListwellChat = () => {
 
       const updateChecksRow = (progress: CheckProgress) => {
         setAuditTasks((current) =>
-          current.map((row) =>
-            row.key === "checks"
-              ? checksTaskRow(activeCheckDefinitions, progress)
-              : row
+          replaceCheckRows(
+            current,
+            channelTaskRows(activeCheckDefinitions, progress)
           )
         );
       };
@@ -1230,12 +1352,10 @@ const useListwellChat = () => {
             ? {
                 ...row,
                 details: [
-                  { label: "Profiles found", meta: String(profiles.length) },
+                  ...taskDetailsFromDiscoveredProfiles(profiles),
                   {
                     label: "Category",
-                    meta: categoryLabel(
-                      discovery.categoryId ?? nextDraft.categoryId
-                    ),
+                    meta: discovery.categoryDisplayLabel,
                   },
                 ],
                 status: "done",
@@ -1277,7 +1397,7 @@ const useListwellChat = () => {
       );
 
       let parsedResults = parseCheckResults(batch.results);
-      let pending = new Set(batch.pending);
+      let pending = pendingCheckIds(activeCheckDefinitions, parsedResults);
       let jobStatus = resolveInitialJobStatus(batch.jobId, pending.size);
 
       updateChecksRow({ jobStatus, pending, results: parsedResults });
@@ -1304,9 +1424,19 @@ const useListwellChat = () => {
       });
 
       setAuditTasks((current) => applySummaryRunning(current));
-      const stats = buildBasicReportStats(parsedResults, titles);
+      const stats = buildBasicReportStats(
+        parsedResults,
+        titles,
+        Object.fromEntries(
+          activeCheckDefinitions.map((definition) => [
+            definition.id,
+            pointsFor(definition, business.category),
+          ])
+        ),
+        activeCheckDefinitions
+      );
       setReportStats(stats);
-      setAuditTasks((current) => applySummaryDone(current, stats));
+      setAuditTasks((current) => applySummaryDone(current));
     },
     [setAuditTasks, setBusinessId, setReportStats]
   );
@@ -1360,22 +1490,52 @@ const useListwellChat = () => {
   );
 
   const finishListingLookup = useCallback(
-    async (lookup: Awaited<ReturnType<typeof fetchListingCandidates>>) => {
-      if (lookup.kind === "candidates") {
-        const autoPick = resolveListingAutoPick(lookup);
-        if (autoPick) {
-          setCandidates(lookup.candidates);
-          await continueAfterListingPick(autoPick);
+    async (
+      lookup: Awaited<ReturnType<typeof fetchListingCandidates>>,
+      stage: "name_only" | "with_location" = "with_location"
+    ) => {
+      const next = resolveListingLookupNext(lookup, stage);
+      switch (next.step) {
+        case "auto_pick": {
+          if (lookup.kind === "candidates") {
+            setCandidates(lookup.candidates);
+          }
+          await continueAfterListingPick(next.candidate);
           return;
         }
-        setCandidates(lookup.candidates);
-        advance("listing", promptForPhase("listing"));
-        return;
+        case "listing": {
+          setCandidates(next.candidates);
+          advance("listing", promptForPhase("listing"));
+          return;
+        }
+        case "location": {
+          await showTypingThen(() => {
+            advance("location", promptForPhase("location", draft.businessName));
+          });
+          return;
+        }
+        case "website": {
+          if (next.reason === "too_many") {
+            pushMessage("assistant", listingLookupTooManyMessage());
+          } else if (lookup.kind === "skipped") {
+            pushMessage("assistant", listingLookupSkipMessage(lookup.reason));
+          }
+          advance("website", promptForPhase("website"));
+          break;
+        }
+        default: {
+          throw new Error("Unexpected listing lookup step");
+        }
       }
-      pushMessage("assistant", listingLookupSkipMessage(lookup.reason));
-      advance("website", promptForPhase("website"));
     },
-    [advance, continueAfterListingPick, pushMessage, setCandidates]
+    [
+      advance,
+      continueAfterListingPick,
+      draft.businessName,
+      pushMessage,
+      setCandidates,
+      showTypingThen,
+    ]
   );
 
   const handlePromptSend = useCallback(
@@ -1403,7 +1563,7 @@ const useListwellChat = () => {
         await showTypingThen(() => {
           setPhase("identifying");
         });
-        await finishListingLookup(await lookupPromise);
+        await finishListingLookup(await lookupPromise, "with_location");
         return;
       }
 
@@ -1457,9 +1617,14 @@ const useListwellChat = () => {
       if (phase === "business_name") {
         const nextDraft = { ...draft, businessName: value };
         setDraft(nextDraft);
+        const lookupPromise = fetchListingCandidates(
+          nextDraft.businessName,
+          ""
+        );
         await showTypingThen(() => {
-          advance("location", promptForPhase("location", value));
+          setPhase("identifying");
         });
+        await finishListingLookup(await lookupPromise, "name_only");
         return;
       }
 
@@ -1473,7 +1638,7 @@ const useListwellChat = () => {
         await showTypingThen(() => {
           setPhase("identifying");
         });
-        await finishListingLookup(await lookupPromise);
+        await finishListingLookup(await lookupPromise, "with_location");
         return;
       }
 
@@ -1580,7 +1745,7 @@ const useListwellChat = () => {
   return {
     activePromptId,
     attachInput,
-    auditTasks,
+    auditTasks: visibleAuditTasks,
     businessId,
     candidates,
     categoryOptions,

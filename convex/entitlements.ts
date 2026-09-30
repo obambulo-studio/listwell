@@ -1,6 +1,10 @@
 import { v } from "convex/values";
 import type { GenericId } from "convex/values";
 
+import {
+  normalizePurchaserEmail,
+  activePurchaseLinksToUser,
+} from "../lib/purchase-link";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
@@ -10,6 +14,7 @@ import {
   dueEntitlementRowValidator,
   entitlementResponseValidator,
 } from "./lib/response-validators";
+import { runInSeries } from "./lib/run-in-series";
 import { entitlementKindValidator } from "./lib/validators";
 
 const SCAN_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -18,6 +23,65 @@ const nowIso = (): string => new Date().toISOString();
 
 const nextScanAtFrom = (date: Date): string =>
   new Date(date.getTime() + SCAN_INTERVAL_MS).toISOString();
+
+const claimUnownedBusiness = async (
+  ctx: Pick<MutationCtx, "db">,
+  businessExternalId: string,
+  userId: string
+): Promise<void> => {
+  const doc = await ctx.db
+    .query("businesses")
+    .withIndex("by_externalId", (q) => q.eq("externalId", businessExternalId))
+    .unique();
+  if (doc && !doc.userId) {
+    await ctx.db.patch("businesses", doc._id, { updatedAt: nowIso(), userId });
+  }
+};
+
+/** Attach paid reports bought with this email to the account, and claim those businesses. */
+export const linkPurchasedBusinesses = async (
+  ctx: MutationCtx,
+  input: { email: string; userId: string }
+): Promise<number> => {
+  const email = normalizePurchaserEmail(input.email);
+  if (!email) {
+    return 0;
+  }
+
+  const rows = await ctx.db
+    .query("entitlements")
+    .withIndex("by_purchaserEmail", (q) => q.eq("purchaserEmail", email))
+    .collect();
+
+  const timestamp = nowIso();
+  const assignedFlags = await runInSeries(rows, async (row) => {
+    if (!activePurchaseLinksToUser(row, input.userId)) {
+      return 0;
+    }
+    if (row.userId === undefined) {
+      await ctx.db.patch("entitlements", row._id, {
+        updatedAt: timestamp,
+        userId: input.userId,
+      });
+    }
+    await claimUnownedBusiness(ctx, row.businessExternalId, input.userId);
+    return row.userId === undefined ? 1 : 0;
+  });
+  let assigned = 0;
+  for (const flag of assignedFlags) {
+    assigned += flag;
+  }
+
+  if (assigned > 0) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal["notification-preferences"].ensureForUser,
+      { userId: input.userId }
+    );
+  }
+
+  return assigned;
+};
 
 const toEntitlementResponse = (doc: {
   _id: string;
@@ -43,18 +107,21 @@ const toEntitlementResponse = (doc: {
   userId: doc.userId ?? null,
 });
 
-const claimBusiness = async (
-  ctx: { db: MutationCtx["db"] },
-  businessExternalId: string,
-  userId: string
-) => {
-  const doc = await ctx.db
-    .query("businesses")
-    .withIndex("by_externalId", (q) => q.eq("externalId", businessExternalId))
-    .unique();
-  if (doc && !doc.userId) {
-    await ctx.db.patch("businesses", doc._id, { updatedAt: nowIso(), userId });
+const purchaseOwnerForGrant = async (
+  ctx: MutationCtx,
+  input: { purchaserEmail?: string; userId?: string }
+): Promise<{ email?: string; userId?: string }> => {
+  const email = normalizePurchaserEmail(input.purchaserEmail);
+  if (input.userId) {
+    return { email, userId: input.userId };
   }
+  if (!email) {
+    return { email };
+  }
+  const found = await ctx.runQuery(internal.users.findIdByEmailInternal, {
+    email,
+  });
+  return { email, userId: found ?? undefined };
 };
 
 const maskEmail = (email: string): string => {
@@ -123,12 +190,51 @@ export const hasActive = query({
   returns: v.boolean(),
 });
 
+const attachGrantOwner = async (
+  ctx: MutationCtx,
+  input: {
+    businessExternalId: string;
+    existingUserId?: string;
+    purchaseOwner: { email?: string; userId?: string };
+  }
+): Promise<void> => {
+  const { email, userId } = input.purchaseOwner;
+  if (!userId) {
+    return;
+  }
+  if (input.existingUserId && input.existingUserId !== userId) {
+    return;
+  }
+  await claimUnownedBusiness(ctx, input.businessExternalId, userId);
+  if (email) {
+    await linkPurchasedBusinesses(ctx, { email, userId });
+  }
+  await ctx.scheduler.runAfter(
+    0,
+    internal["notification-preferences"].ensureForUser,
+    { userId }
+  );
+};
+
+export const attachPurchasesForCurrentUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await authComponent.getAuthUser(ctx);
+    return await linkPurchasedBusinesses(ctx, {
+      email: user.email,
+      userId: user._id,
+    });
+  },
+  returns: v.number(),
+});
+
 export const grant = mutation({
   args: {
     businessExternalId: v.string(),
     kind: entitlementKindValidator,
     polarOrderId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
+    purchaserEmail: v.optional(v.string()),
     secret: v.string(),
     userId: v.optional(v.string()),
   },
@@ -139,22 +245,18 @@ export const grant = mutation({
       args.kind === "report_monthly"
         ? nextScanAtFrom(new Date(timestamp))
         : undefined;
-
-    if (args.userId) {
-      await claimBusiness(ctx, args.businessExternalId, args.userId);
-      await ctx.scheduler.runAfter(
-        0,
-        internal["notification-preferences"].ensureForUser,
-        { userId: args.userId }
-      );
-    }
-
-    const existingRows = await ctx.db
-      .query("entitlements")
-      .withIndex("by_businessExternalId", (q) =>
-        q.eq("businessExternalId", args.businessExternalId)
-      )
-      .collect();
+    const [purchaseOwner, existingRows] = await Promise.all([
+      purchaseOwnerForGrant(ctx, {
+        purchaserEmail: args.purchaserEmail,
+        userId: args.userId,
+      }),
+      ctx.db
+        .query("entitlements")
+        .withIndex("by_businessExternalId", (q) =>
+          q.eq("businessExternalId", args.businessExternalId)
+        )
+        .collect(),
+    ]);
 
     const existing = existingRows.find((row) => {
       if (row.kind === args.kind) {
@@ -182,14 +284,20 @@ export const grant = mutation({
         polarOrderId: args.polarOrderId ?? existing.polarOrderId,
         polarSubscriptionId:
           args.polarSubscriptionId ?? existing.polarSubscriptionId,
+        purchaserEmail: existing.purchaserEmail ?? purchaseOwner.email,
         status: "active",
         updatedAt: timestamp,
-        userId: args.userId ?? existing.userId,
+        userId: existing.userId ?? purchaseOwner.userId,
       });
       const updated = await ctx.db.get("entitlements", existing._id);
       if (!updated) {
         throw new Error("Failed to load entitlement");
       }
+      await attachGrantOwner(ctx, {
+        businessExternalId: args.businessExternalId,
+        existingUserId: existing.userId,
+        purchaseOwner,
+      });
       return toEntitlementResponse(updated);
     }
 
@@ -200,15 +308,21 @@ export const grant = mutation({
       nextScanAt,
       polarOrderId: args.polarOrderId,
       polarSubscriptionId: args.polarSubscriptionId,
+      purchaserEmail: purchaseOwner.email,
       status: "active",
       updatedAt: timestamp,
-      userId: args.userId,
+      userId: purchaseOwner.userId,
     });
 
     const inserted = await ctx.db.get("entitlements", id);
     if (!inserted) {
       throw new Error("Failed to grant entitlement");
     }
+    await attachGrantOwner(ctx, {
+      businessExternalId: args.businessExternalId,
+      existingUserId: undefined,
+      purchaseOwner,
+    });
     return toEntitlementResponse(inserted);
   },
   returns: entitlementResponseValidator,

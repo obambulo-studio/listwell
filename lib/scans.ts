@@ -1,5 +1,6 @@
 import { getLatestCompleteScan, listDueMonthlyEntitlements } from "./data";
 import { runScanForBusiness } from "./run-business-scan";
+import { runInSeries } from "./run-in-series";
 import { runReservedMonthlyScan } from "./scheduled-scan-run";
 import { scanSummarySchema } from "./schema";
 import type { ScanRow, ScanSummary } from "./schema";
@@ -52,11 +53,7 @@ export const runDueScans = async (
   const limit = Math.min(input.limit ?? 2, 5);
   const due = await listDueMonthlyEntitlements(now, limit);
 
-  const outcomes: ("failed" | "ok")[] = [];
-  for (const entitlement of due) {
-    // eslint-disable-next-line no-await-in-loop
-    outcomes.push(await processDueEntitlement(entitlement));
-  }
+  const outcomes = await runInSeries(due, processDueEntitlement);
 
   return {
     failed: outcomes.filter((outcome) => outcome === "failed").length,

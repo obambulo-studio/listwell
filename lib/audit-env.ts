@@ -118,6 +118,11 @@ export const getAuditEngineEnv = async (): Promise<AuditEngineEnv> => {
     googleProgrammableSearchEngineId:
       readSecret(env?.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID) ??
       readSecret(process.env.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID),
+    typesafeApiKey:
+      readSecret(env?.TYPESAFE_API_KEY) ??
+      readSecret(process.env.TYPESAFE_API_KEY),
+    typesafeModel:
+      readSecret(env?.TYPESAFE_MODEL) ?? readSecret(process.env.TYPESAFE_MODEL),
   };
 };
 

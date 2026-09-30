@@ -8,7 +8,6 @@ import {
   PrimaryButton,
   QuietButton,
 } from "@/components/listwell/actions";
-import { Alert, AlertDescription } from "@/components/reui/alert";
 import {
   Dialog,
   DialogContent,
@@ -16,17 +15,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { reportShareStateSchema } from "@/lib/schema";
 import type { ReportShareState } from "@/lib/schema";
-import { cn } from "@/lib/utils";
 
 const fetchShareState = async (
   businessId: string
@@ -83,7 +75,7 @@ const formatExpiry = (iso: string | null): string => {
   if (Number.isNaN(date.getTime())) {
     return iso;
   }
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-AU", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -100,11 +92,23 @@ const expiryDaysFromChoice = (choice: "none" | "7" | "30"): 7 | 30 | null => {
   return null;
 };
 
+const shareQueryKey = (
+  open: boolean,
+  businessId: string
+): readonly ["share", string] | null => {
+  if (!open) {
+    return null;
+  }
+  return ["share", businessId];
+};
+
 export const ReportShareDialog = ({
   businessId,
+  open,
   onClose,
 }: {
   businessId: string;
+  open: boolean;
   onClose: () => void;
 }) => {
   const urlFieldId = useId();
@@ -112,7 +116,7 @@ export const ReportShareDialog = ({
     data: state,
     error: loadError,
     mutate,
-  } = useSWR(["share", businessId] as const, ([, id]) => fetchShareState(id));
+  } = useSWR(shareQueryKey(open, businessId), ([, id]) => fetchShareState(id));
   const [expiryChoice, setExpiryChoice] = useState<"none" | "7" | "30">("none");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -172,9 +176,9 @@ export const ReportShareDialog = ({
 
   return (
     <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) {
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
           onClose();
         }
       }}
@@ -188,24 +192,26 @@ export const ReportShareDialog = ({
           </DialogDescription>
         </DialogHeader>
         {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <p className="listwell-notice listwell-notice--error" role="alert">
+            {error}
+          </p>
         ) : null}
         {state?.active && state.url ? (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <Field>
               <FieldLabel htmlFor={urlFieldId}>Share link</FieldLabel>
-              <div className="flex flex-wrap gap-2">
+              <div className="listwell-chat__composer">
                 <Input
                   id={urlFieldId}
                   readOnly
                   type="url"
                   value={state.url}
-                  className={cn("min-w-0 flex-1 font-mono text-xs")}
+                  className="listwell-chat__input border-0 shadow-none focus-visible:ring-0"
+                  onFocus={(event) => event.target.select()}
                 />
                 <PrimaryButton
                   disabled={busy}
+                  size="sm"
                   type="button"
                   onClick={() => {
                     void handleCopy();
@@ -215,47 +221,56 @@ export const ReportShareDialog = ({
                 </PrimaryButton>
               </div>
             </Field>
-            <p className="text-muted-foreground text-xs">
+            <p className="listwell-panel__fine">
               Expires {formatExpiry(state.expiresAt)} · Created{" "}
               {state.createdAt ? formatExpiry(state.createdAt) : "—"}
             </p>
+          </div>
+        ) : (
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="listwell-panel__note mb-2">Link expiry</legend>
+            <div className="listwell-panel__options">
+              {(
+                [
+                  ["none", "No expiry"],
+                  ["7", "7 days"],
+                  ["30", "30 days"],
+                ] as const
+              ).map(([value, label]) => (
+                <label
+                  key={value}
+                  className="listwell-chat__prompt-card-option cursor-pointer"
+                >
+                  <input
+                    className="vbg-visually-hidden"
+                    checked={expiryChoice === value}
+                    name="share-expiry"
+                    type="radio"
+                    onChange={() => setExpiryChoice(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        <FormActions className="justify-end pt-0">
+          {state?.active && state.url ? (
             <QuietButton
               disabled={busy}
               type="button"
+              className="text-red mr-auto"
               onClick={() => {
                 void handleRevoke();
               }}
             >
               Revoke link
             </QuietButton>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <FieldSet>
-              <FieldLegend variant="label">Link expiry</FieldLegend>
-              <FieldGroup className="gap-2">
-                {(
-                  [
-                    ["none", "No expiry"],
-                    ["7", "7 days"],
-                    ["30", "30 days"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <label
-                    key={value}
-                    className="flex cursor-pointer items-center gap-2 text-sm"
-                  >
-                    <input
-                      checked={expiryChoice === value}
-                      name="share-expiry"
-                      type="radio"
-                      onChange={() => setExpiryChoice(value)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </FieldGroup>
-            </FieldSet>
+          ) : null}
+          <QuietButton type="button" onClick={onClose}>
+            Close
+          </QuietButton>
+          {state?.active && state.url ? null : (
             <PrimaryButton
               disabled={busy}
               type="button"
@@ -265,12 +280,7 @@ export const ReportShareDialog = ({
             >
               Create share link
             </PrimaryButton>
-          </div>
-        )}
-        <FormActions className="justify-end pt-0">
-          <QuietButton type="button" onClick={onClose}>
-            Close
-          </QuietButton>
+          )}
         </FormActions>
       </DialogContent>
     </Dialog>

@@ -76,11 +76,18 @@ export const CHECK_DEFINITIONS: Record<CheckId, CheckDefinition> = {
     points: points(4, 4, 4, 4),
     queued: false,
   },
-  "google-listing-reviews": {
+  "google-listing-rating": {
     businessCategories: null,
     channelCategory: "Google Business Profile",
-    id: "google-listing-reviews",
-    points: points(8, 4, 5, 5),
+    id: "google-listing-rating",
+    points: points(4, 2, 3, 3),
+    queued: false,
+  },
+  "google-listing-review-count": {
+    businessCategories: null,
+    channelCategory: "Google Business Profile",
+    id: "google-listing-review-count",
+    points: points(4, 2, 2, 2),
     queued: false,
   },
   "google-listing-website-matches": {
@@ -109,6 +116,27 @@ export const CHECK_DEFINITIONS: Record<CheckId, CheckDefinition> = {
     channelCategory: "Food Delivery",
     id: "menulog-listing",
     points: points(3, 0, 0, 0),
+    queued: false,
+  },
+  "social-profile-banner": {
+    businessCategories: null,
+    channelCategory: "Social Media",
+    id: "social-profile-banner",
+    points: points(2, 2, 1, 1),
+    queued: false,
+  },
+  "social-profile-freshness": {
+    businessCategories: null,
+    channelCategory: "Social Media",
+    id: "social-profile-freshness",
+    points: points(3, 3, 2, 2),
+    queued: false,
+  },
+  "social-profile-image-match": {
+    businessCategories: null,
+    channelCategory: "Social Media",
+    id: "social-profile-image-match",
+    points: points(2, 2, 1, 1),
     queued: false,
   },
   "tiktok-profile": {

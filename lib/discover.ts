@@ -26,13 +26,17 @@ import { z } from "zod";
 import { lookupProvidersFromEnv } from "./audit-env";
 import type { LookupProviders } from "./audit-env";
 import {
+  CATEGORY_CONFIG,
   getCategoryIdFromGooglePlaceTypes,
+  primaryGooglePlaceTypeLabel,
   recommendedSocialMedia,
 } from "./category";
 import type { CategoryId } from "./category";
 import { discoveredProfileSchema } from "./channel";
 import type { DiscoveredProfile } from "./channel";
 import {
+  businessTypeDisplayLabelWithJev,
+  categoryFromInputWithJev,
   jevPickSocialHit,
   jevPickWebsiteFromSearch,
   jevRefineListingCandidates,
@@ -82,6 +86,7 @@ export type DiscoverRequest = z.infer<typeof discoverRequestSchema>;
 export const discoverResponseSchema = z.object({
   address: z.string().optional(),
   candidates: z.array(placeCandidateSchema),
+  categoryDisplayLabel: z.string(),
   categoryId: z.enum(["food", "retail", "services", "other"]),
   profiles: z.array(discoveredProfileSchema),
   strongMatch: z.boolean().optional(),
@@ -327,6 +332,67 @@ export const filterProfilesForCandidate = (
     return true;
   });
 
+const categoryHintCandidate = (
+  candidates: PlaceCandidate[]
+): PlaceCandidate | undefined =>
+  candidates.find(
+    (candidate) => candidate.source === "google" && candidate.types?.length
+  ) ??
+  candidates.find((candidate) => candidate.types?.length) ??
+  candidates[0];
+
+export const resolveCategoryDisplayLabel = async (input: {
+  businessName: string;
+  candidates: PlaceCandidate[];
+  categoryId: CategoryId;
+  fetchImpl?: typeof fetch;
+  near?: string;
+}): Promise<string> => {
+  if (input.categoryId !== "other") {
+    return CATEGORY_CONFIG[input.categoryId].label;
+  }
+
+  const candidate = categoryHintCandidate(input.candidates);
+  const fromTypes = primaryGooglePlaceTypeLabel(candidate?.types);
+  if (fromTypes) {
+    return fromTypes;
+  }
+
+  const hintParts = [
+    input.businessName,
+    candidate?.name && candidate.name !== input.businessName
+      ? candidate.name
+      : undefined,
+    input.near,
+    candidate?.types?.length
+      ? `Place types: ${candidate.types.join(", ")}`
+      : undefined,
+  ].filter((part): part is string => Boolean(part?.trim()));
+
+  const hint = hintParts.join(". ");
+  if (!hint) {
+    return CATEGORY_CONFIG.other.label;
+  }
+
+  const fromListwellCategory = await categoryFromInputWithJev({
+    fetchImpl: input.fetchImpl,
+    text: hint,
+  });
+  if (fromListwellCategory && fromListwellCategory.categoryId !== "other") {
+    return fromListwellCategory.displayLabel;
+  }
+
+  const fromBusinessType = await businessTypeDisplayLabelWithJev({
+    fetchImpl: input.fetchImpl,
+    hint,
+  });
+  if (fromBusinessType) {
+    return fromBusinessType;
+  }
+
+  return CATEGORY_CONFIG.other.label;
+};
+
 const categoryFromCandidates = (
   candidates: PlaceCandidate[],
   fallback: CategoryId
@@ -532,7 +598,7 @@ const websiteFromSearch = async (
   }
 };
 
-const socialProfiles = async (
+export const socialProfiles = async (
   businessName: string,
   categoryId: CategoryId,
   env: AuditEngineEnv,
@@ -629,9 +695,18 @@ export const discoverBusiness = async (
     request.address ??
     candidates.find((candidate) => candidate.address)?.address;
 
+  const categoryDisplayLabel = await resolveCategoryDisplayLabel({
+    businessName: request.businessName,
+    candidates,
+    categoryId,
+    fetchImpl: options.fetchImpl,
+    near: nearText,
+  });
+
   return discoverResponseSchema.parse({
     address: firstAddress,
     candidates,
+    categoryDisplayLabel,
     categoryId,
     profiles,
   });

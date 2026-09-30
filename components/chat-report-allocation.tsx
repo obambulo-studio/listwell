@@ -4,7 +4,7 @@ import type { AllocationSegment } from "@/components/primitives/insight-cards";
 import type { BasicReportStats } from "@/lib/chat-onboarding";
 
 export const reportAllocationSegments = (
-  stats: BasicReportStats
+  stats: Pick<BasicReportStats, "pass" | "fail" | "error" | "total">
 ): AllocationSegment[] => {
   const { pass, fail, error, total } = stats;
   if (total === 0) {

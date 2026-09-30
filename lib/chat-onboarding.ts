@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { categoryIdSchema, CATEGORY_CONFIG } from "./category";
 import type { CategoryId } from "./category";
+import { channelSectionTitle, groupByChannelCategory } from "./checks/registry";
 import { lookupResponseSchema, placeCandidateSchema } from "./discover";
 import type { PlaceCandidate, lookupProvidersSchema } from "./discover";
 import {
@@ -39,6 +40,50 @@ export const resolveListingAutoPick = (
     return undefined;
   }
   return lookup.candidates.find((item) => item.id === lookup.strongMatchId);
+};
+
+/** Max map listings offered before asking for suburb/city or a website. */
+export const LISTING_DISAMBIGUATION_MAX = 3;
+
+export type ListingLookupStage = "name_only" | "with_location";
+
+export type ListingLookupNextStep =
+  | { step: "auto_pick"; candidate: PlaceCandidate }
+  | { step: "listing"; candidates: PlaceCandidate[] }
+  | { step: "location" }
+  | {
+      step: "website";
+      reason: "too_many" | LookupSkipReason;
+    };
+
+export const listingLookupTooManyMessage = (): string =>
+  "We found several possible listings for that name and area. Paste your website URL so we can match the right business, or type skip to continue.";
+
+export const resolveListingLookupNext = (
+  lookup: ListingLookupResult,
+  stage: ListingLookupStage
+): ListingLookupNextStep => {
+  if (lookup.kind === "skipped") {
+    if (stage === "name_only" && lookup.reason === "empty") {
+      return { step: "location" };
+    }
+    return { reason: lookup.reason, step: "website" };
+  }
+
+  const autoPick = resolveListingAutoPick(lookup);
+  if (autoPick) {
+    return { candidate: autoPick, step: "auto_pick" };
+  }
+
+  const { candidates } = lookup;
+  if (candidates.length > LISTING_DISAMBIGUATION_MAX) {
+    if (stage === "name_only") {
+      return { step: "location" };
+    }
+    return { reason: "too_many", step: "website" };
+  }
+
+  return { candidates, step: "listing" };
 };
 
 export const requestChatInterpret = async (input: {
@@ -381,8 +426,15 @@ export type ReportIssueStatus = z.infer<typeof reportIssueStatusSchema>;
 export const reportIssueSchema = z.object({
   status: reportIssueStatusSchema,
   title: z.string(),
+  weightPercent: z.number().optional(),
 });
 export type ReportIssue = z.infer<typeof reportIssueSchema>;
+
+export const reportSkippedCheckSchema = z.object({
+  reason: z.string().optional(),
+  title: z.string(),
+});
+export type ReportSkippedCheck = z.infer<typeof reportSkippedCheckSchema>;
 
 export interface BasicReportStats {
   pass: number;
@@ -390,6 +442,7 @@ export interface BasicReportStats {
   error: number;
   total: number;
   topIssues: ReportIssue[];
+  couldNotRun: ReportSkippedCheck[];
   channelsFound: number;
 }
 
@@ -406,47 +459,147 @@ const passHighlightRank = (checkId: string): number => {
   return 1;
 };
 
+const issueWeightPercent = (
+  checkId: string,
+  pointWeights: Record<string, number> | undefined
+): number | undefined => {
+  if (!pointWeights) {
+    return undefined;
+  }
+  const totalPoints = Object.values(pointWeights).reduce(
+    (sum, points) => sum + points,
+    0
+  );
+  const weight = pointWeights[checkId] ?? 0;
+  if (totalPoints <= 0 || weight <= 0) {
+    return undefined;
+  }
+  return Math.round((weight / totalPoints) * 100);
+};
+
+const reportIssue = (
+  status: ReportIssueStatus,
+  title: string,
+  checkId: string,
+  pointWeights: Record<string, number> | undefined
+): ReportIssue => {
+  const weightPercent = issueWeightPercent(checkId, pointWeights);
+  return weightPercent === undefined
+    ? { status, title }
+    : { status, title, weightPercent };
+};
+
+export interface ReportCheckChannelRef {
+  channelCategory: string;
+  id: string;
+}
+
+const buildChannelSectionIssues = (
+  results: Record<string, { value: boolean | null; label?: string }>,
+  checkChannels: readonly ReportCheckChannelRef[],
+  pointWeights: Record<string, number> | undefined
+): ReportIssue[] => {
+  const groups = groupByChannelCategory(
+    checkChannels,
+    (definition) => definition.channelCategory
+  );
+  const issues: ReportIssue[] = [];
+
+  for (const { category, items } of groups) {
+    let earned = 0;
+    let possible = 0;
+    let hasFail = false;
+    let hasScorable = false;
+
+    for (const definition of items) {
+      const result = results[definition.id];
+      if (!result || result.value === null) {
+        continue;
+      }
+      hasScorable = true;
+      const weight = pointWeights?.[definition.id] ?? 1;
+      possible += weight;
+      if (result.value === true) {
+        earned += weight;
+      } else {
+        hasFail = true;
+      }
+    }
+
+    if (!hasScorable || possible <= 0) {
+      continue;
+    }
+
+    issues.push({
+      status: hasFail ? "fail" : "pass",
+      title: channelSectionTitle(category),
+      weightPercent: Math.round((earned / possible) * 100),
+    });
+  }
+
+  return issues;
+};
+
 export const buildBasicReportStats = (
-  results: Record<string, { value: boolean | null }>,
-  checkTitles: Record<string, string>
+  results: Record<string, { value: boolean | null; label?: string }>,
+  checkTitles: Record<string, string>,
+  pointWeights?: Record<string, number>,
+  checkChannels?: readonly ReportCheckChannelRef[]
 ): BasicReportStats => {
   let pass = 0;
   let fail = 0;
   let error = 0;
   const failed: ReportIssue[] = [];
   const passed: { issue: ReportIssue; checkId: string }[] = [];
+  const couldNotRun: ReportSkippedCheck[] = [];
 
   for (const [id, result] of Object.entries(results)) {
     const title = checkTitles[id];
     if (result.value === true) {
       pass += 1;
       if (title) {
-        passed.push({ checkId: id, issue: { status: "pass", title } });
+        passed.push({
+          checkId: id,
+          issue: reportIssue("pass", title, id, pointWeights),
+        });
       }
     } else if (result.value === false) {
       fail += 1;
       if (title) {
-        failed.push({ status: "fail", title });
+        failed.push(reportIssue("fail", title, id, pointWeights));
       }
     } else {
       error += 1;
+      if (title) {
+        const reason = result.label?.trim();
+        couldNotRun.push(reason ? { reason, title } : { title });
+      }
     }
   }
+
+  couldNotRun.sort((left, right) => left.title.localeCompare(right.title));
 
   passed.sort(
     (left, right) =>
       passHighlightRank(left.checkId) - passHighlightRank(right.checkId)
   );
 
+  const legacyTopIssues = [
+    ...failed,
+    ...passed.map((entry) => entry.issue),
+  ].slice(0, TOP_ISSUE_LIMIT);
+  const topIssues =
+    checkChannels && checkChannels.length > 0
+      ? buildChannelSectionIssues(results, checkChannels, pointWeights)
+      : legacyTopIssues;
+
   return {
     channelsFound: pass + fail,
+    couldNotRun,
     error,
     fail,
     pass,
-    topIssues: [...failed, ...passed.map((entry) => entry.issue)].slice(
-      0,
-      TOP_ISSUE_LIMIT
-    ),
+    topIssues,
     total: pass + fail + error,
   };
 };
@@ -513,26 +666,40 @@ const chatMessageSchema = z.object({
   userAnswer: z.string().optional(),
 });
 
-export const basicReportStatsSchema = z.object({
-  channelsFound: z.number(),
-  error: z.number(),
-  fail: z.number(),
-  pass: z.number(),
-  topIssues: z.array(reportIssueSchema),
-  total: z.number(),
-});
+export const basicReportStatsSchema = z
+  .object({
+    channelsFound: z.number(),
+    couldNotRun: z.array(reportSkippedCheckSchema).optional(),
+    error: z.number(),
+    fail: z.number(),
+    pass: z.number(),
+    topIssues: z.array(reportIssueSchema),
+    total: z.number(),
+  })
+  .transform((stats) => ({
+    ...stats,
+    couldNotRun: stats.couldNotRun ?? [],
+  }));
 
 const taskDetailSchema = z.object({
+  checkCaption: z.string().optional(),
+  href: z.string().optional(),
   label: z.string(),
   meta: z.string(),
 });
 
+const taskDetailSectionSchema = z.object({
+  details: z.array(taskDetailSchema),
+  title: z.string(),
+});
+
 const taskRowSchema = z.object({
   amount: z.string(),
+  detailSections: z.array(taskDetailSectionSchema).optional(),
   details: z.array(taskDetailSchema),
   key: z.string(),
   label: z.string(),
-  status: z.enum(["done", "running", "pending", "sequence"]),
+  status: z.enum(["done", "running", "pending", "sequence", "skipped"]),
   step: z.number().optional(),
 });
 

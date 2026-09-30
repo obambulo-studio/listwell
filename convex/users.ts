@@ -1,26 +1,40 @@
 import { v } from "convex/values";
 
 import { components } from "./_generated/api";
-import { action, query } from "./_generated/server";
+import { action, internalQuery, query } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
 import { requireInternalSecret } from "./lib/internal";
 import { userSummaryValidator } from "./lib/response-validators";
+
+const userIdFromEmail = async (
+  ctx: QueryCtx,
+  email: string
+): Promise<string | null> => {
+  const normalized = email.trim().toLowerCase();
+  const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+    model: "user",
+    where: [{ field: "email", value: normalized }],
+  });
+  if (!user || typeof user !== "object" || !("_id" in user)) {
+    return null;
+  }
+  const id = user._id;
+  return typeof id === "string" ? id : null;
+};
 
 export const findIdByEmail = query({
   args: { email: v.string(), secret: v.string() },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
-    const normalized = args.email.trim().toLowerCase();
-    const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-      model: "user",
-      where: [{ field: "email", value: normalized }],
-    });
-    if (!user || typeof user !== "object" || !("_id" in user)) {
-      return null;
-    }
-    const id = user._id;
-    return typeof id === "string" ? id : null;
+    return await userIdFromEmail(ctx, args.email);
   },
+  returns: v.union(v.string(), v.null()),
+});
+
+export const findIdByEmailInternal = internalQuery({
+  args: { email: v.string() },
+  handler: (ctx, args) => userIdFromEmail(ctx, args.email),
   returns: v.union(v.string(), v.null()),
 });
 

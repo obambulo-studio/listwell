@@ -91,58 +91,120 @@ export const checkGoogleListingPhone = async (
   }
 };
 
-export const checkGoogleListingReviews = async (
+const MIN_GOOGLE_RATING = 4;
+const MIN_GOOGLE_REVIEW_COUNT = 20;
+
+type ReviewMetrics =
+  | {
+      kind: "metrics";
+      count: number;
+      rating: number;
+      mode: ListingFacts["mode"];
+    }
+  | { kind: "result"; result: CheckResult };
+
+const resolveReviewMetrics = async (
+  ctx: CheckContext
+): Promise<ReviewMetrics> => {
+  const place = await ctx.getGooglePlace();
+  if (place) {
+    return {
+      count: place.userRatingCount ?? 0,
+      kind: "metrics",
+      mode: "listing",
+      rating: place.rating ?? 0,
+    };
+  }
+
+  const facts = await listingFacts(ctx);
+  if (facts.mode === "inconclusive") {
+    return {
+      kind: "result",
+      result: checkResult(null, facts.reason),
+    };
+  }
+  if (facts.mode === "missing") {
+    return {
+      kind: "result",
+      result: checkResult(
+        null,
+        "Review counts are not visible without a readable listing page or website schema. We do not invent ratings."
+      ),
+    };
+  }
+
+  const count = facts.evidence.reviewCount;
+  const { rating } = facts.evidence;
+  if (count === undefined && rating === undefined) {
+    return {
+      kind: "result",
+      result: checkResult(
+        null,
+        `No aggregate rating was published on the ${sourceLabel(facts.mode)}. We do not invent review counts.`
+      ),
+    };
+  }
+
+  return {
+    count: count ?? 0,
+    kind: "metrics",
+    mode: facts.mode,
+    rating: rating ?? 0,
+  };
+};
+
+export const checkGoogleListingRating = async (
   ctx: CheckContext
 ): Promise<CheckResult> => {
   try {
-    const place = await ctx.getGooglePlace();
-    if (place) {
-      const count = place.userRatingCount ?? 0;
-      const rating = place.rating ?? 0;
-      const hasGoodRating = rating >= 4;
-      const hasEnoughReviews = count >= 20;
-      const passesCheck = hasGoodRating && hasEnoughReviews;
-
-      let label = `${count} reviews with ${rating.toFixed(1)} rating. Good job!`;
-      if (!passesCheck) {
-        if (!hasGoodRating && !hasEnoughReviews) {
-          label = `Only ${count} reviews with ${rating.toFixed(1)} rating. Need ≥ 20 reviews with ≥ 4.0 rating.`;
-        } else if (hasGoodRating) {
-          label = `Only ${count} reviews. Need at least 20 reviews.`;
-        } else {
-          label = `Rating is ${rating.toFixed(1)}, which is below 4.0 target.`;
-        }
-      }
-
-      return checkResult(passesCheck, label);
+    const resolved = await resolveReviewMetrics(ctx);
+    if (resolved.kind === "result") {
+      return resolved.result;
     }
 
-    const facts = await listingFacts(ctx);
-    if (facts.mode === "inconclusive") {
-      return checkResult(null, facts.reason);
-    }
-    if (facts.mode === "missing") {
+    const { count, mode, rating } = resolved;
+    const passes = rating >= MIN_GOOGLE_RATING;
+    if (passes) {
       return checkResult(
-        null,
-        "Review counts are not visible without a readable listing page or website schema. We do not invent ratings."
+        true,
+        `${rating.toFixed(1)} average rating (${count} reviews). Good job!`
       );
     }
 
-    const count = facts.evidence.reviewCount;
-    const { rating } = facts.evidence;
-    if (count === undefined && rating === undefined) {
-      return checkResult(
-        null,
-        `No aggregate rating was published on the ${sourceLabel(facts.mode)}. We do not invent review counts.`
-      );
-    }
-
-    const safeCount = count ?? 0;
-    const safeRating = rating ?? 0;
-    const passes = safeRating >= 4 && safeCount >= 20;
+    const source =
+      mode === "listing" ? "Google listing" : `the ${sourceLabel(mode)}`;
     return checkResult(
-      passes,
-      `${safeCount} reviews with ${safeRating.toFixed(1)} rating on the ${sourceLabel(facts.mode)}${passes ? "" : ". Need ≥ 20 reviews with ≥ 4.0 rating."}`
+      false,
+      `Rating is ${rating.toFixed(1)} on ${source}. Need ≥ ${MIN_GOOGLE_RATING.toFixed(1)}.`
+    );
+  } catch (error) {
+    return fetchErrorResult(error, "Error fetching Google listing");
+  }
+};
+
+export const checkGoogleListingReviewCount = async (
+  ctx: CheckContext
+): Promise<CheckResult> => {
+  try {
+    const resolved = await resolveReviewMetrics(ctx);
+    if (resolved.kind === "result") {
+      return resolved.result;
+    }
+
+    const { count, mode, rating } = resolved;
+    const passes = count >= MIN_GOOGLE_REVIEW_COUNT;
+    if (passes) {
+      return checkResult(
+        true,
+        `${count} reviews with ${rating.toFixed(1)} average rating. Good job!`
+      );
+    }
+
+    const source =
+      mode === "listing" ? "Google listing" : `the ${sourceLabel(mode)}`;
+    return checkResult(
+      false,
+      `Only ${count} reviews on ${source}. Need at least ${MIN_GOOGLE_REVIEW_COUNT} reviews.`
     );
   } catch (error) {
     return fetchErrorResult(error, "Error fetching Google listing");

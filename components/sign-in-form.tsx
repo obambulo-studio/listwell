@@ -1,25 +1,15 @@
 "use client";
 
-import { useEffect, useId, useReducer, useState } from "react";
+import Link from "next/link";
+import { useId, useReducer } from "react";
+import type { ReactNode } from "react";
+import useSWR from "swr";
 import { z } from "zod";
 
-import {
-  FormActions,
-  PrimaryButton,
-  QuietButton,
-  QuietLink,
-} from "@/components/listwell/actions";
-import { Alert, AlertDescription } from "@/components/reui/alert";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { ComposerSubmit } from "@/components/listwell/actions";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { getStoredBusinessIds } from "@/lib/storage";
-import { cn } from "@/lib/utils";
 
 const signInEmailSchema = z.string().email();
 const signInCodeSchema = z.string().regex(/^\d{6}$/u);
@@ -95,9 +85,6 @@ const maskAccountEmail = (email: string): string => {
 
 const claimStoredBusinesses = async (): Promise<void> => {
   const ids = getStoredBusinessIds();
-  if (ids.length === 0) {
-    return;
-  }
   try {
     await fetch("/api/businesses/claim", {
       body: JSON.stringify({ ids }),
@@ -113,38 +100,185 @@ const claimStoredBusinesses = async (): Promise<void> => {
 const AUTH_UNAVAILABLE_MESSAGE =
   "Sign-in is temporarily unavailable. Try again in a few minutes.";
 
+const fetchAuthHealth = async (
+  url: string
+): Promise<z.infer<typeof healthResponseSchema>> => {
+  const response = await fetch(url);
+  const payload: unknown = await response.json();
+  const parsed = healthResponseSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error("Invalid health response");
+  }
+  return parsed.data;
+};
+
+const SignInCard = ({
+  action,
+  children,
+}: {
+  action?: ReactNode;
+  children: ReactNode;
+}) => (
+  <div className="listwell-panel">
+    <div className="listwell-panel__head">
+      <h1 className="listwell-panel__title">Sign in</h1>
+      {action ?? (
+        <Link className="listwell-panel__action" href="/">
+          Back to chat
+        </Link>
+      )}
+    </div>
+    {children}
+  </div>
+);
+
+const SignInError = ({ id, message }: { id: string; message: string }) => (
+  <div className="listwell-panel__foot">
+    <p id={id} className="listwell-panel__error" role="alert">
+      {message}
+    </p>
+  </div>
+);
+
+const SignInCodeStep = ({
+  codeFieldId,
+  dispatch,
+  onVerify,
+  state,
+}: {
+  codeFieldId: string;
+  dispatch: (action: SignInAction) => void;
+  onVerify: () => Promise<void>;
+  state: SignInState;
+}) => {
+  const errorId = `${codeFieldId}-error`;
+  return (
+    <SignInCard
+      action={
+        <button
+          type="button"
+          className="listwell-panel__action"
+          disabled={state.busy}
+          onClick={() => dispatch({ type: "reset-email" })}
+        >
+          Use a different email
+        </button>
+      }
+    >
+      <form action={onVerify}>
+        <div className="listwell-panel__body">
+          <label className="listwell-panel__question" htmlFor={codeFieldId}>
+            Enter the code we sent to {maskAccountEmail(state.email)}
+          </label>
+        </div>
+        <div className="listwell-chat__composer listwell-chat__composer--embedded">
+          <Input
+            id={codeFieldId}
+            type="text"
+            name="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]*"
+            maxLength={6}
+            value={state.code}
+            disabled={state.busy}
+            placeholder="000000"
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? errorId : undefined}
+            className="listwell-chat__input listwell-chat__input--code border-0 shadow-none focus-visible:ring-0"
+            onChange={(event) => {
+              dispatch({
+                code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
+                type: "code",
+              });
+            }}
+          />
+          <ComposerSubmit
+            label={state.busy ? "Signing in" : "Sign in"}
+            disabled={state.busy || state.code.length !== 6}
+          />
+        </div>
+      </form>
+      {state.error ? <SignInError id={errorId} message={state.error} /> : null}
+    </SignInCard>
+  );
+};
+
+const SignInEmailStep = ({
+  authServiceDown,
+  dispatch,
+  emailFieldId,
+  healthLoading,
+  onSendCode,
+  state,
+}: {
+  authServiceDown: boolean;
+  dispatch: (action: SignInAction) => void;
+  emailFieldId: string;
+  healthLoading: boolean;
+  onSendCode: () => Promise<void>;
+  state: SignInState;
+}) => {
+  const errorId = `${emailFieldId}-error`;
+  return (
+    <SignInCard>
+      <form action={onSendCode}>
+        <div className="listwell-panel__body listwell-panel__body--tight">
+          <label className="listwell-panel__question" htmlFor={emailFieldId}>
+            What is your email?
+          </label>
+          {authServiceDown && !healthLoading ? (
+            <p className="listwell-panel__error" role="alert">
+              {AUTH_UNAVAILABLE_MESSAGE}
+            </p>
+          ) : (
+            <p className="listwell-panel__note">
+              We&apos;ll email you a one-time code. No password needed.
+            </p>
+          )}
+        </div>
+        <div className="listwell-chat__composer listwell-chat__composer--embedded">
+          <Input
+            id={emailFieldId}
+            type="email"
+            name="email"
+            autoComplete="email"
+            inputMode="email"
+            value={state.email}
+            disabled={state.busy || authServiceDown}
+            placeholder="you@business.com"
+            aria-invalid={state.error ? true : undefined}
+            aria-describedby={state.error ? errorId : undefined}
+            className="listwell-chat__input border-0 shadow-none focus-visible:ring-0"
+            onChange={(event) =>
+              dispatch({ email: event.target.value, type: "email" })
+            }
+          />
+          <ComposerSubmit
+            label={state.busy ? "Sending code" : "Send code"}
+            disabled={
+              state.busy || authServiceDown || state.email.trim() === ""
+            }
+          />
+        </div>
+      </form>
+      {state.error ? <SignInError id={errorId} message={state.error} /> : null}
+    </SignInCard>
+  );
+};
+
 export const SignInForm = ({ returnPath }: { returnPath: string }) => {
   const emailFieldId = useId();
   const codeFieldId = useId();
   const session = authClient.useSession();
   const authAvailable = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
   const [state, dispatch] = useReducer(signInReducer, initialSignInState);
-  const [authServiceDown, setAuthServiceDown] = useState(false);
-  const [healthLoading, setHealthLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch("/api/health");
-        const payload: unknown = await response.json();
-        const parsed = healthResponseSchema.safeParse(payload);
-        if (!cancelled && parsed.success) {
-          setAuthServiceDown(parsed.data.convex === "error");
-        }
-      } catch {
-        if (!cancelled) {
-          setAuthServiceDown(true);
-        }
-      }
-      if (!cancelled) {
-        setHealthLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: health,
+    error: healthError,
+    isLoading: healthLoading,
+  } = useSWR("/api/health", fetchAuthHealth, { revalidateOnFocus: false });
+  const authServiceDown = Boolean(healthError || health?.convex === "error");
 
   const signedIn = Boolean(session.data?.user.email);
   const safeReturn = returnPath.startsWith("/") ? returnPath : "/";
@@ -217,115 +351,47 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
 
   if (!authAvailable) {
     return (
-      <>
-        <h1 className="vbg-title">Sign in</h1>
-        <p className="vbg-lede">
-          Sign in is not available in this environment.
-        </p>
-        <p className="vbg-lede">
-          <QuietLink href="/">Back to chat</QuietLink>
-        </p>
-      </>
+      <SignInCard>
+        <div className="listwell-panel__body">
+          <p className="listwell-panel__text">
+            Sign in is not available in this environment.
+          </p>
+        </div>
+      </SignInCard>
     );
   }
 
   if (session.isPending || signedIn) {
     return (
-      <>
-        <h1 className="vbg-title">Sign in</h1>
-        <p className="vbg-lede">Checking your session…</p>
-      </>
+      <SignInCard>
+        <div className="listwell-panel__body">
+          <p className="listwell-panel__note" aria-live="polite">
+            Checking your session…
+          </p>
+        </div>
+      </SignInCard>
     );
   }
 
   if (state.step === "code") {
     return (
-      <form className="listwell-report__unlock max-w-md" action={verifyCode}>
-        <h1 className="vbg-title">Enter your code</h1>
-        <p className="vbg-lede">
-          We sent a code to {maskAccountEmail(state.email)}.
-        </p>
-        <FieldGroup className="mt-6">
-          <Field data-invalid={state.error ? true : undefined}>
-            <FieldLabel htmlFor={codeFieldId}>Code</FieldLabel>
-            <Input
-              id={codeFieldId}
-              type="text"
-              name="code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]*"
-              maxLength={6}
-              value={state.code}
-              disabled={state.busy}
-              placeholder="000000"
-              className={cn("font-mono tracking-widest")}
-              onChange={(event) => {
-                dispatch({
-                  code: event.target.value.replaceAll(/\D/gu, "").slice(0, 6),
-                  type: "code",
-                });
-              }}
-            />
-            {state.error ? <FieldError>{state.error}</FieldError> : null}
-          </Field>
-        </FieldGroup>
-        <FormActions className="mt-6">
-          <PrimaryButton
-            type="submit"
-            disabled={state.busy || state.code.length !== 6}
-          >
-            {state.busy ? "Signing in" : "Sign in"}
-          </PrimaryButton>
-          <QuietButton
-            type="button"
-            disabled={state.busy}
-            onClick={() => dispatch({ type: "reset-email" })}
-          >
-            Use a different email
-          </QuietButton>
-        </FormActions>
-      </form>
+      <SignInCodeStep
+        codeFieldId={codeFieldId}
+        dispatch={dispatch}
+        onVerify={verifyCode}
+        state={state}
+      />
     );
   }
 
   return (
-    <form className="listwell-report__unlock max-w-md" action={sendCode}>
-      <h1 className="vbg-title">Sign in</h1>
-      {authServiceDown && !healthLoading ? (
-        <Alert variant="destructive" className="mt-4">
-          <AlertDescription>{AUTH_UNAVAILABLE_MESSAGE}</AlertDescription>
-        </Alert>
-      ) : (
-        <p className="vbg-lede">
-          We&apos;ll email you a one-time code. No password needed.
-        </p>
-      )}
-      <FieldGroup className="mt-6">
-        <Field data-invalid={state.error ? true : undefined}>
-          <FieldLabel htmlFor={emailFieldId}>Email</FieldLabel>
-          <Input
-            id={emailFieldId}
-            type="email"
-            name="email"
-            autoComplete="email"
-            inputMode="email"
-            value={state.email}
-            disabled={state.busy || authServiceDown}
-            placeholder="you@business.com"
-            onChange={(event) =>
-              dispatch({ email: event.target.value, type: "email" })
-            }
-          />
-          {state.error ? <FieldError>{state.error}</FieldError> : null}
-        </Field>
-      </FieldGroup>
-      <FormActions className="mt-6">
-        <PrimaryButton type="submit" disabled={state.busy || authServiceDown}>
-          {state.busy ? "Sending code" : "Send code"}
-        </PrimaryButton>
-        <QuietLink href="/">Back to chat</QuietLink>
-      </FormActions>
-    </form>
+    <SignInEmailStep
+      authServiceDown={authServiceDown}
+      dispatch={dispatch}
+      emailFieldId={emailFieldId}
+      healthLoading={healthLoading}
+      onSendCode={sendCode}
+      state={state}
+    />
   );
 };

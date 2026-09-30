@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { categoryIdSchema } from "./category";
+import { categoryIdSchema, categoryLabelInputSchema } from "./category";
 
 export const locationInputSchema = z.object({
   address: z.string().optional(),
@@ -11,6 +11,7 @@ export const locationInputSchema = z.object({
 
 export const createBusinessRequestSchema = z.object({
   category: categoryIdSchema,
+  categoryLabel: categoryLabelInputSchema.optional(),
   deliverooUrl: z.string().optional(),
   doorDashUrl: z.string().optional(),
   facebookUsername: z.string().optional(),
@@ -47,6 +48,7 @@ export const locationSchema = z.object({
 
 export const businessSchema = z.object({
   category: categoryIdSchema,
+  categoryLabel: z.string().nullable().default(null),
   createdAt: z.string(),
   deliverooUrl: z.string().nullable(),
   doorDashUrl: z.string().nullable(),

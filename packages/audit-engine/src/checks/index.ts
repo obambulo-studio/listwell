@@ -6,7 +6,8 @@ import {
   checkGoogleListingPhone,
   checkGoogleListingPhotos,
   checkGoogleListingPrimaryCategory,
-  checkGoogleListingReviews,
+  checkGoogleListingRating,
+  checkGoogleListingReviewCount,
   checkGoogleListingWebsiteMatches,
 } from "./google";
 import {
@@ -21,6 +22,11 @@ import {
   checkWebsite,
   checkYouTubeProfile,
 } from "./presence";
+import {
+  checkSocialProfileBanner,
+  checkSocialProfileFreshness,
+  checkSocialProfileImageMatch,
+} from "./social";
 import {
   checkWebsite200,
   checkWebsiteCanonical,
@@ -50,11 +56,15 @@ export const CHECK_RUNNERS: Record<CheckId, CheckRunner> = {
   "google-listing-phone-number": checkGoogleListingPhone,
   "google-listing-photos": checkGoogleListingPhotos,
   "google-listing-primary-category": checkGoogleListingPrimaryCategory,
-  "google-listing-reviews": checkGoogleListingReviews,
+  "google-listing-rating": checkGoogleListingRating,
+  "google-listing-review-count": checkGoogleListingReviewCount,
   "google-listing-website-matches": checkGoogleListingWebsiteMatches,
   "instagram-profile": checkInstagramProfile,
   "linkedin-profile": checkLinkedInProfile,
   "menulog-listing": checkMenulogListing,
+  "social-profile-banner": checkSocialProfileBanner,
+  "social-profile-freshness": checkSocialProfileFreshness,
+  "social-profile-image-match": checkSocialProfileImageMatch,
   "tiktok-profile": checkTikTokProfile,
   "uber-eats-listing": checkUberEatsListing,
   website: checkWebsite,

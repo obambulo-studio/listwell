@@ -3,14 +3,10 @@
 import { useState } from "react";
 import useSWR from "swr";
 
+import { Button } from "@/components/atoms/button";
 import { reportAllocationSegments } from "@/components/chat-report-allocation";
-import {
-  FormActions,
-  PrimaryButton,
-  QuietButton,
-} from "@/components/listwell/actions";
+import { PrimaryButton } from "@/components/listwell/actions";
 import { Alert, AlertDescription } from "@/components/reui/alert";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -33,16 +29,79 @@ import {
 import { checkoutPlanSchema, entitlementStateSchema } from "@/lib/schema";
 import type { CheckoutPlan, EntitlementState } from "@/lib/schema";
 
-const IssueStatusMark = ({ status }: { status: ReportIssue["status"] }) => (
-  <Badge
-    variant={status === "pass" ? "secondary" : "destructive"}
-    className="mr-2 shrink-0"
-  >
-    {status === "pass" ? "Pass" : "Needs work"}
-  </Badge>
+const CheckIcon = () => (
+  <svg width={9} height={9} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M20 6L9 17l-5-5"
+      stroke="currentColor"
+      strokeWidth="3.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
 );
 
-const formatCheckCount = (count: number): string =>
+const XIcon = () => (
+  <svg width={9} height={9} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M18 6L6 18M6 6l12 12"
+      stroke="currentColor"
+      strokeWidth="3.5"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const IssueStatusMark = ({ status }: { status: ReportIssue["status"] }) => (
+  <span
+    className={`listwell-chat__report-issue-mark ${status === "pass" ? "listwell-chat__report-issue-mark--pass" : "listwell-chat__report-issue-mark--fail"}`}
+    aria-label={status === "pass" ? "Pass" : "Needs work"}
+  >
+    {status === "pass" ? <CheckIcon /> : <XIcon />}
+  </span>
+);
+
+export const ReportAllocation = ({
+  stats,
+}: {
+  stats: Pick<BasicReportStats, "pass" | "fail" | "error" | "total">;
+}) => {
+  const segments = reportAllocationSegments(stats);
+  const legendSegments = segments.filter((segment) => segment.name !== "ERR");
+  return (
+    <>
+      <figure
+        className="listwell-chat__report-bar"
+        aria-label={`${stats.pass} passing, ${stats.fail} need work${stats.error > 0 ? `, ${stats.error} skipped` : ""}`}
+      >
+        {segments.map((segment) => (
+          <span
+            key={segment.name}
+            className={`listwell-chat__report-bar-segment ${segment.cls}`}
+            style={{ flex: `${segment.pct} 1 0%` }}
+          />
+        ))}
+      </figure>
+
+      <ul className="listwell-chat__report-legend">
+        {legendSegments.map((segment) => (
+          <li key={segment.name} className="listwell-chat__report-legend-item">
+            <span
+              className={`listwell-chat__report-legend-label ${segment.tone}`}
+            >
+              {segment.label}
+            </span>
+            <span className="listwell-chat__report-legend-pct">
+              {segment.pct}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+};
+
+export const formatCheckCount = (count: number): string =>
   count === 1 ? "1 check" : `${count} checks`;
 
 interface ReportSummaryProps {
@@ -68,7 +127,7 @@ const buildCtaLabel = (
   if (redirecting === "once") {
     return "Redirecting…";
   }
-  return `Full report · ${REPORT_ONCE_PRICE} once`;
+  return "Full report";
 };
 
 const sessionAccessNote = (access: EntitlementState): string => {
@@ -132,9 +191,30 @@ interface ReportUnlockActionsProps {
   ctaDisabled: boolean;
   ctaLabel: string;
   redirecting: CheckoutPlan | null;
+  sessionRequired: boolean;
   onUnlock: (plan: CheckoutPlan) => void;
   onPreview: () => void;
 }
+
+export const reportActionClass =
+  "h-auto min-h-12 min-w-0 flex-1 flex-col gap-0.5 whitespace-normal px-3 py-3 text-center text-base leading-snug";
+
+export const ReportActionLabel = ({
+  caption,
+  title,
+}: {
+  caption?: string;
+  title: string;
+}) => (
+  <span className="flex flex-col items-center gap-0.5">
+    <span>{title}</span>
+    {caption ? (
+      <span className="text-[11px] leading-none font-normal opacity-70">
+        {caption}
+      </span>
+    ) : null}
+  </span>
+);
 
 const ReportUnlockActions = ({
   businessId,
@@ -142,25 +222,44 @@ const ReportUnlockActions = ({
   ctaDisabled,
   ctaLabel,
   redirecting,
+  sessionRequired,
   onUnlock,
   onPreview,
 }: ReportUnlockActionsProps) => (
-  <FormActions className="flex-col items-stretch sm:flex-row sm:items-center">
+  <div className="flex w-full flex-row flex-wrap gap-2">
+    {businessId && !access.unlocked ? (
+      <Button
+        type="button"
+        variant="secondary"
+        className={reportActionClass}
+        onClick={onPreview}
+      >
+        <ReportActionLabel caption="Free" title="Preview report" />
+      </Button>
+    ) : null}
     <PrimaryButton
       type="button"
       disabled={ctaDisabled}
-      className="w-full sm:w-auto"
+      className={reportActionClass}
       onClick={() => {
         onUnlock(checkoutPlanSchema.parse("once"));
       }}
     >
-      {ctaLabel}
+      <ReportActionLabel
+        caption={
+          redirecting === "once" || sessionRequired || access.unlocked
+            ? undefined
+            : `${REPORT_ONCE_PRICE} once`
+        }
+        title={redirecting === "once" ? "Redirecting…" : ctaLabel}
+      />
     </PrimaryButton>
     {businessId && !access.unlocked && access.yearlyAvailable ? (
-      <QuietButton
+      <Button
         type="button"
+        variant="secondary"
         disabled={ctaDisabled}
-        className="w-full justify-start sm:w-auto"
+        className={reportActionClass}
         onClick={() => {
           onUnlock(checkoutPlanSchema.parse("yearly"));
         }}
@@ -168,13 +267,14 @@ const ReportUnlockActions = ({
         {redirecting === "yearly"
           ? "Redirecting…"
           : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
-      </QuietButton>
+      </Button>
     ) : null}
     {businessId && !access.unlocked && access.monthlyAvailable ? (
-      <QuietButton
+      <Button
         type="button"
+        variant="secondary"
         disabled={ctaDisabled}
-        className="w-full justify-start sm:w-auto"
+        className={reportActionClass}
         onClick={() => {
           onUnlock(checkoutPlanSchema.parse("monthly"));
         }}
@@ -182,18 +282,9 @@ const ReportUnlockActions = ({
         {redirecting === "monthly"
           ? "Redirecting…"
           : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
-      </QuietButton>
+      </Button>
     ) : null}
-    {businessId && !access.unlocked ? (
-      <QuietButton
-        type="button"
-        className="w-full sm:w-auto"
-        onClick={onPreview}
-      >
-        Preview
-      </QuietButton>
-    ) : null}
-  </FormActions>
+  </div>
 );
 
 export const ReportSummary = ({
@@ -203,7 +294,6 @@ export const ReportSummary = ({
   onPreview,
 }: ReportSummaryProps) => {
   const score = scorePercent(stats);
-  const segments = reportAllocationSegments(stats);
   const fallbackAccess = entitlementStateSchema.parse({
     paymentsEnabled: false,
     unlocked: false,
@@ -269,59 +359,38 @@ export const ReportSummary = ({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        <figure
-          className="listwell-chat__report-bar"
-          aria-label={`${stats.pass} passing, ${stats.fail} need work${stats.error > 0 ? `, ${stats.error} skipped` : ""}`}
-        >
-          {segments.map((segment) => (
-            <span
-              key={segment.name}
-              className={`listwell-chat__report-bar-segment ${segment.cls}`}
-              style={{ flex: `${segment.pct} 1 0%` }}
-            />
-          ))}
-        </figure>
-
-        <ul className="listwell-chat__report-legend">
-          {segments.map((segment) => (
-            <li
-              key={segment.name}
-              className="listwell-chat__report-legend-item"
-            >
-              <span
-                className={`listwell-chat__report-legend-label ${segment.tone}`}
-              >
-                {segment.label}
-              </span>
-              <span className="listwell-chat__report-legend-pct">
-                {segment.pct}%
-              </span>
-            </li>
-          ))}
-        </ul>
+        <ReportAllocation stats={stats} />
 
         {stats.topIssues.length > 0 ? (
           <ul className="listwell-chat__report-issues space-y-2">
-            {stats.topIssues.slice(0, 4).map((issue) => (
+            {stats.topIssues.map((issue) => (
               <li
                 key={`${issue.status}-${issue.title}`}
-                className="flex items-start gap-1 text-sm"
+                className="flex items-center gap-2 text-sm"
               >
                 <IssueStatusMark status={issue.status} />
-                {issue.title}
+                {issue.weightPercent === undefined ? (
+                  <span className="w-9 shrink-0" />
+                ) : (
+                  <span className="text-muted-foreground w-9 shrink-0 text-right font-mono text-[11px] tabular-nums">
+                    {issue.weightPercent}%
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">{issue.title}</span>
               </li>
             ))}
           </ul>
         ) : null}
       </CardContent>
 
-      <CardFooter className="flex flex-col items-stretch gap-3 border-t pt-4">
+      <CardFooter className="w-full flex-col items-stretch gap-3 border-t border-[color:var(--line-soft)] pt-4">
         <ReportUnlockActions
           businessId={businessId}
           access={access}
           ctaDisabled={ctaDisabled}
           ctaLabel={ctaLabel}
           redirecting={redirecting}
+          sessionRequired={sessionRequired}
           onUnlock={handleUnlock}
           onPreview={onPreview}
         />

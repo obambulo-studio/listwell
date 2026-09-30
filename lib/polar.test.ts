@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   businessIdFromMetadata,
+  checkoutCustomerIp,
   checkoutReturnPath,
   customerEmailFromPolarData,
   entitlementActionFromPolarEvent,
@@ -28,6 +29,17 @@ const polarProducts = {
   yearlyProductId: "prod_year",
 };
 
+describe(checkoutCustomerIp, () => {
+  it("drops loopback addresses", () => {
+    expect(checkoutCustomerIp("::1")).toBeUndefined();
+    expect(checkoutCustomerIp("127.0.0.1")).toBeUndefined();
+    expect(checkoutCustomerIp("  127.0.0.1  ")).toBeUndefined();
+  });
+
+  it("keeps a public address", () => {
+    expect(checkoutCustomerIp("203.0.113.8")).toBe("203.0.113.8");
+  });
+});
 describe("report pricing copy", () => {
   it("uses AUD list prices", () => {
     expect(REPORT_ONCE_PRICE).toBe("A$9.99");

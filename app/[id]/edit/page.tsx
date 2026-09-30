@@ -41,6 +41,7 @@ const EditPage = async ({ params }: { params: Promise<{ id: string }> }) => {
     <NewAuditForm
       businessName={business.name}
       categoryId={business.category}
+      categoryLabel={business.categoryLabel}
       initialProfiles={businessToProfiles(business)}
       initialAddress={
         business.locations.find((location) => location.address)?.address ??

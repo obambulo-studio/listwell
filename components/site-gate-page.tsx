@@ -2,16 +2,9 @@
 
 import { useId, useReducer } from "react";
 
-import { PrimaryButton } from "@/components/listwell/actions";
-import { Alert, AlertDescription } from "@/components/reui/alert";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { ComposerSubmit, PrimaryButton } from "@/components/listwell/actions";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { safeAppPath } from "@/lib/query-params";
 
@@ -187,80 +180,102 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
     }
   };
 
+  const accessErrorId = `${passwordId}-error`;
+
   return (
     <section className="listwell-site-gate">
-      <div className="listwell-site-gate__panel">
-        <p className="listwell-site-gate__eyebrow">Listwell</p>
-        <h1 className="vbg-title">Local and website SEO audits</h1>
-        <p className="vbg-lede">
-          Listwell checks Google listings, your website, and key channels, then
-          turns the results into a clear fix list. We are opening access in
-          stages.
-        </p>
-
-        <Tabs
-          value={state.section}
-          onValueChange={(value) => {
-            if (value === "access" || value === "interest") {
-              dispatch({ section: value, type: "section" });
-            }
-          }}
-          className="mt-6 w-full"
-        >
-          <TabsList variant="line" className="w-full justify-start">
-            <TabsTrigger value="access">Enter password</TabsTrigger>
-            <TabsTrigger value="interest">
-              Interested? Leave your details
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="access" className="mt-6">
+      <div className="listwell-page w-full max-w-(--listwell-column)">
+        <div className="listwell-panel">
+          <div className="listwell-panel__head">
+            <h1 className="listwell-panel__title">Listwell</h1>
+          </div>
+          <div className="listwell-panel__body">
+            <p className="listwell-panel__question">
+              Local and website SEO audits
+            </p>
+            <p className="listwell-panel__note">
+              Listwell checks Google listings, your website, and key channels,
+              then turns the results into a clear fix list. We are opening
+              access in stages.
+            </p>
+            <fieldset className="listwell-panel__options m-0 min-w-0 border-0 p-0">
+              <legend className="vbg-visually-hidden">
+                How would you like to continue?
+              </legend>
+              <button
+                type="button"
+                className="listwell-chat__prompt-card-option"
+                aria-pressed={state.section === "access"}
+                onClick={() => dispatch({ section: "access", type: "section" })}
+              >
+                Enter password
+              </button>
+              <button
+                type="button"
+                className="listwell-chat__prompt-card-option"
+                aria-pressed={state.section === "interest"}
+                onClick={() =>
+                  dispatch({ section: "interest", type: "section" })
+                }
+              >
+                Join the waitlist
+              </button>
+            </fieldset>
+          </div>
+          {state.section === "access" ? (
             <form
-              className="listwell-site-gate__form"
-              onSubmit={(event) => {
-                event.preventDefault();
+              action={() => {
                 void unlock();
               }}
             >
-              <FieldGroup>
-                <Field data-invalid={state.accessError ? true : undefined}>
-                  <FieldLabel htmlFor={passwordId}>Password</FieldLabel>
-                  <Input
-                    id={passwordId}
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={state.password}
-                    disabled={state.accessBusy}
-                    onChange={(event) => {
-                      dispatch({
-                        password: event.target.value,
-                        type: "password",
-                      });
-                    }}
-                  />
-                  {state.accessError ? (
-                    <FieldError>{state.accessError}</FieldError>
-                  ) : null}
-                </Field>
-              </FieldGroup>
-              <PrimaryButton
-                type="submit"
-                disabled={state.accessBusy}
-                className="mt-4"
-              >
-                {state.accessBusy ? "Checking…" : "Enter site"}
-              </PrimaryButton>
+              <div className="listwell-chat__composer listwell-chat__composer--embedded">
+                <label className="vbg-visually-hidden" htmlFor={passwordId}>
+                  Password
+                </label>
+                <Input
+                  id={passwordId}
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Password"
+                  value={state.password}
+                  disabled={state.accessBusy}
+                  aria-invalid={state.accessError ? true : undefined}
+                  aria-describedby={
+                    state.accessError ? accessErrorId : undefined
+                  }
+                  className="listwell-chat__input border-0 shadow-none focus-visible:ring-0"
+                  onChange={(event) => {
+                    dispatch({
+                      password: event.target.value,
+                      type: "password",
+                    });
+                  }}
+                />
+                <ComposerSubmit
+                  label={state.accessBusy ? "Checking" : "Enter site"}
+                  disabled={state.accessBusy || !state.password}
+                />
+              </div>
+              {state.accessError ? (
+                <div className="listwell-panel__foot">
+                  <p
+                    id={accessErrorId}
+                    className="listwell-panel__error"
+                    role="alert"
+                  >
+                    {state.accessError}
+                  </p>
+                </div>
+              ) : null}
             </form>
-          </TabsContent>
-          <TabsContent value="interest" className="mt-6">
+          ) : (
             <form
-              className="listwell-site-gate__form"
-              onSubmit={(event) => {
-                event.preventDefault();
+              action={() => {
                 void submitInterest();
               }}
             >
-              <FieldGroup>
+              <FieldGroup className="listwell-panel__body">
                 <Field data-invalid={state.interestError ? true : undefined}>
                   <FieldLabel htmlFor={emailId}>Email</FieldLabel>
                   <Input
@@ -283,9 +298,7 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
                 <Field>
                   <FieldLabel htmlFor={nameId}>
                     Name{" "}
-                    <span className="text-muted-foreground font-normal">
-                      (optional)
-                    </span>
+                    <span className="text-ink-3 font-normal">(optional)</span>
                   </FieldLabel>
                   <Input
                     id={nameId}
@@ -306,9 +319,7 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
                 <Field>
                   <FieldLabel htmlFor={noteId}>
                     Business or website{" "}
-                    <span className="text-muted-foreground font-normal">
-                      (optional)
-                    </span>
+                    <span className="text-ink-3 font-normal">(optional)</span>
                   </FieldLabel>
                   <Textarea
                     id={noteId}
@@ -325,25 +336,29 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
                     }}
                   />
                 </Field>
-                {state.interestError ? (
-                  <FieldError>{state.interestError}</FieldError>
-                ) : null}
               </FieldGroup>
-              {state.interestMessage ? (
-                <Alert variant="success" className="mt-4">
-                  <AlertDescription>{state.interestMessage}</AlertDescription>
-                </Alert>
-              ) : null}
-              <PrimaryButton
-                type="submit"
-                disabled={state.interestBusy}
-                className="mt-4"
-              >
-                {state.interestBusy ? "Sending…" : "Join the waitlist"}
-              </PrimaryButton>
+              <div className="listwell-panel__foot listwell-panel__foot--split">
+                {state.interestError ? (
+                  <p className="listwell-panel__error" role="alert">
+                    {state.interestError}
+                  </p>
+                ) : null}
+                {state.interestMessage ? (
+                  <output className="listwell-panel__note">
+                    {state.interestMessage}
+                  </output>
+                ) : null}
+                <PrimaryButton
+                  type="submit"
+                  className="ml-auto"
+                  disabled={state.interestBusy}
+                >
+                  {state.interestBusy ? "Sending…" : "Join the waitlist"}
+                </PrimaryButton>
+              </div>
             </form>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
     </section>
   );

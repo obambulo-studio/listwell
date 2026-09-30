@@ -3,6 +3,29 @@ import { z } from "zod";
 import { googlePlaceSchema } from "../schemas";
 import type { GooglePlace, PlacePrediction } from "../types";
 
+const PLACE_LIST_FIELD_MASK =
+  "places.id,places.displayName,places.websiteUri,places.formattedAddress,places.types,places.primaryType,places.primaryTypeDisplayName,places.location";
+
+const GENERIC_PRIMARY_TYPES = new Set([
+  "administrative_area_level_1",
+  "administrative_area_level_2",
+  "country",
+  "establishment",
+  "finance",
+  "food",
+  "general_contractor",
+  "geocode",
+  "health",
+  "locality",
+  "point_of_interest",
+  "political",
+  "postal_code",
+  "premise",
+  "route",
+  "street_address",
+  "sublocality",
+]);
+
 export const AUSTRALIA_LOCATION_RESTRICTION = {
   rectangle: {
     high: { latitude: -10, longitude: 154 },
@@ -30,6 +53,15 @@ const googleAutocompleteSchema = z.object({
     )
     .optional(),
 });
+
+export const specificPrimaryType = (
+  type: string | undefined
+): string | null => {
+  if (!type || GENERIC_PRIMARY_TYPES.has(type)) {
+    return null;
+  }
+  return type;
+};
 
 export const parseGooglePlacesSearch = (value: unknown): GooglePlace[] => {
   const parsed = googlePlacesSearchSchema.safeParse(value);
@@ -138,7 +170,7 @@ export const fetchGooglePlace = async (
       headers: {
         "X-Goog-Api-Key": googleApiKey,
         "X-Goog-FieldMask":
-          "id,displayName,nationalPhoneNumber,currentOpeningHours,websiteUri,reviews,userRatingCount,formattedAddress,rating,photos,types,addressComponents",
+          "id,displayName,nationalPhoneNumber,currentOpeningHours,websiteUri,reviews,userRatingCount,formattedAddress,rating,photos,types,primaryType,primaryTypeDisplayName,location,addressComponents",
       },
     }
   );
@@ -196,4 +228,93 @@ export const locationPartsFromPlace = (
   }
 
   return { city, country, locationParts, state, suburb };
+};
+
+export interface NearbyPlaceSearch {
+  googleApiKey: string;
+  includedTypes: string[];
+  latitude: number;
+  longitude: number;
+  maxResultCount?: number;
+  radiusMeters: number;
+}
+
+export const searchNearbyPlaces = async (
+  input: NearbyPlaceSearch,
+  fetchImpl: typeof fetch = fetch
+): Promise<GooglePlace[]> => {
+  if (input.includedTypes.length === 0 || input.googleApiKey.length === 0) {
+    return [];
+  }
+
+  const response = await fetchImpl(
+    "https://places.googleapis.com/v1/places:searchNearby",
+    {
+      body: JSON.stringify({
+        includedTypes: input.includedTypes,
+        locationRestriction: {
+          circle: {
+            center: {
+              latitude: input.latitude,
+              longitude: input.longitude,
+            },
+            radius: input.radiusMeters,
+          },
+        },
+        maxResultCount: input.maxResultCount ?? 10,
+        rankPreference: "POPULARITY",
+      }),
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": input.googleApiKey,
+        "X-Goog-FieldMask": PLACE_LIST_FIELD_MASK,
+      },
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    return [];
+  }
+  return parseGooglePlacesSearch(await response.json());
+};
+
+export const searchGooglePlacesNear = async (
+  query: string,
+  googleApiKey: string,
+  center: { latitude: number; longitude: number },
+  radiusMeters: number,
+  fetchImpl: typeof fetch = fetch
+): Promise<GooglePlace[]> => {
+  if (query.trim().length < 2 || googleApiKey.length === 0) {
+    return [];
+  }
+
+  const response = await fetchImpl(
+    "https://places.googleapis.com/v1/places:searchText",
+    {
+      body: JSON.stringify({
+        includePureServiceAreaBusinesses: true,
+        locationBias: {
+          circle: {
+            center,
+            radius: radiusMeters,
+          },
+        },
+        maxResultCount: 8,
+        textQuery: query,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": googleApiKey,
+        "X-Goog-FieldMask": PLACE_LIST_FIELD_MASK,
+      },
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    return [];
+  }
+  return parseGooglePlacesSearch(await response.json());
 };
