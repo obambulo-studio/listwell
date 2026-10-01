@@ -138,7 +138,7 @@ const listTriggers = () =>
 
 const BUILD_COMMAND = "bun run cf:build";
 const PRODUCTION_DEPLOY_COMMAND = "npx wrangler deploy --keep-vars";
-const PREVIEW_DEPLOY_COMMAND = "npx wrangler versions upload --keep-vars";
+const PREVIEW_DEPLOY_COMMAND = "npx wrangler preview";
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
