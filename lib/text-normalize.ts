@@ -74,11 +74,16 @@ export const normalizeTitleCase = (
 export const normalizeLocation = (text: string): string =>
   normalizeTitleCase(text, { smallWords: false });
 
+/** Keep the casing the user typed. Trim and collapse spaces only. */
 export const normalizeBusinessName = (text: string): string =>
-  normalizeTitleCase(text, { smallWords: true });
+  text.trim().replaceAll(/\s+/gu, " ");
+
+/** Whitespace-normalised equality. Case-only edits are not the same name. */
+export const isSameBusinessName = (left: string, right: string): boolean =>
+  normalizeBusinessName(left) === normalizeBusinessName(right);
 
 export const normalizeCategoryText = (text: string): string =>
-  normalizeBusinessName(text);
+  normalizeTitleCase(text, { smallWords: true });
 
 export const normalizeWebsiteInput = (text: string): string => text.trim();
 

@@ -1,9 +1,17 @@
 "use client";
 
+import { Copy01Icon } from "@hugeicons/core-free-icons";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 
-import { listingReviewResultSchema } from "@/lib/listing-review";
+import { Icon } from "@/components/icon";
+import { PrimaryButton } from "@/components/listwell/actions";
+import {
+  buildListingReviewFixPrompt,
+  listingReviewHasFixPrompt,
+  listingReviewResultSchema,
+} from "@/lib/listing-review";
 import type { ListingReviewResult } from "@/lib/listing-review";
 
 const fetchListingReview = async (
@@ -150,6 +158,68 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
   );
 };
 
+const ListingReviewFixPrompt = ({
+  businessName,
+  result,
+}: {
+  businessName: string;
+  result: ListingReviewResult;
+}) => {
+  const [copied, setCopied] = useState(false);
+  if (!listingReviewHasFixPrompt(result.content)) {
+    return null;
+  }
+  const prompt = buildListingReviewFixPrompt({
+    businessName,
+    content: result.content,
+  });
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="listwell-panel__body">
+      <h3 className="text-ink m-0 text-[13px] font-semibold">
+        How to improve your listings
+      </h3>
+      <p className="listwell-panel__note mt-2">
+        Copy the instructions below and paste them into your coding agent
+        (Cursor, Claude Code, Windsurf, Copilot, etc.) to apply these listing
+        fixes.
+      </p>
+      <pre className="text-ink-2 border-border bg-muted/40 mt-3 max-h-64 overflow-auto rounded-md border p-3 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
+        {prompt}
+      </pre>
+      <div className="mt-3">
+        <PrimaryButton
+          className="gap-2"
+          size="sm"
+          type="button"
+          onClick={() => {
+            void handleCopy();
+          }}
+        >
+          <Icon icon={Copy01Icon} size={14} />
+          {copied ? "Copied" : "Copy all instructions"}
+        </PrimaryButton>
+      </div>
+      <p className="listwell-panel__fine mt-3">
+        These are AI-generated recommendations. Verify every change before
+        publishing on Google or your website.
+      </p>
+    </div>
+  );
+};
+
 const ListingReviewFoot = ({ result }: { result: ListingReviewResult }) => {
   const caption = degradedCaption(result);
   return (
@@ -169,10 +239,12 @@ const ListingReviewFoot = ({ result }: { result: ListingReviewResult }) => {
 
 export const ListingReviewSection = ({
   businessId,
+  businessName,
   showContent,
   listingReviewOverride,
 }: {
   businessId: string;
+  businessName: string;
   showContent: boolean;
   listingReviewOverride?: ListingReviewResult;
 }) => {
@@ -197,7 +269,8 @@ export const ListingReviewSection = ({
       </div>
       <div className="listwell-panel__body">
         <p className="listwell-panel__note">
-          Copy-paste improvements from your website and map listings.
+          Suggestions from your website and map listings, with a one-click fix
+          prompt for your coding agent.
         </p>
         {showContent && isLoading && listingReviewOverride === undefined ? (
           <p className="listwell-panel__fine" aria-live="polite">
@@ -218,6 +291,10 @@ export const ListingReviewSection = ({
       {showContent && resolved ? (
         <>
           <ListingReviewBody result={resolved} />
+          <ListingReviewFixPrompt
+            businessName={businessName}
+            result={resolved}
+          />
           <ListingReviewFoot result={resolved} />
         </>
       ) : null}

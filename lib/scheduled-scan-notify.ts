@@ -1,24 +1,20 @@
 import { getCloudflareEnv } from "./audit-env";
-import type { CategoryId } from "./category";
 import {
   ensureNotificationPrefs,
   getActiveEntitlementOwner,
-  getBusiness,
   getScanEmailRecipient,
 } from "./data";
-import { loadEmailResearch } from "./research-load";
 import { buildScanEmail } from "./scan-email";
-import type { ScanSnapshot } from "./scan-email";
-import type { ScanRow } from "./schema";
+import type { ScanEmailBusiness, ScanEmailContent } from "./scan-email";
 import { readUseSendConfig, sendUseSendEmail } from "./usesend";
 
-const toSnapshot = (scan: {
-  results: ScanRow["results"];
-  score: number | null;
-}): ScanSnapshot => ({
-  results: scan.results,
-  score: scan.score,
-});
+export interface PendingScanEmail {
+  businesses: ScanEmailBusiness[];
+  listUnsubscribeUrl: string;
+  siteUrl: string;
+  to: string;
+  unsubscribeUrl: string;
+}
 
 const resolveUnsubscribeToken = async (
   businessId: string,
@@ -35,107 +31,149 @@ const resolveUnsubscribeToken = async (
     return await ensureNotificationPrefs(owner.ownerUserId);
   } catch (error) {
     console.error(
-      "notifyScheduledScanComplete: could not ensure notification prefs",
+      "prepareScanEmailNotification: could not ensure notification prefs",
       error
     );
     return null;
   }
 };
 
-export const notifyScheduledScanComplete = async (input: {
-  businessCategory: CategoryId;
+export const prepareScanEmailNotification = async (input: {
   businessId: string;
   businessName: string;
-  previousComplete: Pick<ScanRow, "results" | "score"> | null;
-  scan: ScanRow;
+  finishedAt: string | null;
+  previousScore: number | null;
+  score: number | null;
   siteUrl: string;
-}): Promise<{ sent: boolean; skipped: boolean }> => {
-  if (input.scan.status !== "complete") {
-    return { sent: false, skipped: true };
-  }
-
+}): Promise<PendingScanEmail | null> => {
   let recipient = null;
   try {
     recipient = await getScanEmailRecipient(input.businessId);
   } catch (error) {
     console.error(
-      "notifyScheduledScanComplete: recipient lookup failed",
+      "prepareScanEmailNotification: recipient lookup failed",
       error
     );
-    return { sent: false, skipped: true };
+    return null;
   }
 
   if (!recipient?.email || !recipient.monthlyScanEmails) {
-    return { sent: false, skipped: true };
+    return null;
   }
 
-  const [unsubscribeToken, workerEnv] = await Promise.all([
-    resolveUnsubscribeToken(input.businessId, recipient.unsubscribeToken),
-    getCloudflareEnv(),
-  ]);
-  const config =
+  const unsubscribeToken = await resolveUnsubscribeToken(
+    input.businessId,
+    recipient.unsubscribeToken
+  );
+  if (!unsubscribeToken) {
+    console.error(
+      "prepareScanEmailNotification: missing unsubscribe token; skipping email"
+    );
+    return null;
+  }
+
+  const siteBase = input.siteUrl.replace(/\/$/u, "");
+  const unsubscribeUrl = `${siteBase}/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
+  const listUnsubscribeUrl = `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
+
+  return {
+    businesses: [
+      {
+        businessId: input.businessId,
+        businessName: input.businessName,
+        finishedAt: input.finishedAt,
+        previousScore: input.previousScore,
+        score: input.score,
+      },
+    ],
+    listUnsubscribeUrl,
+    siteUrl: siteBase,
+    to: recipient.email,
+    unsubscribeUrl,
+  };
+};
+
+const batchKey = (pending: PendingScanEmail): string =>
+  `${pending.to}\0${pending.listUnsubscribeUrl}`;
+
+export const mergePendingScanEmails = (
+  pending: readonly PendingScanEmail[]
+): PendingScanEmail[] => {
+  const groups = new Map<string, PendingScanEmail>();
+  for (const item of pending) {
+    const key = batchKey(item);
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, {
+        ...item,
+        businesses: [...item.businesses],
+      });
+      continue;
+    }
+    for (const business of item.businesses) {
+      existing.businesses = existing.businesses.filter(
+        (entry) => entry.businessId !== business.businessId
+      );
+      existing.businesses.push(business);
+    }
+  }
+
+  return [...groups.values()];
+};
+
+const readUseSendConfigFromEnv = async () => {
+  const workerEnv = await getCloudflareEnv();
+  return (
     readUseSendConfig({
       USESEND_API_KEY:
         workerEnv?.USESEND_API_KEY ?? process.env.USESEND_API_KEY,
       USESEND_BASE_URL:
         workerEnv?.USESEND_BASE_URL ?? process.env.USESEND_BASE_URL,
       USESEND_FROM: workerEnv?.USESEND_FROM ?? process.env.USESEND_FROM,
-    }) ?? null;
+    }) ?? null
+  );
+};
 
+export const sendPendingScanEmails = async (
+  pending: readonly PendingScanEmail[]
+): Promise<{ sent: number; skipped: number }> => {
+  if (pending.length === 0) {
+    return { sent: 0, skipped: 0 };
+  }
+
+  const config = await readUseSendConfigFromEnv();
   if (!config) {
     console.error(
-      "notifyScheduledScanComplete: UseSend is not configured on the Worker"
+      "sendPendingScanEmails: UseSend is not configured on the Worker"
     );
-    return { sent: false, skipped: true };
+    return { sent: 0, skipped: pending.length };
   }
 
-  const siteBase = input.siteUrl.replace(/\/$/u, "");
-  const reportUrl = `${siteBase}/${input.businessId}`;
-  if (!unsubscribeToken) {
-    console.error(
-      "notifyScheduledScanComplete: missing unsubscribe token; skipping email"
-    );
-    return { sent: false, skipped: true };
-  }
+  const merged = mergePendingScanEmails(pending);
+  const sendOneGroup = async (group: PendingScanEmail): Promise<boolean> => {
+    let email: ScanEmailContent;
+    try {
+      email = buildScanEmail({
+        businesses: group.businesses,
+        listUnsubscribeUrl: group.listUnsubscribeUrl,
+        siteUrl: group.siteUrl,
+        unsubscribeUrl: group.unsubscribeUrl,
+      });
+    } catch (error) {
+      console.error("sendPendingScanEmails: could not build email", error);
+      return false;
+    }
 
-  const unsubscribeUrl = `${siteBase}/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
-  const listUnsubscribeUrl = `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
-
-  let email;
-  let research = null;
-  try {
-    const business = await getBusiness(input.businessId);
-    research = business ? await loadEmailResearch(business) : null;
-  } catch (error) {
-    console.error(
-      "notifyScheduledScanComplete: research summary skipped",
-      error
-    );
-  }
-  try {
-    email = buildScanEmail({
-      businessCategory: input.businessCategory,
-      businessName: input.businessName,
-      current: toSnapshot(input.scan),
-      listUnsubscribeUrl,
-      previous: input.previousComplete
-        ? toSnapshot(input.previousComplete)
-        : null,
-      reportUrl,
-      research,
-      unsubscribeUrl,
+    return await sendUseSendEmail(config, {
+      html: email.html,
+      listUnsubscribeUrl: email.listUnsubscribeUrl,
+      subject: email.subject,
+      text: email.text,
+      to: group.to,
     });
-  } catch (error) {
-    console.error("notifyScheduledScanComplete: could not build email", error);
-    return { sent: false, skipped: true };
-  }
+  };
+  const deliveries = await Promise.all(merged.map(sendOneGroup));
+  const sent = deliveries.filter(Boolean).length;
 
-  const sent = await sendUseSendEmail(config, {
-    html: email.html,
-    listUnsubscribeUrl: email.listUnsubscribeUrl,
-    subject: email.subject,
-    text: email.text,
-    to: recipient.email,
-  });
-  return { sent, skipped: false };
+  return { sent, skipped: merged.length - sent };
 };

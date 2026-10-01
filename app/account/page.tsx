@@ -1,11 +1,26 @@
+import { ChevronRightIcon, UserIcon } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { z } from "zod";
 
+import { AccountBusinessRowMenu } from "@/components/account-business-row-menu";
 import { ButtonLink } from "@/components/atoms/button";
+import { Icon } from "@/components/icon";
+import { AddBusinessLink } from "@/components/page-controls";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  accountReportMeta,
+  accountScoreDelta,
+  accountScoreDeltaAriaLabel,
+  formatAccountScoreDelta,
+} from "@/lib/account-report";
 import { getSessionUser, listReportsForUser } from "@/lib/auth";
 import { fetchAuthMutation } from "@/lib/auth-server";
 import { api } from "@/lib/convex/server";
 import { probeConvexBusinesses } from "@/lib/data";
+import { getSharedReportViewerAccess } from "@/lib/polar-server";
+import { firstSearchParam } from "@/lib/query-params";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -13,79 +28,27 @@ export const metadata = {
   title: "Your businesses",
 };
 
-const ACCOUNT_DATE_FORMAT = new Intl.DateTimeFormat("en-AU", {
-  dateStyle: "medium",
-});
-
-const formatPlan = (plan: "preview" | "once" | "monthly"): string => {
-  if (plan === "monthly") {
-    return "Monthly scans";
-  }
-  if (plan === "once") {
-    return "Full report";
-  }
-  return "Preview";
-};
-
-const formatDate = (iso: string | null | undefined): string | null => {
-  if (!iso) {
-    return null;
-  }
-  const parsed = Date.parse(iso);
-  if (Number.isNaN(parsed)) {
-    return null;
-  }
-  return ACCOUNT_DATE_FORMAT.format(parsed);
-};
-
 type AccountReport = Awaited<ReturnType<typeof listReportsForUser>>[number];
 
-const reportMeta = (report: AccountReport): string => {
-  const parts = [formatPlan(report.plan)];
-  const lastScan = formatDate(report.lastScan?.finishedAt);
-  if (lastScan) {
-    parts.push(`Scanned ${lastScan}`);
-  }
-  const nextScan =
-    report.plan === "monthly" ? formatDate(report.nextScanAt) : null;
-  if (nextScan) {
-    parts.push(`Next scan ${nextScan}`);
-  }
-  return parts.join(" · ");
-};
-
 const Chevron = () => (
-  <svg
-    className="listwell-panel__chevron -rotate-90"
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <path d="M6 9l6 6 6-6" />
-  </svg>
+  <Icon className="listwell-panel__chevron" icon={ChevronRightIcon} size={15} />
 );
 
 const AccountCard = ({
-  action,
+  actions,
   children,
 }: {
-  action?: ReactNode;
+  actions?: ReactNode;
   children: ReactNode;
 }) => (
   <section className="listwell-page">
     <div className="listwell-panel">
       <div className="listwell-panel__head">
         <h1 className="listwell-panel__title">Your businesses</h1>
-        {action}
       </div>
       {children}
     </div>
+    {actions}
   </section>
 );
 
@@ -97,13 +60,64 @@ const AccountMessage = ({ children }: { children: ReactNode }) => (
   </AccountCard>
 );
 
-const addBusiness = (
-  <Link className="listwell-panel__action" href="/">
-    Add business
-  </Link>
+const accountButtonClass = "h-11 px-4";
+
+const accountActions = (
+  <div className="listwell-page__actions">
+    <AddBusinessLink
+      className={cn(
+        buttonVariants({ size: "lg", variant: "default" }),
+        accountButtonClass
+      )}
+    />
+    <ButtonLink
+      className={accountButtonClass}
+      href="/account/profile"
+      variant="secondary"
+    >
+      <Icon icon={UserIcon} size={16} />
+      Profile
+    </ButtonLink>
+  </div>
 );
 
-const AccountPage = async () => {
+const billingNoticeSchema = z.enum(["unconfigured", "missing", "error"]);
+
+const billingNoticeCopy = (
+  notice: z.infer<typeof billingNoticeSchema>
+): string => {
+  if (notice === "unconfigured") {
+    return "Billing is not available right now.";
+  }
+  if (notice === "missing") {
+    return "No billing account yet. Invoices appear after you buy a report.";
+  }
+  return "We could not open billing. Try again in a few minutes.";
+};
+
+const BillingNotice = ({ notice }: { notice: string | null }) => {
+  if (!notice) {
+    return null;
+  }
+  return (
+    <div className="listwell-panel__body">
+      <p className="listwell-panel__text">{notice}</p>
+    </div>
+  );
+};
+
+const AccountPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) => {
+  const params = await searchParams;
+  const billingNotice = billingNoticeSchema.safeParse(
+    firstSearchParam(params.billing)
+  );
+  const billingNote = billingNotice.success
+    ? billingNoticeCopy(billingNotice.data)
+    : null;
   const user = await getSessionUser();
   if (!user) {
     return (
@@ -133,6 +147,7 @@ const AccountPage = async () => {
   }
 
   let reports: AccountReport[] = [];
+  let monthlyScansAvailable = false;
   try {
     await fetchAuthMutation(api.entitlements.attachPurchasesForCurrentUser, {});
   } catch {
@@ -148,9 +163,17 @@ const AccountPage = async () => {
     );
   }
 
+  try {
+    const catalog = await getSharedReportViewerAccess();
+    monthlyScansAvailable = catalog.paymentsEnabled && catalog.monthlyAvailable;
+  } catch {
+    monthlyScansAvailable = false;
+  }
+
   if (reports.length === 0) {
     return (
-      <AccountCard action={addBusiness}>
+      <AccountCard actions={accountActions}>
+        <BillingNotice notice={billingNote} />
         <div className="listwell-panel__body">
           <p className="listwell-panel__text">No businesses yet.</p>
           <p className="listwell-panel__note">
@@ -162,29 +185,68 @@ const AccountPage = async () => {
   }
 
   return (
-    <AccountCard action={addBusiness}>
+    <AccountCard actions={accountActions}>
+      <BillingNotice notice={billingNote} />
       <ul
         className="listwell-panel__rows"
         aria-label="Businesses on your account"
       >
         {reports.map((report) => {
           const score = report.lastScan?.score;
+          const meta = accountReportMeta(report);
+          const scoreDelta = accountScoreDelta(
+            score ?? null,
+            report.lastScan?.previousScore ?? null
+          );
           return (
-            <li key={report.id}>
-              <Link className="listwell-panel__row" href={`/${report.id}`}>
-                <span className="listwell-panel__row-main">
-                  <span className="listwell-panel__row-title">
-                    {report.name}
+            <li key={report.id} className="listwell-account-row">
+              <div className="listwell-panel__row">
+                <Link
+                  className="listwell-panel__row-link"
+                  href={`/${report.id}`}
+                >
+                  <span className="listwell-panel__row-main">
+                    <span className="listwell-panel__row-title">
+                      {report.name}
+                    </span>
+                    {meta ? (
+                      <span className="listwell-panel__row-meta">{meta}</span>
+                    ) : null}
                   </span>
-                  <span className="listwell-panel__row-meta">
-                    {reportMeta(report)}
-                  </span>
-                </span>
-                {score === null || score === undefined ? null : (
-                  <span className="listwell-panel__mono">{score}%</span>
-                )}
-                <Chevron />
-              </Link>
+                  {score === null || score === undefined ? null : (
+                    <span className="listwell-account-row__score">
+                      <span className="listwell-panel__mono">{score}%</span>
+                      {scoreDelta ? (
+                        <span
+                          className={cn(
+                            "listwell-account-row__score-delta",
+                            `listwell-account-row__score-delta--${scoreDelta.direction}`
+                          )}
+                          aria-label={accountScoreDeltaAriaLabel(scoreDelta)}
+                        >
+                          {formatAccountScoreDelta(scoreDelta)}
+                        </span>
+                      ) : null}
+                    </span>
+                  )}
+                </Link>
+                <div className="listwell-account-row__trail">
+                  <AccountBusinessRowMenu
+                    businessId={report.id}
+                    businessName={report.name}
+                    canRemove={report.owned}
+                    monthlyScansAvailable={monthlyScansAvailable}
+                    plan={report.plan}
+                  />
+                  <Link
+                    className="listwell-account-row__chevron"
+                    href={`/${report.id}`}
+                    aria-label={`View ${report.name}`}
+                  >
+                    <Chevron />
+                  </Link>
+                </div>
+              </div>
             </li>
           );
         })}

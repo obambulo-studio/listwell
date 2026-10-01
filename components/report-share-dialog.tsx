@@ -17,8 +17,13 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { reportShareStateSchema } from "@/lib/schema";
+import { apiErrorSchema, reportShareStateSchema } from "@/lib/schema";
 import type { ReportShareState } from "@/lib/schema";
+
+const shareApiErrorMessage = (payload: unknown, fallback: string): string => {
+  const parsed = apiErrorSchema.safeParse(payload);
+  return parsed.success ? parsed.data.error : fallback;
+};
 
 const fetchShareState = async (
   businessId: string
@@ -26,10 +31,11 @@ const fetchShareState = async (
   const response = await fetch(`/api/businesses/${businessId}/share`, {
     credentials: "same-origin",
   });
+  const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error("Could not load share link");
+    throw new Error(shareApiErrorMessage(payload, "Could not load share link"));
   }
-  return reportShareStateSchema.parse(await response.json());
+  return reportShareStateSchema.parse(payload);
 };
 
 const createShare = async (

@@ -1,11 +1,12 @@
 import type { Id } from "../convex/_generated/dataModel";
 import {
   getBusiness,
-  getLatestCompleteScanDetails,
+  getLatestCompleteScan,
   reserveDueMonthlyScan,
 } from "./data";
 import { runScanForBusiness } from "./run-business-scan";
-import { notifyScheduledScanComplete } from "./scheduled-scan-notify";
+import { prepareScanEmailNotification } from "./scheduled-scan-notify";
+import type { PendingScanEmail } from "./scheduled-scan-notify";
 import type { ScanRow } from "./schema";
 
 const readSiteUrl = (): string | null => {
@@ -21,9 +22,14 @@ export const runReservedMonthlyScan = async (input: {
   entitlementId: string;
   now?: Date;
 }): Promise<
-  | { ok: true; scan: ScanRow; skipped: false }
+  | {
+      ok: true;
+      scan: ScanRow;
+      scanEmailNotification: PendingScanEmail | null;
+      skipped: false;
+    }
   | { ok: false; scan: ScanRow | null; skipped: false; error: string }
-  | { ok: true; skipped: true }
+  | { ok: true; skipped: true; scanEmailNotification: null }
 > => {
   const now = input.now ?? new Date();
   const reserved = await reserveDueMonthlyScan(
@@ -31,7 +37,7 @@ export const runReservedMonthlyScan = async (input: {
     now
   );
   if (!reserved.reserved) {
-    return { ok: true, skipped: true };
+    return { ok: true, scanEmailNotification: null, skipped: true };
   }
 
   const businessId = reserved.businessExternalId ?? input.businessId;
@@ -45,7 +51,13 @@ export const runReservedMonthlyScan = async (input: {
     };
   }
 
-  const previousComplete = await getLatestCompleteScanDetails(businessId);
+  let previousScore: number | null = null;
+  try {
+    const prior = await getLatestCompleteScan(businessId);
+    previousScore = prior?.score ?? null;
+  } catch (error) {
+    console.error("runReservedMonthlyScan: prior score lookup failed", error);
+  }
 
   let scan: ScanRow;
   try {
@@ -59,24 +71,20 @@ export const runReservedMonthlyScan = async (input: {
     };
   }
 
+  let scanEmailNotification: PendingScanEmail | null = null;
   const siteUrl = readSiteUrl();
   if (siteUrl && scan.status === "complete") {
     try {
-      await notifyScheduledScanComplete({
-        businessCategory: business.category,
+      scanEmailNotification = await prepareScanEmailNotification({
         businessId,
         businessName: business.name,
-        previousComplete: previousComplete
-          ? {
-              results: previousComplete.results,
-              score: previousComplete.score,
-            }
-          : null,
-        scan,
+        finishedAt: scan.finishedAt,
+        previousScore,
+        score: scan.score,
         siteUrl,
       });
     } catch (error) {
-      console.error("runReservedMonthlyScan: notification failed", error);
+      console.error("runReservedMonthlyScan: notification prep failed", error);
     }
   }
 
@@ -88,5 +96,5 @@ export const runReservedMonthlyScan = async (input: {
       skipped: false,
     };
   }
-  return { ok: true, scan, skipped: false };
+  return { ok: true, scan, scanEmailNotification, skipped: false };
 };

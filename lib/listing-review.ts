@@ -77,6 +77,137 @@ export type ListingReviewDegradedReason = z.infer<
   typeof listingReviewDegradedReasonSchema
 >;
 
+const LISTING_REVIEW_SOURCE_LABELS: Record<ListingReviewSourceId, string> = {
+  apple_maps: "Apple Maps",
+  audit_record: "Listwell audit",
+  google_places: "Google Business Profile",
+  listing_page: "Google listing page",
+  openstreetmap: "OpenStreetMap",
+  website: "Website",
+};
+
+const LISTING_REVIEW_FIELD_LABELS: Record<
+  ListingReviewContent["napMismatches"][number]["field"],
+  string
+> = {
+  address: "Address",
+  name: "Business name",
+  phone: "Phone number",
+  website: "Website URL",
+};
+
+export const listingReviewHasFixPrompt = (
+  content: ListingReviewContent
+): boolean =>
+  Boolean(content.businessDescription) ||
+  Boolean(content.categories) ||
+  content.napMismatches.length > 0 ||
+  content.photoChecklistGaps.length > 0 ||
+  content.reviewReplyTemplates.length > 0;
+
+export const buildListingReviewFixPrompt = (input: {
+  businessName: string;
+  content: ListingReviewContent;
+}): string => {
+  const { businessName, content } = input;
+  const blocks: string[] = [];
+
+  if (content.businessDescription) {
+    blocks.push(
+      [
+        "## Business description",
+        "",
+        "Goal: Present a clear, accurate description on Google Business Profile and the business website.",
+        "Issue: Listing data suggests the current description could be improved.",
+        "Fix: Use this Australian English description (verify facts before publishing):",
+        "",
+        content.businessDescription.suggestedText,
+        "",
+        "Update the Google Business Profile description and matching website copy (About page, homepage intro, and LocalBusiness JSON-LD description if present).",
+      ].join("\n")
+    );
+  }
+
+  if (content.categories) {
+    const secondary =
+      content.categories.secondary.length > 0
+        ? content.categories.secondary.join(", ")
+        : "none";
+    blocks.push(
+      [
+        "## Categories",
+        "",
+        "Goal: Use accurate primary and secondary categories so customers find the business in maps and search.",
+        "Issue: Category alignment across listings could be clearer.",
+        `Fix: Set the primary category to "${content.categories.primary}". Add secondary categories where the platform allows: ${secondary}. Apply on Google Business Profile and any structured data (LocalBusiness @type / category fields) on the website.`,
+      ].join("\n")
+    );
+  }
+
+  for (const row of content.napMismatches) {
+    const fieldLabel = LISTING_REVIEW_FIELD_LABELS[row.field];
+    const valueLines = row.values.map(
+      (entry) =>
+        `- ${LISTING_REVIEW_SOURCE_LABELS[entry.sourceId]}: ${entry.value}`
+    );
+    blocks.push(
+      [
+        `## NAP consistency — ${fieldLabel}`,
+        "",
+        "Goal: Name, address, phone, and website should match on every listing and on the website.",
+        `Issue: ${fieldLabel} differs between sources:`,
+        ...valueLines,
+        `Fix: ${row.suggestedFix} Pick one canonical value (often Google Business Profile or official business records), then update the website contact page, footer, tel: links, and LocalBusiness structured data to match.`,
+      ].join("\n")
+    );
+  }
+
+  if (content.photoChecklistGaps.length > 0) {
+    const items = content.photoChecklistGaps.map(
+      (gap) => `- ${gap.item}: ${gap.reason}`
+    );
+    blocks.push(
+      [
+        "## Photos",
+        "",
+        "Goal: Show enough high-quality photos that customers understand the offer and trust the business.",
+        "Issue: Photo coverage gaps were detected:",
+        ...items,
+        "Fix: Add these photo types to Google Business Profile and the website gallery or hero sections. Use well-lit, recent images that match what customers will see in person.",
+      ].join("\n")
+    );
+  }
+
+  for (const template of content.reviewReplyTemplates) {
+    blocks.push(
+      [
+        "## Review reply",
+        "",
+        "Goal: Respond professionally to customer reviews on Google.",
+        `Issue: A recent review needs a reply. Excerpt: "${template.reviewSnippet}"`,
+        "Fix: Post a reply like the following (adjust names and details as needed):",
+        "",
+        template.suggestedReply,
+      ].join("\n")
+    );
+  }
+
+  return [
+    `# Listing improvements for ${businessName}`,
+    "",
+    "Apply these changes for Listwell's AI listing review. Verify every fact before publishing.",
+    "",
+    blocks.join("\n\n---\n\n"),
+    "",
+    "---",
+    "",
+    "Constraints:",
+    "- Do not invent addresses, phone numbers, hours, or review text.",
+    "- Prefer minimal, targeted edits over broad rewrites.",
+    "- Keep Australian English spelling and tone.",
+  ].join("\n");
+};
+
 const LISTING_REVIEW_DISCLAIMER =
   "AI suggestions below are based only on data Listwell fetched for this audit. Verify every change before publishing.";
 

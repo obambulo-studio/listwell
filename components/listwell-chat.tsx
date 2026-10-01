@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { persistedCategoryLabel } from "@/lib/category";
 import {
   buildBasicReportStats,
   categoryFromInputAsync,
@@ -100,7 +101,10 @@ import {
   loadChatSession,
   saveChatSession,
 } from "@/lib/storage";
-import { normalizeChatInput } from "@/lib/text-normalize";
+import {
+  normalizeBusinessName,
+  normalizeChatInput,
+} from "@/lib/text-normalize";
 import { waitForMs } from "@/lib/wait";
 
 const googleCandidate = (
@@ -540,11 +544,13 @@ const ChatComposer = ({
   onSend,
   shouldFocus = false,
   embedded = false,
+  preserveCase = false,
 }: {
   placeholder: string;
   onSend: (text: string) => void;
   shouldFocus?: boolean;
   embedded?: boolean;
+  preserveCase?: boolean;
 }) => {
   const [value, setValue] = useReducer(
     (_current: string, next: string) => next,
@@ -583,7 +589,9 @@ const ChatComposer = ({
         defaultValue=""
         onInput={(event) => setValue(event.currentTarget.value)}
         placeholder={placeholder}
+        autoCapitalize={preserveCase ? "none" : undefined}
         autoComplete="organization"
+        spellCheck={preserveCase ? false : undefined}
         enterKeyHint="send"
         aria-label={placeholder}
       />
@@ -629,6 +637,7 @@ const PromptCard = ({
   inputPlaceholder,
   onInputSend,
   shouldFocusInput = false,
+  preserveCase = false,
   options,
   onOptionSelect,
 }: {
@@ -640,6 +649,7 @@ const PromptCard = ({
   inputPlaceholder?: string;
   onInputSend?: (text: string) => void;
   shouldFocusInput?: boolean;
+  preserveCase?: boolean;
   options?: string[];
   onOptionSelect?: (option: string) => void;
 }) => {
@@ -657,6 +667,7 @@ const PromptCard = ({
         placeholder={inputPlaceholder}
         onSend={onInputSend}
         shouldFocus={shouldFocusInput}
+        preserveCase={preserveCase}
       />
     ) : null;
   const showOptions =
@@ -752,6 +763,7 @@ const ListwellChatLayout = ({
   draft,
   handleListingSubmit,
   handleSend,
+  onBusinessNameChange,
   isStarter,
   isTyping,
   messages,
@@ -771,6 +783,7 @@ const ListwellChatLayout = ({
   draft: ChatDraft;
   handleListingSubmit: (answers: Record<number, number[]>) => void;
   handleSend: (text: string) => void;
+  onBusinessNameChange: (name: string) => void;
   isStarter: boolean;
   isTyping: boolean;
   messages: ChatMessage[];
@@ -809,6 +822,7 @@ const ListwellChatLayout = ({
                   inputPlaceholder={promptPlaceholder}
                   onInputSend={handleSend}
                   shouldFocusInput={isActivePrompt}
+                  preserveCase={phase === "business_name"}
                   options={isCategoryPrompt ? categoryOptions : undefined}
                   onOptionSelect={isCategoryPrompt ? handleSend : undefined}
                 />
@@ -888,6 +902,7 @@ const ListwellChatLayout = ({
                 businessName={draft.businessName}
                 stats={reportStats}
                 businessId={businessId}
+                onBusinessNameChange={onBusinessNameChange}
                 onPreview={() => {
                   if (businessId) {
                     push(`/${businessId}`);
@@ -906,6 +921,7 @@ const ListwellChatLayout = ({
           key={`footer-${phase}`}
           placeholder={promptPlaceholder}
           onSend={handleSend}
+          preserveCase={phase === "business_name"}
         />
       </div>
     ) : null}
@@ -963,6 +979,7 @@ type ChatSessionAction =
     }
   | { type: "messages"; updater: (current: ChatMessage[]) => ChatMessage[] }
   | { type: "patch"; patch: Partial<ChatSessionState> }
+  | { name: string; type: "rename-business" }
   | { type: "reset" }
   | { type: "restore"; snapshot: ChatSessionSnapshot };
 
@@ -1018,6 +1035,12 @@ const chatSessionReducer = (
     }
     case "patch": {
       return { ...state, ...action.patch };
+    }
+    case "rename-business": {
+      return {
+        ...state,
+        draft: { ...state.draft, businessName: action.name },
+      };
     }
     case "reset": {
       return emptyChatSession();
@@ -1289,6 +1312,7 @@ const useListwellChat = () => {
           appleMapsId: nextDraft.appleMapsId,
           businessName: nextDraft.businessName,
           categoryId: nextDraft.categoryId,
+          categoryLabel: nextDraft.categoryLabel,
           facebookUrl: nextDraft.facebookUrl,
           googlePlaceId: nextDraft.googlePlaceId,
           instagramUsername: nextDraft.instagramUsername,
@@ -1336,6 +1360,10 @@ const useListwellChat = () => {
         resolvedCategory,
         profiles
       );
+      payload.categoryLabel = persistedCategoryLabel({
+        categoryId: resolvedCategory,
+        label: discovery.categoryDisplayLabel,
+      });
       payload.locations = withDiscoveryPin(
         payload.locations,
         googleCandidate(candidate)
@@ -1554,15 +1582,18 @@ const useListwellChat = () => {
         ? await requestChatInterpret({ draft, phase, text })
         : null;
 
+      const interpretedName = interpret?.businessName
+        ? normalizeBusinessName(interpret.businessName)
+        : "";
       if (
         interpret?.intent === "name_and_location" &&
-        interpret.businessName &&
+        interpretedName &&
         interpret.location
       ) {
         attachPromptAnswer(text);
         const nextDraft = {
           ...draft,
-          businessName: interpret.businessName,
+          businessName: interpretedName,
           location: interpret.location,
         };
         setDraft(nextDraft);
@@ -1599,7 +1630,7 @@ const useListwellChat = () => {
         const { categoryId, displayLabel } =
           await categoryFromInputAsync(categoryText);
         attachPromptAnswer(displayLabel);
-        const nextDraft = { ...draft, categoryId };
+        const nextDraft = { ...draft, categoryId, categoryLabel: displayLabel };
         setDraft(nextDraft);
         await startAudit({
           advance,
@@ -1765,6 +1796,9 @@ const useListwellChat = () => {
     isStarter,
     isTyping,
     messages,
+    onBusinessNameChange: (name: string) => {
+      dispatch({ name, type: "rename-business" });
+    },
     phase,
     promptPlaceholder,
     push,

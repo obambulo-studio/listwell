@@ -1,3 +1,5 @@
+import { renderAuthCodeEmail } from "../../emails/auth-code";
+import type { AuthCodeType } from "../../emails/auth-code";
 import { env } from "../_generated/server";
 
 const USESEND_DEFAULT_BASE = "https://app.usesend.com";
@@ -15,7 +17,9 @@ const emailsUrl = (base: string): string => {
 
 export const sendSignInCode = async (
   to: string,
-  code: string
+  code: string,
+  siteUrl: string,
+  type: AuthCodeType = "sign-in"
 ): Promise<boolean> => {
   const apiKey = env.USESEND_API_KEY;
   const from = env.USESEND_FROM;
@@ -26,11 +30,13 @@ export const sendSignInCode = async (
     return false;
   }
 
+  const message = renderAuthCodeEmail({ code, siteUrl, type });
   const baseUrl = env.USESEND_BASE_URL ?? USESEND_DEFAULT_BASE;
   const payload = {
     from,
-    subject: "Your Listwell sign-in code",
-    text: `Your Listwell sign-in code is ${code}.\n\nThis code expires in 10 minutes. If you did not request it, you can ignore this email.`,
+    html: message.html,
+    subject: message.subject,
+    text: message.text,
     to,
   };
 

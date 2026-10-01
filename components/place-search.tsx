@@ -1,7 +1,9 @@
 "use client";
 
+import { Tick02Icon } from "@hugeicons/core-free-icons";
 import { useRef, useState } from "react";
 
+import { Icon } from "@/components/icon";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { CATEGORY_CONFIG } from "@/lib/category";
@@ -70,19 +72,12 @@ export const ListingChoices = ({
               </span>
               {pressed ? (
                 <span className="bg-green flex size-5.5 shrink-0 items-center justify-center rounded-full text-white">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
+                  <Icon
+                    absoluteStrokeWidth
+                    icon={Tick02Icon}
+                    size={12}
+                    strokeWidth={1.6}
+                  />
                 </span>
               ) : null}
             </button>

@@ -1,4 +1,4 @@
-import type { CategoryId } from "./category";
+import { renderScanReadyEmail } from "../emails/scan-ready";
 import {
   citationCount,
   formatCount,
@@ -11,12 +11,6 @@ import {
   ORGANIC_RANK_DROP_ALERT_PLACES,
   SCORE_DROP_ALERT_POINTS,
 } from "./scan-config";
-import {
-  checkFixItem,
-  failingCheckIds,
-  rankFailingChecks,
-} from "./scan-email-hints";
-import type { CheckFixItem } from "./scan-email-hints";
 import type { PeriodSummaryPayload } from "./seo-schema";
 
 export interface ScanCheckResult {
@@ -31,23 +25,113 @@ export interface ScanSnapshot {
 
 export type ScanEmailKind = "monthly_summary" | "score_alert";
 
+export interface ScanEmailBusiness {
+  businessId: string;
+  businessName: string;
+  finishedAt: string | null;
+  /** Complete scan immediately before this one, if any. */
+  previousScore: number | null;
+  score: number | null;
+}
+
+const scanMonthFormat = new Intl.DateTimeFormat("en-AU", {
+  month: "long",
+  timeZone: "Australia/Sydney",
+});
+
+export const formatScanMonth = (iso: string | null): string | null => {
+  if (!iso) {
+    return null;
+  }
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return scanMonthFormat.format(date);
+};
+
+const scanMonthFromBusinesses = (
+  businesses: readonly ScanEmailBusiness[]
+): string | null => {
+  for (const business of businesses) {
+    const month = formatScanMonth(business.finishedAt);
+    if (month) {
+      return month;
+    }
+  }
+  return null;
+};
+
+export const scanScoreSummary = (score: number | null): string =>
+  score === null
+    ? "Visibility score not available yet."
+    : `Visibility score: ${score}%`;
+
+export type VisibilityScoreTrendDirection = "down" | "same" | "up";
+
+export interface VisibilityScoreTrend {
+  arrow: string;
+  direction: VisibilityScoreTrendDirection;
+  label: string;
+}
+
+const visibilityTrendUpArrow = "\u2191";
+const visibilityTrendDownArrow = "\u2193";
+const visibilityTrendFlatArrow = "\u2192";
+
+export const formatVisibilityScoreTrendPlain = (
+  trend: VisibilityScoreTrend
+): string =>
+  trend.arrow.length > 0 ? `${trend.arrow} ${trend.label}` : trend.label;
+
+export const visibilityScoreTrend = (
+  score: number | null,
+  previousScore: number | null
+): VisibilityScoreTrend | null => {
+  if (score === null) {
+    return null;
+  }
+  if (previousScore === null) {
+    return null;
+  }
+  const delta = score - previousScore;
+  if (delta === 0) {
+    return {
+      arrow: visibilityTrendFlatArrow,
+      direction: "same",
+      label: "Same as last month.",
+    };
+  }
+  const points = Math.abs(delta);
+  const unit = points === 1 ? "point" : "points";
+  if (delta > 0) {
+    return {
+      arrow: visibilityTrendUpArrow,
+      direction: "up",
+      label: `Up ${points} ${unit} from last month.`,
+    };
+  }
+  return {
+    arrow: visibilityTrendDownArrow,
+    direction: "down",
+    label: `Down ${points} ${unit} from last month.`,
+  };
+};
+
+export const visibilityScoreTrendLine = (
+  score: number | null,
+  previousScore: number | null
+): string | null => {
+  const trend = visibilityScoreTrend(score, previousScore);
+  return trend ? formatVisibilityScoreTrendPlain(trend) : null;
+};
+
 export interface ScanEmailContent {
   html: string;
-  kind: ScanEmailKind;
   listUnsubscribeUrl: string;
   subject: string;
   text: string;
 }
-
-const FONT_STACK =
-  "'Geist', 'Geist Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 
 export const newlyBrokenChecks = (
   previous: ScanSnapshot | null,
@@ -325,19 +409,6 @@ export const researchChangeLines = (research: ScanEmailResearch): string[] => {
   return lines;
 };
 
-const researchTableHtml = (lines: readonly string[]): string => {
-  if (lines.length === 0) {
-    return "";
-  }
-  const rows = lines
-    .map(
-      (line) =>
-        `<tr><td style="padding:6px 0;font-size:14px;line-height:1.45;color:#222">${escapeHtml(line)}</td></tr>`
-    )
-    .join("");
-  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:16px">${rows}</table>`;
-};
-
 export const pickScanEmailKind = (
   previous: ScanSnapshot | null,
   current: ScanSnapshot,
@@ -356,207 +427,102 @@ export const pickScanEmailKind = (
   return "monthly_summary";
 };
 
-const formatDeltaShort = (delta: number | null): string => {
-  if (delta === null) {
-    return "No previous score to compare";
+const scanEmailSubject = (businesses: readonly ScanEmailBusiness[]): string => {
+  const month = scanMonthFromBusinesses(businesses);
+  if (businesses.length === 1) {
+    const name = businesses[0]?.businessName ?? "your business";
+    if (month) {
+      return `Listwell · ${month} scan — ${name}`;
+    }
+    return `Listwell · Scan ready — ${name}`;
   }
-  if (delta === 0) {
-    return "No change since your last scan";
+  if (month) {
+    return `Listwell · ${month} scans — ${businesses.length} businesses`;
   }
-  if (delta > 0) {
-    return `Up ${delta} points since your last scan`;
-  }
-  return `Down ${Math.abs(delta)} points since your last scan`;
+  return `Listwell · Scans ready — ${businesses.length} businesses`;
 };
 
-const formatDeltaText = (delta: number | null): string => {
-  if (delta === null) {
-    return "Score change: not enough history to compare yet.";
-  }
-  if (delta === 0) {
-    return "Score change: no change since your last scan.";
-  }
-  const direction = delta > 0 ? "up" : "down";
-  return `Score change: ${direction} ${Math.abs(delta)} points (${delta > 0 ? "+" : ""}${delta}).`;
-};
-
-const fixListText = (items: CheckFixItem[]): string => {
-  if (items.length === 0) {
-    return "";
-  }
-  const lines = items.map((item) => {
-    const hint = item.hint ? ` — ${item.hint}` : "";
-    return `- ${item.title}${hint}`;
-  });
-  return `\n\n${lines.join("\n")}`;
-};
-
-const fixListHtml = (
-  heading: string,
-  items: CheckFixItem[],
-  emptyCopy: string
+const scanEmailPreheader = (
+  businesses: readonly ScanEmailBusiness[]
 ): string => {
-  if (items.length === 0) {
-    return `<p style="margin:20px 0 0;font-size:15px;line-height:1.5;color:#444">${escapeHtml(emptyCopy)}</p>`;
+  if (businesses.length === 1) {
+    const [business] = businesses;
+    const name = business?.businessName ?? "your business";
+    if (business?.score !== null && business?.score !== undefined) {
+      return `${name} scored ${business.score}% on the latest Listwell scan.`;
+    }
+    return `Your Listwell scan is ready for ${name}.`;
   }
-  const rows = items
-    .map((item) => {
-      const hint = item.hint
-        ? `<p style="margin:4px 0 0;font-size:14px;line-height:1.45;color:#555">${escapeHtml(item.hint)}</p>`
-        : "";
-      return `<li style="margin:0 0 14px"><strong style="font-size:15px;color:#111">${escapeHtml(item.title)}</strong>${hint}</li>`;
-    })
-    .join("");
-  return `<p style="margin:24px 0 8px;font-size:13px;font-weight:600;letter-spacing:0.02em;text-transform:uppercase;color:#666">${escapeHtml(heading)}</p><ul style="margin:0;padding:0 0 0 18px">${rows}</ul>`;
+  return `Your Listwell scans are ready for ${businesses.length} businesses.`;
 };
 
-const renderEmailDocument = (input: {
-  bodyHtml: string;
-  businessName: string;
-  preheader: string;
-  reportUrl: string;
-  score: number | null;
-  scoreDelta: number | null;
+const scanEmailText = (input: {
+  businesses: readonly ScanEmailBusiness[];
+  profileUrl: (businessId: string) => string;
   unsubscribeUrl: string;
 }): string => {
-  const scoreDisplay =
-    input.score === null
-      ? "—"
-      : `${input.score}<span style="font-size:28px">%</span>`;
-  const deltaLine = formatDeltaShort(input.scoreDelta);
-  const reason = `You're receiving this because you have Listwell monthly reports for ${input.businessName}.`;
-
-  return `<!DOCTYPE html>
-<html lang="en-AU">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Listwell</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:${FONT_STACK};color:#111">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(input.preheader)}</div>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f5">
-<tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden">
-<tr><td style="padding:20px 28px;border-bottom:1px solid #eee;background:#fafafa">
-<span style="font-size:18px;font-weight:600;letter-spacing:-0.02em">Listwell</span>
-</td></tr>
-<tr><td style="padding:28px">
-<div style="text-align:center;margin-bottom:24px">
-<div style="font-size:52px;font-weight:700;line-height:1;letter-spacing:-0.03em">${scoreDisplay}</div>
-<div style="margin-top:8px;font-size:15px;color:#555">${escapeHtml(deltaLine)}</div>
-</div>
-${input.bodyHtml}
-<p style="margin:28px 0 0;text-align:center">
-<a href="${escapeHtml(input.reportUrl)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:12px 22px;border-radius:8px">View full report</a>
-</p>
-</td></tr>
-<tr><td style="padding:18px 28px;background:#fafafa;border-top:1px solid #eee;font-size:12px;line-height:1.5;color:#666">
-<p style="margin:0 0 8px">${escapeHtml(reason)}</p>
-<p style="margin:0"><a href="${escapeHtml(input.unsubscribeUrl)}" style="color:#444">Email preferences</a> · <a href="${escapeHtml(input.unsubscribeUrl)}" style="color:#444">Unsubscribe</a></p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
+  const intro =
+    input.businesses.length === 1
+      ? "Your monthly Listwell scan is ready."
+      : "Your monthly Listwell scans are ready.";
+  const profileLines = input.businesses
+    .map((business) => {
+      const trend = visibilityScoreTrend(
+        business.score,
+        business.previousScore
+      );
+      const trendPlain = trend ? formatVisibilityScoreTrendPlain(trend) : null;
+      const lines = [
+        business.businessName,
+        scanScoreSummary(business.score),
+        trendPlain,
+        input.profileUrl(business.businessId),
+      ].filter((line) => line !== null);
+      return lines.join("\n");
+    })
+    .join("\n\n");
+  return `${intro}\n\n${profileLines}\n\nEmail preferences: ${input.unsubscribeUrl}`;
 };
 
 export const buildScanEmail = (input: {
-  businessCategory: CategoryId;
-  businessName: string;
-  current: ScanSnapshot;
-  previous: ScanSnapshot | null;
+  businesses: readonly ScanEmailBusiness[];
   listUnsubscribeUrl?: string;
-  reportUrl: string;
-  research?: ScanEmailResearch | null;
+  siteUrl: string;
   unsubscribeUrl: string;
 }): ScanEmailContent => {
   if (!input.unsubscribeUrl.trim()) {
     throw new Error("unsubscribeUrl is required for scan emails");
   }
+  if (input.businesses.length === 0) {
+    throw new Error("At least one business is required for scan emails");
+  }
   const listUnsubscribeUrl =
     input.listUnsubscribeUrl?.trim() || input.unsubscribeUrl;
-
-  const delta = scoreDelta(input.previous, input.current);
-  const newlyBroken = newlyBrokenChecks(input.previous, input.current);
-  const kind = pickScanEmailKind(input.previous, input.current, input.research);
-  const failing = rankFailingChecks(
-    failingCheckIds(input.current),
-    input.businessCategory
-  );
-  const topThree = failing.slice(0, 3).map((id) => checkFixItem(id));
-  const alertItems = rankFailingChecks(newlyBroken, input.businessCategory).map(
-    (id) => checkFixItem(id)
-  );
-  const changeLines = input.research ? researchChangeLines(input.research) : [];
-  const alertLines = input.research ? researchAlertLines(input.research) : [];
-  const researchText =
-    changeLines.length > 0 ? `\n\n${changeLines.join("\n")}` : "";
-  const alertText = alertLines.length > 0 ? `\n\n${alertLines.join("\n")}` : "";
-
-  const scoreLine =
-    input.current.score === null
-      ? "Latest score: unavailable"
-      : `Latest score: ${input.current.score}%`;
-  const deltaLine = formatDeltaText(delta);
-
-  const preferencesFooter = `\n\nEmail preferences: ${input.unsubscribeUrl}`;
-  const scoreDropped =
-    newlyBroken.length > 0 ||
-    (delta !== null && delta <= -SCORE_DROP_ALERT_POINTS);
-
-  if (kind === "score_alert") {
-    const subject = scoreDropped
-      ? `Listwell alert: ${input.businessName} listing health dropped`
-      : `Listwell alert: ${input.businessName}`;
-    const intro = scoreDropped
-      ? "Your scheduled Listwell scan found issues worth fixing soon."
-      : "Your scheduled Listwell scan found a change in search visibility.";
-    const text = `Hi,\n\n${intro}\n\n${scoreLine}\n${deltaLine}${researchText}${alertText}${fixListText(alertItems)}\n\nView the full report: ${input.reportUrl}${preferencesFooter}`;
-    const bodyHtml = `<p style="margin:0;font-size:16px;line-height:1.55;color:#222">Hi,</p><p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#222">${escapeHtml(intro)}</p>${researchTableHtml(changeLines)}${researchTableHtml(alertLines)}${fixListHtml("Checks that need attention", alertItems, "No new failing checks since your last scan.")}`;
-    return {
-      html: renderEmailDocument({
-        bodyHtml,
-        businessName: input.businessName,
-        preheader: `${scoreLine}. ${formatDeltaShort(delta)}.`,
-        reportUrl: input.reportUrl,
-        score: input.current.score,
-        scoreDelta: delta,
-        unsubscribeUrl: input.unsubscribeUrl,
-      }),
-      kind,
-      listUnsubscribeUrl,
-      subject,
-      text,
-    };
-  }
-
-  const subject = `Listwell monthly scan: ${input.businessName}`;
-  const intro = "Your monthly Listwell scan is ready.";
-  const topFixHeading = "Top things to fix";
-  const emptyFix = "Nothing new to fix — nice work.";
-  const text = `Hi,\n\n${intro}\n\n${scoreLine}\n${deltaLine}${researchText}${
-    topThree.length > 0
-      ? `\n\n${topFixHeading}:${fixListText(topThree)}`
-      : `\n\n${emptyFix}`
-  }\n\nView the report: ${input.reportUrl}${preferencesFooter}`;
-
-  const bodyHtml = `<p style="margin:0;font-size:16px;line-height:1.55;color:#222">Hi,</p><p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#222">${escapeHtml(intro)}</p>${researchTableHtml(changeLines)}${fixListHtml(topFixHeading, topThree, emptyFix)}`;
-
+  const siteBase = input.siteUrl.replace(/\/$/u, "");
+  const profileUrl = (businessId: string) => `${siteBase}/${businessId}`;
+  const scanMonthLabel = scanMonthFromBusinesses(input.businesses);
+  const businesses = input.businesses.map((business) => ({
+    businessId: business.businessId,
+    businessName: business.businessName,
+    profileUrl: profileUrl(business.businessId),
+    scoreSummary: scanScoreSummary(business.score),
+    scoreTrend: visibilityScoreTrend(business.score, business.previousScore),
+  }));
+  const preheader = scanEmailPreheader(input.businesses);
   return {
-    html: renderEmailDocument({
-      bodyHtml,
-      businessName: input.businessName,
-      preheader: `${scoreLine}. ${formatDeltaShort(delta)}.`,
-      reportUrl: input.reportUrl,
-      score: input.current.score,
-      scoreDelta: delta,
+    html: renderScanReadyEmail({
+      businesses,
+      preheader,
+      scanMonthLabel,
+      siteUrl: siteBase,
       unsubscribeUrl: input.unsubscribeUrl,
     }),
-    kind,
     listUnsubscribeUrl,
-    subject,
-    text,
+    subject: scanEmailSubject(input.businesses),
+    text: scanEmailText({
+      businesses: input.businesses,
+      profileUrl,
+      unsubscribeUrl: input.unsubscribeUrl,
+    }),
   };
 };

@@ -26,9 +26,14 @@ export const listReports = authedQuery({
       {
         id: string;
         name: string;
+        owned: boolean;
         unlocked: boolean;
         plan: ReportPlan;
-        lastScan: { score: number | null; finishedAt: string | null } | null;
+        lastScan: {
+          score: number | null;
+          finishedAt: string | null;
+          previousScore: number | null;
+        } | null;
         nextScanAt: string | null;
       }
     >();
@@ -39,7 +44,8 @@ export const listReports = authedQuery({
         name: string;
       },
       activeKind: "report_once" | "report_monthly" | null,
-      nextScanAt: string | null
+      nextScanAt: string | null,
+      owned: boolean
     ) => {
       const plan = planFromKind(activeKind);
       const existing = byExternalId.get(business.externalId);
@@ -49,10 +55,14 @@ export const listReports = authedQuery({
           lastScan: null,
           name: business.name,
           nextScanAt: activeKind === "report_monthly" ? nextScanAt : null,
+          owned,
           plan,
           unlocked: activeKind !== null,
         });
         return;
+      }
+      if (owned) {
+        existing.owned = true;
       }
       if (activeKind) {
         existing.unlocked = true;
@@ -67,7 +77,7 @@ export const listReports = authedQuery({
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
     for (const business of owned) {
-      upsert(business, null, null);
+      upsert(business, null, null, true);
     }
 
     const entitled = await ctx.db
@@ -98,7 +108,8 @@ export const listReports = authedQuery({
         activeKind,
         entitlement.status === "active"
           ? (entitlement.nextScanAt ?? null)
-          : null
+          : null,
+        business.userId === user._id
       );
     }
 
@@ -119,10 +130,11 @@ export const listReports = authedQuery({
           .toSorted((left, right) =>
             (right.finishedAt ?? "").localeCompare(left.finishedAt ?? "")
           );
-        const [latest] = completed;
+        const [latest, prior] = completed;
         if (latest) {
           report.lastScan = {
             finishedAt: latest.finishedAt ?? null,
+            previousScore: prior?.score ?? null,
             score: latest.score ?? null,
           };
         }

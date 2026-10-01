@@ -182,6 +182,7 @@ export const userRowSchema = z.object({
   createdAt: z.string(),
   email: z.string(),
   id: z.string(),
+  name: z.string().optional(),
 });
 export type UserRow = z.infer<typeof userRowSchema>;
 
@@ -253,11 +254,13 @@ export const accountReportSchema = z.object({
   lastScan: z
     .object({
       finishedAt: z.string().nullable(),
+      previousScore: z.number().nullable(),
       score: z.number().nullable(),
     })
     .nullable(),
   name: z.string(),
   nextScanAt: z.string().nullable(),
+  owned: z.boolean(),
   plan: accountPlanSchema,
   unlocked: z.boolean(),
 });

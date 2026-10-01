@@ -26,6 +26,13 @@ export const fixStepsWithoutPayment = (input: {
 export const reportShowsFixSteps = (access: EntitlementState): boolean =>
   access.fixStepsWithoutPayment || (access.unlocked && !access.sessionRequired);
 
+/** Prices sit under the score while this business still needs a purchase. */
+export const reportShowsPurchasePrices = (access: EntitlementState): boolean =>
+  access.backendAvailable &&
+  access.paymentsEnabled &&
+  !access.fixStepsWithoutPayment &&
+  !access.unlocked;
+
 /** Continued research stays visible on a share even though the viewer plan is cleared. */
 export const monthlyResearchVisible = (
   entitlement: {

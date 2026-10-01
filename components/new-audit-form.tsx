@@ -31,6 +31,7 @@ import {
 } from "@/lib/profiles";
 import { businessSchema } from "@/lib/schema";
 import { addBusinessId } from "@/lib/storage";
+import { normalizeBusinessName } from "@/lib/text-normalize";
 
 interface AuditFormState {
   addressDraft: string | null;
@@ -351,7 +352,7 @@ export const NewAuditForm = ({
     try {
       const choice = resolveTypedCategory(category);
       const payload = businessInputFromDiscovery(
-        name,
+        normalizeBusinessName(name),
         choice.categoryId,
         profiles,
         address,

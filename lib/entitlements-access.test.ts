@@ -6,6 +6,7 @@ import {
   isPaymentsIntentionallyDisabled,
   reportResearchChrome,
   reportShowsFixSteps,
+  reportShowsPurchasePrices,
   sharedViewerEntitlementState,
 } from "./entitlements-access";
 import { entitlementStateSchema } from "./schema";
@@ -109,6 +110,34 @@ describe(reportShowsFixSteps, () => {
           sessionRequired: true,
           unlocked: true,
         })
+      )
+    ).toBeFalsy();
+  });
+});
+
+describe(reportShowsPurchasePrices, () => {
+  it("shows prices when the business is still unpaid", () => {
+    expect(reportShowsPurchasePrices(access({ unlocked: false }))).toBeTruthy();
+  });
+
+  it("hides prices after purchase", () => {
+    expect(reportShowsPurchasePrices(access({ unlocked: true }))).toBeFalsy();
+  });
+
+  it("hides prices when fix steps are free or payments are off", () => {
+    expect(
+      reportShowsPurchasePrices(
+        access({ fixStepsWithoutPayment: true, unlocked: false })
+      )
+    ).toBeFalsy();
+    expect(
+      reportShowsPurchasePrices(
+        access({ paymentsEnabled: false, unlocked: false })
+      )
+    ).toBeFalsy();
+    expect(
+      reportShowsPurchasePrices(
+        access({ backendAvailable: false, unlocked: false })
       )
     ).toBeFalsy();
   });

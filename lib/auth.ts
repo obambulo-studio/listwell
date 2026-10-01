@@ -9,6 +9,7 @@ const authUserSchema = z.object({
   _id: z.string(),
   createdAt: z.union([z.number(), z.string()]),
   email: z.string(),
+  name: z.string().nullish(),
 });
 
 export const maskEmail = (email: string): string => {
@@ -77,6 +78,7 @@ export const getSessionUser = async (): Promise<UserRow | null> => {
       createdAt: new Date(parsed.data.createdAt).toISOString(),
       email: parsed.data.email,
       id: parsed.data._id,
+      name: parsed.data.name ?? "",
     };
   } catch {
     return null;

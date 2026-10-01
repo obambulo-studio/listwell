@@ -110,11 +110,9 @@ body {
   }
 }
 
+/* Form controls use component focus rings (see foundation.css); accent outline is for links and buttons only. */
 a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -163,7 +161,20 @@ textarea:focus-visible {
   overflow: auto;
   padding: 72px 24px 96px;
   box-sizing: border-box;
-  mask-image: linear-gradient(to bottom, transparent 0, #000 60px);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 60px,
+    #000 calc(100% - 60px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 60px,
+    #000 calc(100% - 60px),
+    transparent 100%
+  );
 }
 
 @media (max-width: 480px) {
@@ -314,6 +325,7 @@ textarea:focus-visible {
   max-width: min(240px, calc(100vw - 32px));
   padding: 4px;
   border-radius: 10px;
+  overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow-hairline);
   transform-origin: top right;
@@ -331,22 +343,48 @@ textarea:focus-visible {
   }
 }
 
+.listwell-account-menu--fixed {
+  position: fixed;
+  top: 0;
+  right: auto;
+  z-index: 10;
+}
+
 .listwell-account-menu__list {
   display: flex;
   flex-direction: column;
+}
+
+/* Inner radius: 10px menu − 4px padding */
+.listwell-glide-highlight {
+  inset-inline: 0;
+  border-radius: 6px;
+  background: var(--hover);
+}
+
+.listwell-account-menu__icon {
+  flex: none;
+}
+
+.listwell-account-menu__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
 }
 
 .listwell-account-menu__item {
   position: relative;
   z-index: 1;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   margin: 0;
   padding: 7px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--ink-2);
   font: inherit;
@@ -409,11 +447,47 @@ textarea:focus-visible {
 }
 
 .listwell-account-menu__identity {
-  padding: 7px 10px 5px;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--ink);
+  font: inherit;
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.25;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition:
+    color 150ms ease,
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.listwell-account-menu__identity:focus-visible {
+  color: var(--ink);
+  outline: none;
+}
+
+.listwell-account-menu__identity:active {
+  transform: scale(0.97);
+}
+
+.listwell-account-menu__identity .listwell-account-menu__copy {
+  gap: 2px;
+}
+
+.listwell-account-menu__identity .listwell-account-menu__meta {
+  margin-top: 0;
 }
 
 .listwell-account-menu__form {
@@ -1319,6 +1393,30 @@ textarea:focus-visible {
   min-width: 0;
 }
 
+.listwell-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  margin: 0 0 -4px 4px;
+  padding: 0 8px 0 2px;
+  border-radius: var(--radius-chip);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.listwell-back:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
 .listwell-panel {
   min-width: 0;
   border-radius: var(--radius-card);
@@ -1353,6 +1451,10 @@ textarea:focus-visible {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.listwell-panel__share-menu {
+  position: relative;
 }
 
 .listwell-panel__action {
@@ -1417,6 +1519,25 @@ textarea:focus-visible {
   border-top: 1px solid var(--line-soft);
 }
 
+.listwell-name-title--editing {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.listwell-name-form [data-slot="input"]:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+
 .listwell-panel__question {
   margin: 0;
   font-size: 0.9375rem;
@@ -1470,6 +1591,26 @@ textarea:focus-visible {
   justify-content: space-between;
 }
 
+.listwell-page__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 0;
+  animation: fade-up 360ms var(--ease-out, ease-out) 80ms both;
+}
+
+.listwell-page__actions > a {
+  width: 100%;
+  box-shadow: var(--shadow-hairline);
+}
+
+@media (max-width: 640px) {
+  .listwell-page__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .listwell-panel__rows {
   margin: 0;
   padding: 0;
@@ -1478,6 +1619,77 @@ textarea:focus-visible {
 
 .listwell-panel__rows > li + li {
   border-top: 1px solid var(--line-soft);
+}
+
+.listwell-account-row {
+  display: block;
+}
+
+.listwell-account-row .listwell-panel__row {
+  flex-wrap: wrap;
+}
+
+.listwell-account-row .listwell-panel__error {
+  flex-basis: 100%;
+  padding: 0 16px 10px;
+}
+
+.listwell-panel__row-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.listwell-account-row__trail {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.listwell-account-row__menu {
+  position: relative;
+}
+
+.listwell-account-row__menu-trigger {
+  appearance: none;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.listwell-account-row__menu-trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .listwell-account-row__menu-trigger:hover {
+    background: var(--hover);
+    color: var(--ink);
+  }
+}
+
+.listwell-account-row__chevron {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
 }
 
 .listwell-panel__row {
@@ -1500,13 +1712,20 @@ textarea:focus-visible {
 }
 
 a.listwell-panel__row,
-button.listwell-panel__row {
-  cursor: pointer;
+button.listwell-panel__row,
+div.listwell-panel__row {
+  cursor: default;
   transition: background 150ms ease;
 }
 
+a.listwell-panel__row,
+button.listwell-panel__row {
+  cursor: pointer;
+}
+
 a.listwell-panel__row:hover,
-button.listwell-panel__row:hover {
+button.listwell-panel__row:hover,
+div.listwell-panel__row:hover {
   background: var(--inset);
 }
 
@@ -1547,6 +1766,37 @@ button.listwell-panel__row:hover {
   color: var(--ink-2);
 }
 
+.listwell-panel__group-button {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.listwell-panel__group-button-labels {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listwell-panel__group-button:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--ink));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .listwell-panel__group + .listwell-panel__rows {
   border-top: 0;
 }
@@ -1580,6 +1830,33 @@ button.listwell-panel__row:hover {
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.listwell-account-row__score {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.listwell-account-row__score-delta {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.listwell-account-row__score-delta--up {
+  color: var(--ink-2);
+}
+
+.listwell-account-row__score-delta--down {
+  color: var(--ink-3);
+}
+
+.listwell-account-row__score-delta--same {
+  color: var(--ink-3);
 }
 
 .listwell-panel__chevron {
@@ -1960,7 +2237,8 @@ button.listwell-panel__row:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .listwell-panel {
+  .listwell-panel,
+  .listwell-page__actions {
     animation: none;
   }
 
@@ -2025,6 +2303,90 @@ button.listwell-panel__row:hover {
   border: 0;
 }
 
+.listwell-report {
+  --listwell-report-sticky-top: 0px;
+}
+
+.listwell-chat-shell__main--page > .listwell-report {
+  --listwell-report-sticky-top: max(
+    72px,
+    calc(52px + env(safe-area-inset-top, 0px))
+  );
+  max-width: min(52rem, 100%);
+}
+
+.listwell-report__layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listwell-report__notices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listwell-report__notices:empty {
+  display: none;
+}
+
+.listwell-report__main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listwell-report__summary {
+  min-width: 0;
+  order: -1;
+}
+
+@media (min-width: 768px) {
+  .listwell-report__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) min(17.5rem, 100%);
+    grid-template-rows: minmax(0, max-content) auto auto;
+    align-items: start;
+    column-gap: 16px;
+    row-gap: 12px;
+  }
+
+  .listwell-report__notices {
+    grid-column: 1 / -1;
+    order: 0;
+  }
+
+  .listwell-report__overview {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .listwell-report__summary {
+    order: 0;
+    grid-column: 2;
+    grid-row: 2 / -1;
+    align-self: start;
+    position: sticky;
+    top: var(--listwell-report-sticky-top);
+    z-index: 1;
+  }
+
+  .listwell-report__main {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .listwell-report__layout:not(:has(.listwell-report__overview))
+    .listwell-report__main {
+    grid-row: 2;
+  }
+}
+
 .listwell-report__print-footer {
   display: none;
 }
@@ -2054,19 +2416,54 @@ button.listwell-panel__row:hover {
 
 @media print {
   @page {
-    margin: 14mm 12mm;
+    margin: 16mm 14mm 18mm;
   }
 
-  body {
+  html,
+  body,
+  .listwell-chat-shell {
     background: #fff !important;
-    color: #0a0a0a !important;
+    color: #141416 !important;
+  }
+
+  .listwell-report {
+    gap: 20px;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .listwell-report__layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .listwell-report__summary {
+    position: static;
+    order: -1;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .listwell-name-title--editing {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
   }
 
   .vbg-skip-link,
   .listwell-page-home,
   .listwell-page-controls,
   .listwell-account-menu,
+  .listwell-name-form,
+  .listwell-name-rename,
   .listwell-report .listwell-panel__actions,
+  .listwell-report .listwell-panel__chevron,
+  .listwell-report .listwell-report__prices,
   .listwell-report .listwell-notice,
   .listwell-report form,
   .listwell-chat__composer,
@@ -2078,6 +2475,8 @@ button.listwell-panel__row:hover {
   .listwell-chat-shell__main--page {
     overflow: visible;
     padding: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .listwell-chat-shell__main--page > * {
@@ -2086,24 +2485,46 @@ button.listwell-panel__row:hover {
 
   .listwell-report .listwell-panel {
     animation: none;
-    box-shadow: 0 0 0 1px #ddd;
+    overflow: visible;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .listwell-report .listwell-panel__head {
+    padding-right: 0;
+    padding-left: 0;
+    border-bottom-color: #e4e4e6;
+  }
+
+  .listwell-report .listwell-panel__body,
+  .listwell-report .listwell-panel__foot {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .listwell-report .listwell-report__ledger,
+  .listwell-report .listwell-next-group {
+    break-inside: auto;
+  }
+
+  .listwell-report .listwell-disclosure {
+    grid-template-rows: 1fr;
+  }
+
+  .listwell-report .listwell-panel__rows > li,
+  .listwell-report tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  .listwell-report .listwell-report__ledger {
-    break-inside: auto;
-  }
-
-  .listwell-report .listwell-panel__rows > li {
-    break-inside: avoid;
-  }
-
   .listwell-report__print-footer {
     display: block !important;
-    margin-top: 16px;
+    margin-top: 24px;
     padding-top: 12px;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid #e4e4e6;
   }
 }
 

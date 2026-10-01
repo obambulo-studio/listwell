@@ -4,6 +4,7 @@ import { convex } from "@convex-dev/better-auth/plugins";
 import { betterAuth } from "better-auth/minimal";
 import { emailOTP } from "better-auth/plugins/email-otp";
 
+import { SIGN_IN_CODE_EXPIRES_MINUTES } from "../emails/auth-code";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { env } from "./_generated/server";
@@ -30,10 +31,14 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     },
     plugins: [
       emailOTP({
-        async sendVerificationOTP({ email, otp }) {
-          const sent = await sendSignInCode(email, otp);
+        changeEmail: {
+          enabled: true,
+        },
+        expiresIn: SIGN_IN_CODE_EXPIRES_MINUTES * 60,
+        async sendVerificationOTP({ email, otp, type }) {
+          const sent = await sendSignInCode(email, otp, siteUrl, type);
           if (!sent) {
-            throw new Error("Could not send sign-in code");
+            throw new Error("Could not send a code");
           }
         },
       }),

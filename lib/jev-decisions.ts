@@ -4,7 +4,7 @@ import type {
 } from "@listwell/audit-engine";
 import { z } from "zod";
 
-import { CATEGORY_CONFIG } from "./category";
+import { BUSINESS_CATEGORY_OPTIONS, matchBusinessCategory } from "./category";
 import type { CategoryId } from "./category";
 import type { ChatDraft, ChatPhase } from "./chat-onboarding";
 import type { PlaceCandidate } from "./discover";
@@ -552,8 +552,8 @@ export const categoryFromInputWithJev = async (input: {
   }
 
   const criteria: Record<string, string | null> = {};
-  for (const [id, entry] of Object.entries(CATEGORY_CONFIG)) {
-    criteria[id] = entry.description;
+  for (const option of BUSINESS_CATEGORY_OPTIONS) {
+    criteria[option.label] = option.description;
   }
 
   const response = await systemOne({
@@ -578,16 +578,14 @@ export const categoryFromInputWithJev = async (input: {
     return null;
   }
 
-  const categoryParsed = z
-    .enum(["food", "retail", "services", "other"])
-    .safeParse(choice.choice);
-  if (!categoryParsed.success) {
+  const matched = matchBusinessCategory(choice.choice);
+  if (!matched) {
     return null;
   }
 
   return {
-    categoryId: categoryParsed.data,
-    displayLabel: CATEGORY_CONFIG[categoryParsed.data].label,
+    categoryId: matched.categoryId,
+    displayLabel: matched.label,
   };
 };
 

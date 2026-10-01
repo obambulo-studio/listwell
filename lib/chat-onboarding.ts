@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import { categoryIdSchema, CATEGORY_CONFIG } from "./category";
+import {
+  businessCategoryLabels,
+  categoryIdSchema,
+  CATEGORY_CONFIG,
+  matchBusinessCategory,
+} from "./category";
 import type { CategoryId } from "./category";
 import { channelSectionTitle, groupByChannelCategory } from "./checks/registry";
 import { lookupResponseSchema, placeCandidateSchema } from "./discover";
@@ -188,6 +193,7 @@ export const chatDraftSchema = z.object({
   appleMapsId: chatDraftOptionalString,
   businessName: chatDraftString,
   categoryId: categoryIdSchema,
+  categoryLabel: chatDraftOptionalString,
   facebookUrl: chatDraftOptionalString,
   googlePlaceId: chatDraftOptionalString,
   instagramUsername: chatDraftOptionalString,
@@ -231,29 +237,13 @@ export const isTextInputPhase = (phase: ChatPhase): boolean =>
 export const isPromptInputPhase = (phase: ChatPhase): boolean =>
   TEXT_INPUT_PHASES.has(phase) || phase === "category";
 
-export const COMMON_CATEGORY_OPTIONS = [
-  { categoryId: "food", label: "Restaurant" },
-  { categoryId: "food", label: "Café" },
-  { categoryId: "retail", label: "Retail" },
-  { categoryId: "services", label: "Services" },
-  { categoryId: "services", label: "Health & beauty" },
-  { categoryId: "services", label: "Trades" },
-  { categoryId: "services", label: "Professional services" },
-  { categoryId: "other", label: "Other" },
-] as const satisfies readonly { label: string; categoryId: CategoryId }[];
-
-export const commonCategoryLabels = (): string[] =>
-  COMMON_CATEGORY_OPTIONS.map((item) => item.label);
+export const commonCategoryLabels = (): string[] => businessCategoryLabels();
 
 export const categoryLabel = (id: CategoryId): string =>
   CATEGORY_CONFIG[id].label;
 
-export const categoryFromLabel = (label: string): CategoryId | null => {
-  const entry = Object.values(CATEGORY_CONFIG).find(
-    (item) => item.label === label
-  );
-  return entry?.id ?? null;
-};
+export const categoryFromLabel = (label: string): CategoryId | null =>
+  matchBusinessCategory(label)?.categoryId ?? null;
 
 export const categoryFromInput = (
   text: string
@@ -262,34 +252,22 @@ export const categoryFromInput = (
   displayLabel: string;
 } => {
   const trimmed = text.trim();
-  const fromLabel = categoryFromLabel(trimmed);
-  if (fromLabel) {
-    return { categoryId: fromLabel, displayLabel: categoryLabel(fromLabel) };
+  const matched = matchBusinessCategory(trimmed);
+  if (matched) {
+    return { categoryId: matched.categoryId, displayLabel: matched.label };
   }
-
-  const lower = trimmed.toLowerCase();
-  for (const option of COMMON_CATEGORY_OPTIONS) {
-    if (option.label.toLowerCase() === lower) {
-      return { categoryId: option.categoryId, displayLabel: option.label };
-    }
+  if (!trimmed) {
+    return { categoryId: "other", displayLabel: categoryLabel("other") };
   }
-
   return { categoryId: "other", displayLabel: normalizeCategoryText(trimmed) };
 };
 
 export const categoryFromInputAsync = async (
   text: string
 ): Promise<{ categoryId: CategoryId; displayLabel: string }> => {
-  const trimmed = text.trim();
-  const fromLabel = categoryFromLabel(trimmed);
-  if (fromLabel) {
-    return { categoryId: fromLabel, displayLabel: categoryLabel(fromLabel) };
-  }
-  const lower = trimmed.toLowerCase();
-  for (const option of COMMON_CATEGORY_OPTIONS) {
-    if (option.label.toLowerCase() === lower) {
-      return { categoryId: option.categoryId, displayLabel: option.label };
-    }
+  const matched = matchBusinessCategory(text);
+  if (matched) {
+    return { categoryId: matched.categoryId, displayLabel: matched.label };
   }
   const fromJev = await categoryFromInputWithJev({ text });
   return fromJev ?? categoryFromInput(text);
@@ -302,7 +280,7 @@ export const draftFromListingCandidate = (
   ...draft,
   address: candidate.address ?? draft.address,
   appleMapsId: candidate.source === "apple" ? candidate.id : draft.appleMapsId,
-  businessName: candidate.name,
+  businessName: draft.businessName.trim() ? draft.businessName : candidate.name,
   categoryId: candidate.categoryId ?? draft.categoryId,
   googlePlaceId:
     candidate.source === "google" ? candidate.id : draft.googlePlaceId,
@@ -316,7 +294,7 @@ export const listingQuestion = (candidates: PlaceCandidate[]) => ({
 });
 
 export const categoryQuestion = () => ({
-  options: Object.values(CATEGORY_CONFIG).map((item) => item.label),
+  options: commonCategoryLabels(),
   q: "What type of business is it?",
   type: "radio" as const,
 });

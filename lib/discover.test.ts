@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { CATEGORY_CONFIG, primaryGooglePlaceTypeLabel } from "./category";
+import {
+  CATEGORY_CONFIG,
+  getCategoryIdFromGooglePlaceTypes,
+  primaryGooglePlaceTypeLabel,
+} from "./category";
 import { listingLookupSkipMessage } from "./chat-onboarding";
 import {
   addUniqueProfile,
@@ -272,7 +276,18 @@ describe("discover helpers", () => {
     expect(
       primaryGooglePlaceTypeLabel(["point_of_interest", "university"])
     ).toBe("University");
+    expect(primaryGooglePlaceTypeLabel(["cafe", "food"])).toBe("Café");
     expect(primaryGooglePlaceTypeLabel(["establishment"])).toBeNull();
+  });
+
+  it("maps more google place types onto a scoring bucket", () => {
+    expect(getCategoryIdFromGooglePlaceTypes(["hair_salon"])).toBe("services");
+    expect(getCategoryIdFromGooglePlaceTypes(["gym"])).toBe("services");
+    expect(getCategoryIdFromGooglePlaceTypes(["florist"])).toBe("retail");
+    expect(getCategoryIdFromGooglePlaceTypes(["hotel"])).toBe("other");
+    expect(getCategoryIdFromGooglePlaceTypes(["pizza_restaurant"])).toBe(
+      "food"
+    );
   });
 
   it("maps a Google place to a candidate", () => {
@@ -313,6 +328,23 @@ describe("discover helpers", () => {
     ).toBeTruthy();
     expect(result.categoryId).toBe("food");
     expect(result.categoryDisplayLabel).toBe(CATEGORY_CONFIG.food.label);
+  });
+
+  it("uses a specific place type even when the scoring bucket is food", async () => {
+    const label = await resolveCategoryDisplayLabel({
+      businessName: "Blackstar Coffee",
+      candidates: [
+        {
+          address: "West End",
+          id: "places/coffee",
+          name: "Blackstar Coffee",
+          source: "google",
+          types: ["cafe", "food"],
+        },
+      ],
+      categoryId: "food",
+    });
+    expect(label).toBe("Café");
   });
 
   it("uses google place types when category is other", async () => {

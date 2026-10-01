@@ -131,12 +131,14 @@ export const accountReportValidator = v.object({
   lastScan: v.union(
     v.object({
       finishedAt: v.union(v.string(), v.null()),
+      previousScore: v.union(v.number(), v.null()),
       score: v.union(v.number(), v.null()),
     }),
     v.null()
   ),
   name: v.string(),
   nextScanAt: v.union(v.string(), v.null()),
+  owned: v.boolean(),
   plan: accountReportPlanValidator,
   unlocked: v.boolean(),
 });

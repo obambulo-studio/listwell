@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildFallbackListingReview,
+  buildListingReviewFixPrompt,
   generateListingReview,
+  listingReviewHasFixPrompt,
   sanitizeListingReviewContent,
 } from "./listing-review";
 import { listingReviewInputSchema } from "./listing-review-context";
@@ -93,6 +95,54 @@ describe(sanitizeListingReviewContent, () => {
     );
 
     expect(sanitized?.reviewReplyTemplates).toHaveLength(0);
+  });
+});
+
+describe(buildListingReviewFixPrompt, () => {
+  it("formats Goal, Issue, and Fix blocks for coding agents", () => {
+    const result = buildFallbackListingReview(baseInput, "ai_binding_missing");
+    expect(listingReviewHasFixPrompt(result.content)).toBeTruthy();
+    const prompt = buildListingReviewFixPrompt({
+      businessName: "Seoul Bistro",
+      content: result.content,
+    });
+    expect(prompt).toContain("# Listing improvements for Seoul Bistro");
+    expect(prompt).toContain("Goal:");
+    expect(prompt).toContain("Issue:");
+    expect(prompt).toContain("Fix:");
+  });
+
+  it("names the NAP section and the sources that disagree", () => {
+    const result = buildFallbackListingReview(baseInput, "ai_binding_missing");
+    const prompt = buildListingReviewFixPrompt({
+      businessName: "Seoul Bistro",
+      content: result.content,
+    });
+    expect(prompt).toContain("NAP consistency");
+    expect(prompt).toContain("Website:");
+    expect(prompt).toContain("Listwell audit:");
+  });
+
+  it("includes AI suggestion sections when present", () => {
+    const prompt = buildListingReviewFixPrompt({
+      businessName: "Sample Cafe",
+      content: {
+        businessDescription: {
+          basedOnSourceIds: ["google_places"],
+          suggestedText: "Neighbourhood espresso bar.",
+        },
+        categories: {
+          basedOnSourceIds: ["google_places"],
+          primary: "Cafe",
+          secondary: ["Coffee shop"],
+        },
+        napMismatches: [],
+        photoChecklistGaps: [],
+        reviewReplyTemplates: [],
+      },
+    });
+    expect(prompt).toContain("Neighbourhood espresso bar.");
+    expect(prompt).toContain('primary category to "Cafe"');
   });
 });
 

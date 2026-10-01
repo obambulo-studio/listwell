@@ -3,30 +3,42 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runDueScans } from "./scans";
 import type { ScanRow } from "./schema";
 
-const { listDueMonthlyEntitlements, runReservedMonthlyScan } = vi.hoisted(
-  () => ({
-    listDueMonthlyEntitlements:
-      vi.fn<
-        (
-          now: Date,
-          limit: number
-        ) => Promise<
-          { businessId: string; id: string; nextScanAt: string | null }[]
-        >
-      >(),
-    runReservedMonthlyScan:
-      vi.fn<
-        () => Promise<
-          | { ok: true; skipped: true }
-          | { ok: true; skipped: false; scan: ScanRow }
-          | { ok: false; skipped: false; scan: ScanRow | null; error: string }
-        >
-      >(),
-  })
-);
+const {
+  listDueMonthlyEntitlements,
+  runReservedMonthlyScan,
+  sendPendingScanEmails,
+} = vi.hoisted(() => ({
+  listDueMonthlyEntitlements:
+    vi.fn<
+      (
+        now: Date,
+        limit: number
+      ) => Promise<
+        { businessId: string; id: string; nextScanAt: string | null }[]
+      >
+    >(),
+  runReservedMonthlyScan: vi.fn<
+    () => Promise<
+      | { ok: true; scanEmailNotification: null; skipped: true }
+      | {
+          ok: true;
+          scan: ScanRow;
+          scanEmailNotification: null;
+          skipped: false;
+        }
+      | { ok: false; skipped: false; scan: ScanRow | null; error: string }
+    >
+  >(),
+  sendPendingScanEmails:
+    vi.fn<() => Promise<{ sent: number; skipped: number }>>(),
+}));
 
 vi.mock(import("./scheduled-scan-run"), () => ({
   runReservedMonthlyScan,
+}));
+
+vi.mock(import("./scheduled-scan-notify"), () => ({
+  sendPendingScanEmails,
 }));
 
 vi.mock(import("./data"), () => ({
@@ -36,6 +48,7 @@ vi.mock(import("./data"), () => ({
 describe(runDueScans, () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sendPendingScanEmails.mockResolvedValue({ sent: 0, skipped: 0 });
     runReservedMonthlyScan.mockResolvedValue({
       ok: true,
       scan: {
@@ -53,6 +66,7 @@ describe(runDueScans, () => {
         status: "complete",
         trigger: "schedule",
       },
+      scanEmailNotification: null,
       skipped: false,
     });
   });
@@ -71,6 +85,7 @@ describe(runDueScans, () => {
     expect(result.ran).toBe(1);
     expect(result.failed).toBe(0);
     expect(runReservedMonthlyScan).toHaveBeenCalledOnce();
+    expect(sendPendingScanEmails).toHaveBeenCalledOnce();
   });
 
   it("continues after a scan error", async () => {
@@ -98,6 +113,7 @@ describe(runDueScans, () => {
           status: "complete",
           trigger: "schedule",
         },
+        scanEmailNotification: null,
         skipped: false,
       });
 

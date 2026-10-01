@@ -232,26 +232,45 @@ export const locationPartsFromPlace = (
 
 export interface NearbyPlaceSearch {
   googleApiKey: string;
-  includedTypes: string[];
+  includedPrimaryTypes?: string[];
+  includedTypes?: string[];
   latitude: number;
   longitude: number;
   maxResultCount?: number;
   radiusMeters: number;
+  rankPreference?: "DISTANCE" | "POPULARITY";
 }
+
+const nearbyTypeFilter = (
+  input: NearbyPlaceSearch
+): { includedPrimaryTypes: string[] } | { includedTypes: string[] } | null => {
+  const primaryTypes = input.includedPrimaryTypes ?? [];
+  if (primaryTypes.length > 0) {
+    return { includedPrimaryTypes: primaryTypes };
+  }
+  const includedTypes = input.includedTypes ?? [];
+  if (includedTypes.length === 0) {
+    return null;
+  }
+  return { includedTypes };
+};
 
 export const searchNearbyPlaces = async (
   input: NearbyPlaceSearch,
   fetchImpl: typeof fetch = fetch
 ): Promise<GooglePlace[]> => {
-  if (input.includedTypes.length === 0 || input.googleApiKey.length === 0) {
+  const typeFilter = nearbyTypeFilter(input);
+  if (!typeFilter || input.googleApiKey.length === 0) {
     return [];
   }
+  const requestedCount = input.maxResultCount ?? 10;
+  const maxResultCount = Math.min(Math.max(requestedCount, 1), 20);
 
   const response = await fetchImpl(
     "https://places.googleapis.com/v1/places:searchNearby",
     {
       body: JSON.stringify({
-        includedTypes: input.includedTypes,
+        ...typeFilter,
         locationRestriction: {
           circle: {
             center: {
@@ -261,8 +280,8 @@ export const searchNearbyPlaces = async (
             radius: input.radiusMeters,
           },
         },
-        maxResultCount: input.maxResultCount ?? 10,
-        rankPreference: "POPULARITY",
+        maxResultCount,
+        rankPreference: input.rankPreference ?? "POPULARITY",
       }),
       headers: {
         "Content-Type": "application/json",

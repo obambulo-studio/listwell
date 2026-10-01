@@ -1,9 +1,16 @@
 "use client";
 
+import {
+  Cancel01Icon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
 import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 
 import { Button } from "@/components/atoms/button";
+import { Icon } from "@/components/icon";
 import GlideMenu from "@/components/primitives/glide-menu";
 
 /* ─────────────────────────────────────────────────────────
@@ -161,30 +168,6 @@ const RollingDigits = ({ value }: { value: string }) => {
   );
 };
 
-const Ico = ({
-  path,
-  size = 14,
-  sw = 2,
-}: {
-  path: ReactNode;
-  size?: number;
-  sw?: number;
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={sw}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    {path}
-  </svg>
-);
-
 interface CardState {
   animate: boolean;
   answers: Record<number, number[]>;
@@ -268,18 +251,12 @@ const ApprovalSent = ({
   >
     <span className="bg-green-tint text-green inline-flex items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[12.5px] font-medium">
       <span className="bg-green flex size-4.5 items-center justify-center rounded-full text-white">
-        <svg
-          width="11"
-          height="11"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
+        <Icon
+          absoluteStrokeWidth
+          icon={Tick02Icon}
+          size={11}
+          strokeWidth={1.5}
+        />
       </span>
       {labels.sentMessage}
     </span>
@@ -323,7 +300,7 @@ const ApprovalFooter = ({
         onClick={() => onGoTo(qi - 1)}
         className="enabled:hover:text-ink flex size-[18px] items-center justify-center rounded-[5px] transition-colors duration-100 disabled:opacity-30"
       >
-        <Ico size={14} path={<path d="M18 15l-6-6-6 6" />} />
+        <Icon icon={ChevronUpIcon} size={14} />
       </button>
       <span
         className="text-ink-3 inline-flex items-center text-[12px] font-medium tabular-nums"
@@ -338,7 +315,7 @@ const ApprovalFooter = ({
         onClick={() => onGoTo(qi + 1)}
         className="enabled:hover:text-ink flex size-[18px] items-center justify-center rounded-[5px] transition-colors duration-100 disabled:opacity-30"
       >
-        <Ico size={14} path={<path d="M6 9l6 6 6-6" />} />
+        <Icon icon={ChevronDownIcon} size={14} />
       </button>
     </div>
 
@@ -444,18 +421,12 @@ const ApprovalQuestionList = ({
                         }}
                       />
                     ) : (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
+                      <Icon
+                        absoluteStrokeWidth
+                        icon={Tick02Icon}
+                        size={12}
+                        strokeWidth={1.6}
+                      />
                     )}
                   </span>
                   <span
@@ -654,7 +625,7 @@ const ApprovalCard = ({
           onClick={() => dispatch({ open: false, type: "open" })}
           className="primitive-icon-button text-ink-3 hover:bg-hover hover:text-ink absolute top-2.5 right-2.5 z-10 transition-colors duration-100"
         >
-          <Ico size={14} sw={2.2} path={<path d="M18 6L6 18M6 6l12 12" />} />
+          <Icon icon={Cancel01Icon} size={14} />
         </button>
         <div className="primitive-card-pad">
           <div

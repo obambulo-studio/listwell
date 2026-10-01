@@ -1,9 +1,10 @@
 "use client";
 
 import { Combobox } from "@base-ui/react/combobox";
-import { ChevronDownIcon, CheckIcon } from "lucide-react";
+import { ChevronDownIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { z } from "zod";
 
+import { Icon } from "@/components/icon";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,11 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORY_CONFIG, CATEGORY_LABEL_MAX_LENGTH } from "@/lib/category";
+import {
+  businessCategoryLabels,
+  CATEGORY_LABEL_MAX_LENGTH,
+} from "@/lib/category";
 
-const categoryOptions = Object.values(CATEGORY_CONFIG).map(
-  (item) => item.label
-);
+const categoryOptions = businessCategoryLabels();
 const categoryOptionSchema = z.string();
 
 export const ListwellSelect = ({
@@ -92,7 +94,6 @@ export const ListwellCategoryField = ({
         }
         onValueChange(categoryOptionSchema.parse(next));
       }}
-      filter={() => true}
       disabled={disabled}
       autoComplete="off"
     >
@@ -109,14 +110,18 @@ export const ListwellCategoryField = ({
           aria-label="Show categories"
           disabled={disabled}
         >
-          <ChevronDownIcon className="pointer-events-none size-4" />
+          <Icon
+            className="pointer-events-none"
+            icon={ChevronDownIcon}
+            size={16}
+          />
         </Combobox.Trigger>
       </div>
       <Combobox.Portal>
         <Combobox.Positioner className="z-50" sideOffset={4}>
           <Combobox.Popup className="bg-popover text-popover-foreground ring-foreground/10 max-h-(--available-height) w-(--anchor-width) min-w-36 overflow-x-hidden overflow-y-auto rounded-lg p-1 shadow-md ring-1">
             <Combobox.List>
-              {categoryOptions.map((option) => (
+              {(option: string) => (
                 <Combobox.Item
                   key={option}
                   value={option}
@@ -124,10 +129,10 @@ export const ListwellCategoryField = ({
                 >
                   {option}
                   <Combobox.ItemIndicator className="absolute right-2 flex size-4 items-center justify-center">
-                    <CheckIcon className="size-4" />
+                    <Icon icon={Tick02Icon} size={16} />
                   </Combobox.ItemIndicator>
                 </Combobox.Item>
-              ))}
+              )}
             </Combobox.List>
           </Combobox.Popup>
         </Combobox.Positioner>

@@ -4,8 +4,11 @@
     "open-next.config.ts",
     "worker.ts",
     "components/ui/**",
-    "components/reui/**"
+    "components/reui/**",
+    "emails/change-email.tsx",
+    "emails/scan-ready-multi.tsx"
   ],
+  "ignoreDependencies": ["@react-email/render", "@react-email/ui"],
   "exclude": [
     "duplicates",
     "enumMembers",

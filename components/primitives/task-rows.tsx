@@ -1,7 +1,16 @@
 "use client";
 
+import {
+  ArrowReloadHorizontalIcon,
+  ChevronDownIcon,
+  MinusSignIcon,
+  MultiplicationSignIcon,
+  SquareArrowUpRightIcon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 
+import { Icon } from "@/components/icon";
 import { LighthousePerformanceInsight } from "@/components/lighthouse-performance-insight";
 import type { ParsedPerformanceLabel } from "@/lib/performance-insight";
 
@@ -109,77 +118,42 @@ const Badge = ({
   </span>
 );
 
-const iconSize = (size: "default" | "sm") => (size === "sm" ? 9 : 12);
+const statusIconSize = (size: "default" | "sm"): number =>
+  size === "sm" ? 9 : 12;
+
+const StatusIcon = ({
+  icon,
+  size = "default",
+}: {
+  icon: typeof Tick02Icon;
+  size?: "default" | "sm";
+}) => (
+  <Icon
+    absoluteStrokeWidth
+    icon={icon}
+    size={statusIconSize(size)}
+    strokeWidth={1.5}
+  />
+);
 
 const XIcon = ({ size = "default" }: { size?: "default" | "sm" }) => (
-  <svg
-    width={iconSize(size)}
-    height={iconSize(size)}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3.5"
-    strokeLinecap="round"
-  >
-    <path d="M18 6L6 18M6 6l12 12" />
-  </svg>
+  <StatusIcon icon={MultiplicationSignIcon} size={size} />
 );
 const DashIcon = ({ size = "default" }: { size?: "default" | "sm" }) => (
-  <svg
-    width={iconSize(size)}
-    height={iconSize(size)}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3.5"
-    strokeLinecap="round"
-  >
-    <path d="M5 12h14" />
-  </svg>
+  <StatusIcon icon={MinusSignIcon} size={size} />
 );
-const ExternalLinkIcon = () => (
-  <svg
-    width={11}
-    height={11}
-    viewBox="0 0 24 24"
-    fill="none"
-    aria-hidden
-    stroke="currentColor"
-    strokeWidth="2.2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M7 17L17 7M17 7h-6M17 7v6" />
-  </svg>
-);
+const ExternalLinkIcon = () => <Icon icon={SquareArrowUpRightIcon} size={11} />;
 
 const CheckIcon = ({ size = "default" }: { size?: "default" | "sm" }) => (
-  <svg
-    width={size === "sm" ? 9 : 13}
-    height={size === "sm" ? 9 : 13}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
+  <StatusIcon icon={Tick02Icon} size={size} />
 );
 const RetryIcon = (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />
-  </svg>
+  <Icon
+    absoluteStrokeWidth
+    icon={ArrowReloadHorizontalIcon}
+    size={12}
+    strokeWidth={1.5}
+  />
 );
 
 export interface TaskDetailInsight {
@@ -617,20 +591,12 @@ const TaskRows = ({
                   aria-hidden="true"
                   className="text-ink-3 -ml-2 flex size-7 shrink-0 items-center justify-center rounded-full"
                 >
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <Icon
                     className="transition-transform duration-300"
+                    icon={ChevronDownIcon}
+                    size={15}
                     style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
+                  />
                 </span>
               </button>
             ) : (

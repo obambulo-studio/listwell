@@ -43,7 +43,7 @@ export const reportAllocationSegments = (
     segments.push({
       amount: `${error} checks`,
       cls: "bg-line-strong",
-      label: "Could not run",
+      label: "Skipped",
       name: "ERR",
       pct: Math.round((error / total) * 1000) / 10,
       tone: "text-ink-2",

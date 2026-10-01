@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   WORKERS_AI_MODEL,
+  buildFallbackOverviewText,
   buildFallbackSummary,
   buildListwellPrompt,
   extractModelText,
@@ -118,6 +119,16 @@ describe("citation and score guards", () => {
   });
 });
 
+describe(buildFallbackOverviewText, () => {
+  it("names top failing checks and passing highlights", () => {
+    const failed = checks.filter((check) => check.status === "fail");
+    const passed = checks.filter((check) => check.status === "pass");
+    expect(buildFallbackOverviewText(failed, passed)).toBe(
+      "2 checks did not pass. Main gaps are Title contains business name and suburb/city and Google listing has photos. 1 other check passed: Website returns a successful status."
+    );
+  });
+});
+
 describe(buildFallbackSummary, () => {
   it("prioritises failed checks by provided points and cites them", () => {
     const summary = buildFallbackSummary(checks, "ai_binding_missing");
@@ -136,7 +147,7 @@ describe(buildFallbackSummary, () => {
       nextActionIds: ["website-title", "google-listing-photos"],
       overviewCheckIds: ["website-title", "google-listing-photos"],
       overviewText:
-        "2 checks did not pass. The highest-weight miss is Title contains business name and suburb/city.",
+        "2 checks did not pass. Main gaps are Title contains business name and suburb/city and Google listing has photos. 1 other check passed: Website returns a successful status.",
       source: "fallback",
       visimateFree: true,
     });

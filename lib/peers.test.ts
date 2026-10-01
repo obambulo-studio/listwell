@@ -29,6 +29,7 @@ const place = (id: string, primaryType: string, name = id): GooglePlace => ({
 const mapPackCell = (placeId: string) => ({ top: [{ placeId }] });
 
 const requestBodySchema = z.object({
+  includedPrimaryTypes: z.array(z.string()).optional(),
   includedTypes: z.array(z.string()).optional(),
   locationBias: z
     .object({
@@ -40,6 +41,7 @@ const requestBodySchema = z.object({
       circle: z.object({ radius: z.number() }),
     })
     .optional(),
+  rankPreference: z.enum(["DISTANCE", "POPULARITY"]).optional(),
   textQuery: z.string().optional(),
 });
 
@@ -98,7 +100,7 @@ describe(choosePeerPlaces, () => {
     });
   });
 
-  it("uses the wider search only when the close search has fewer than two peers", () => {
+  it("keeps a close peer and fills the rest from the wider search", () => {
     const selected = choosePeerPlaces({
       closePlaces: [place("only", "cafe", "Only")],
       farPlaces: [
@@ -116,10 +118,55 @@ describe(choosePeerPlaces, () => {
       radiusMeters: selected.radiusMeters,
       source: selected.source,
     }).toStrictEqual({
-      names: ["Bravo", "Alpha", "Charlie"],
+      names: ["Only", "Bravo", "Alpha", "Charlie"],
       radiusMeters: WIDENED_RADIUS_METERS,
       source: "nearby",
     });
+  });
+
+  it("keeps a similar type and ranks an exact match ahead when distance is unknown", () => {
+    const selected = choosePeerPlaces({
+      closePlaces: [
+        place("coffee", "coffee_shop", "Coffee"),
+        place("diner", "restaurant", "Diner"),
+        place("cafe", "cafe", "Cafe"),
+      ],
+      farPlaces: [],
+      primaryType: "cafe",
+      selfPlaceId: "subject",
+      textPlaces: [],
+    });
+
+    expect(selected.peers.map((peer) => peer.id)).toStrictEqual([
+      "cafe",
+      "coffee",
+    ]);
+  });
+
+  it("prefers a nearby similar business over a distant exact match", () => {
+    const origin = { latitude: -33.87, longitude: 151.21 };
+    const selected = choosePeerPlaces({
+      closePlaces: [
+        {
+          ...place("far-cafe", "cafe", "Far"),
+          location: { latitude: -33.97, longitude: 151.21 },
+        },
+        {
+          ...place("near-coffee", "coffee_shop", "Near"),
+          location: { latitude: -33.871, longitude: 151.21 },
+        },
+      ],
+      farPlaces: [],
+      origin,
+      primaryType: "cafe",
+      selfPlaceId: "subject",
+      textPlaces: [],
+    });
+
+    expect(selected.peers.map((peer) => peer.id)).toStrictEqual([
+      "near-coffee",
+      "far-cafe",
+    ]);
   });
 
   it("falls back to biased text search when nearby search finds nobody", () => {
@@ -183,7 +230,7 @@ describe(findPeerPlaces, () => {
     });
   });
 
-  it("retries a wider circle, then a text search, only when nearby results stay thin", async () => {
+  it("retries a similar type, then a wider circle, then a text search, only when nearby results stay thin", async () => {
     const calls: string[] = [];
     let textQuery = "";
     const fetchImpl: typeof fetch = (input, init) => {
@@ -197,7 +244,9 @@ describe(findPeerPlaces, () => {
         );
       }
       const radius = body.locationRestriction?.circle.radius ?? 0;
-      calls.push(`nearby:${radius}`);
+      const types = (body.includedPrimaryTypes ?? []).join(",");
+      calls.push(`nearby:${radius}:${types}`);
+      expect(body.rankPreference).toBe("DISTANCE");
       return Promise.resolve(jsonResponse([]));
     };
 
@@ -215,8 +264,9 @@ describe(findPeerPlaces, () => {
       textQuery,
     }).toStrictEqual({
       calls: [
-        `nearby:${NEARBY_RADIUS_METERS}`,
-        `nearby:${WIDENED_RADIUS_METERS}`,
+        `nearby:${NEARBY_RADIUS_METERS}:cafe,coffee_shop`,
+        `nearby:${NEARBY_RADIUS_METERS}:bakery,breakfast_restaurant,brunch_restaurant,tea_house`,
+        `nearby:${WIDENED_RADIUS_METERS}:cafe,coffee_shop`,
         `text:${WIDENED_RADIUS_METERS}`,
       ],
       ids: ["text"],

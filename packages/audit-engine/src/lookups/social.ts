@@ -219,6 +219,30 @@ const extractFacebookPagesRoute = (
   };
 };
 
+const isFacebookPeopleId = (value: string): boolean =>
+  /^\d+$/u.test(value) || /^pfbid[A-Za-z0-9]+$/u.test(value);
+
+const extractFacebookPeopleRoute = (
+  pathParts: string[]
+): { url: string; pageId: string | null; urlType: string } | null => {
+  const [, slug, id] = pathParts;
+  if (!slug) {
+    return null;
+  }
+  if (id && isFacebookPeopleId(id)) {
+    return {
+      pageId: id,
+      url: `https://www.facebook.com/people/${slug}/${id}/`,
+      urlType: "people",
+    };
+  }
+  return {
+    pageId: null,
+    url: `https://www.facebook.com/people/${slug}/`,
+    urlType: "people",
+  };
+};
+
 const extractFacebookNumericOrVanity = (
   firstPart: string
 ): { url: string; pageId: string | null; urlType: string } | null => {
@@ -271,7 +295,16 @@ export const extractFacebookPage = (
   if (firstPart === "pages" && pathParts.length >= 3) {
     return extractFacebookPagesRoute(pathParts);
   }
+  if (firstPart === "people") {
+    return extractFacebookPeopleRoute(pathParts);
+  }
   return extractFacebookNumericOrVanity(firstPart);
+};
+
+const facebookScoreName = (page: { url: string; urlType: string }): string => {
+  const parts = new URL(page.url).pathname.split("/").filter(Boolean);
+  const segment = page.urlType === "people" ? parts[1] : parts[0];
+  return (segment ?? "").replaceAll("-", "");
 };
 
 export const rankFacebookPages = (
@@ -296,9 +329,8 @@ export const rankFacebookPages = (
       continue;
     }
     const tScore = titleScore(result.title, query, []);
-    const pathName = firstPathSegment(new URL(page.url).pathname) ?? "";
     const uScore =
-      usernameScore(pathName.replaceAll("-", ""), query) *
+      usernameScore(facebookScoreName(page), query) *
       (page.urlType === "vanity" ? 1.2 : 1);
     const key = page.pageId ?? page.url;
     const existing = groups.get(key);

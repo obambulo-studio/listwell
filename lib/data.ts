@@ -39,6 +39,7 @@ import {
   searchPhrasesSchema,
 } from "./seo-schema";
 import type { PinnedCompetitor, SearchPhrase } from "./seo-schema";
+import { normalizeBusinessName } from "./text-normalize";
 
 export const idListQuerySchema = z.object({
   ids: z.string().optional(),
@@ -158,6 +159,14 @@ export const writeStoredBusiness = async (
     );
   }
   return parsed;
+};
+
+export const purgeStoredBusiness = async (id: string): Promise<void> => {
+  businessMemory.delete(id);
+  const env = await getCloudflareEnv();
+  if (env?.AUDIT_KV) {
+    await env.AUDIT_KV.delete(storedBusinessKey(id));
+  }
 };
 
 export const readStoredBusiness = async (
@@ -290,7 +299,10 @@ const mergeBusinessUpdate = (
     linkedinUrl: keepUrl(input.linkedinUrl, existing.linkedinUrl),
     locations: input.locations ?? locationInputsFromBusiness(existing),
     menulogUrl: keepUrl(input.menulogUrl, existing.menulogUrl),
-    name: input.name ?? existing.name,
+    name:
+      input.name === undefined
+        ? existing.name
+        : normalizeBusinessName(input.name),
     tiktokUsername: keepUrl(input.tiktokUsername, existing.tiktokUsername),
     uberEatsUrl: keepUrl(input.uberEatsUrl, existing.uberEatsUrl),
     websiteUrl: keepUrl(input.websiteUrl, existing.websiteUrl),

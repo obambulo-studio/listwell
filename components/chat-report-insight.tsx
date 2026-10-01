@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { MultiplicationSignIcon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { useId, useReducer, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/atoms/button";
 import { reportAllocationSegments } from "@/components/chat-report-allocation";
-import { PrimaryButton } from "@/components/listwell/actions";
+import { Icon } from "@/components/icon";
+import {
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
 import { Alert, AlertDescription } from "@/components/reui/alert";
+import { Button as UiButton } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -15,10 +22,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { scorePercent } from "@/lib/chat-onboarding";
 import type { BasicReportStats, ReportIssue } from "@/lib/chat-onboarding";
 import {
   fetchEntitlement,
+  MONTHLY_SCANS_UPGRADE_COPY,
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
   REPORT_YEARLY_PRICE,
@@ -26,38 +42,28 @@ import {
   requestCheckoutUrl,
   unlockPricingNote,
 } from "@/lib/polar";
-import { checkoutPlanSchema, entitlementStateSchema } from "@/lib/schema";
+import {
+  businessSchema,
+  checkoutPlanSchema,
+  entitlementStateSchema,
+} from "@/lib/schema";
 import type { CheckoutPlan, EntitlementState } from "@/lib/schema";
-
-const CheckIcon = () => (
-  <svg width={9} height={9} viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M20 6L9 17l-5-5"
-      stroke="currentColor"
-      strokeWidth="3.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const XIcon = () => (
-  <svg width={9} height={9} viewBox="0 0 24 24" fill="none" aria-hidden>
-    <path
-      d="M18 6L6 18M6 6l12 12"
-      stroke="currentColor"
-      strokeWidth="3.5"
-      strokeLinecap="round"
-    />
-  </svg>
-);
+import {
+  isSameBusinessName,
+  normalizeBusinessName,
+} from "@/lib/text-normalize";
 
 const IssueStatusMark = ({ status }: { status: ReportIssue["status"] }) => (
   <span
     className={`listwell-chat__report-issue-mark ${status === "pass" ? "listwell-chat__report-issue-mark--pass" : "listwell-chat__report-issue-mark--fail"}`}
     aria-label={status === "pass" ? "Pass" : "Needs work"}
   >
-    {status === "pass" ? <CheckIcon /> : <XIcon />}
+    <Icon
+      absoluteStrokeWidth
+      icon={status === "pass" ? Tick02Icon : MultiplicationSignIcon}
+      size={9}
+      strokeWidth={1.5}
+    />
   </span>
 );
 
@@ -67,7 +73,6 @@ export const ReportAllocation = ({
   stats: Pick<BasicReportStats, "pass" | "fail" | "error" | "total">;
 }) => {
   const segments = reportAllocationSegments(stats);
-  const legendSegments = segments.filter((segment) => segment.name !== "ERR");
   return (
     <>
       <figure
@@ -84,7 +89,7 @@ export const ReportAllocation = ({
       </figure>
 
       <ul className="listwell-chat__report-legend">
-        {legendSegments.map((segment) => (
+        {segments.map((segment) => (
           <li key={segment.name} className="listwell-chat__report-legend-item">
             <span
               className={`listwell-chat__report-legend-label ${segment.tone}`}
@@ -101,14 +106,228 @@ export const ReportAllocation = ({
   );
 };
 
-export const formatCheckCount = (count: number): string =>
-  count === 1 ? "1 check" : `${count} checks`;
+const BUSINESS_NAME_MAX = 200;
+
+const saveBusinessName = async (
+  businessId: string,
+  name: string
+): Promise<string> => {
+  const next = normalizeBusinessName(name);
+  if (next.length === 0 || next.length > BUSINESS_NAME_MAX) {
+    throw new Error("Enter a business name");
+  }
+  const response = await fetch(`/api/businesses/${businessId}`, {
+    body: JSON.stringify({ name: next }),
+    headers: { "Content-Type": "application/json" },
+    method: "PUT",
+  });
+  if (!response.ok) {
+    throw new Error("Could not save this name");
+  }
+  const parsed = businessSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new Error("Could not save this name");
+  }
+  return parsed.data.name;
+};
+
+interface NameEditState {
+  draft: string;
+  editing: boolean;
+  error: string | null;
+  pending: boolean;
+}
+
+type NameEditAction =
+  | { name: string; type: "cancel" }
+  | { type: "draft"; value: string }
+  | { name: string; type: "edit" }
+  | { message: string; type: "failed" }
+  | { type: "saved" }
+  | { type: "start" };
+
+const nameEditReducer = (
+  state: NameEditState,
+  action: NameEditAction
+): NameEditState => {
+  switch (action.type) {
+    case "cancel": {
+      return {
+        draft: action.name,
+        editing: false,
+        error: null,
+        pending: false,
+      };
+    }
+    case "draft": {
+      return { ...state, draft: action.value };
+    }
+    case "edit": {
+      return {
+        draft: action.name,
+        editing: true,
+        error: null,
+        pending: false,
+      };
+    }
+    case "failed": {
+      return { ...state, error: action.message, pending: false };
+    }
+    case "saved": {
+      return { ...state, editing: false, error: null, pending: false };
+    }
+    case "start": {
+      return { ...state, error: null, pending: true };
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
+/** Owner control for the name shown on a report. Does not re-run the scan. */
+export const BusinessNameHeading = ({
+  businessId,
+  canRename,
+  heading = "h1",
+  name,
+  onRenamed,
+  titleClassName = "listwell-panel__question",
+  titleId = "report-title",
+}: {
+  businessId: string;
+  canRename: boolean;
+  heading?: "h1" | "p";
+  name: string;
+  onRenamed: (name: string) => void;
+  titleClassName?: string;
+  titleId?: string;
+}) => {
+  const [state, dispatch] = useReducer(nameEditReducer, {
+    draft: name,
+    editing: false,
+    error: null,
+    pending: false,
+  });
+  const { draft, editing, error, pending } = state;
+  const TitleTag = heading;
+
+  const save = async () => {
+    const next = normalizeBusinessName(draft);
+    if (next.length === 0 || next.length > BUSINESS_NAME_MAX) {
+      dispatch({ message: "Enter a business name", type: "failed" });
+      return;
+    }
+    if (isSameBusinessName(next, name)) {
+      dispatch({ name, type: "cancel" });
+      return;
+    }
+    dispatch({ type: "start" });
+    try {
+      const saved = await saveBusinessName(businessId, next);
+      dispatch({ type: "saved" });
+      onRenamed(saved);
+    } catch (saveError) {
+      dispatch({
+        message:
+          saveError instanceof Error
+            ? saveError.message
+            : "Could not save this name",
+        type: "failed",
+      });
+    }
+  };
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <TitleTag
+          id={titleId}
+          className={
+            editing
+              ? `${titleClassName} listwell-name-title--editing`
+              : titleClassName
+          }
+        >
+          {name}
+        </TitleTag>
+        {canRename && !editing ? (
+          <button
+            type="button"
+            className="listwell-panel__action listwell-name-rename"
+            onClick={() => {
+              dispatch({ name, type: "edit" });
+            }}
+          >
+            Rename
+          </button>
+        ) : null}
+      </div>
+      {editing ? (
+        <form
+          className="listwell-name-form flex min-w-0 flex-col gap-2"
+          action={save}
+        >
+          <label
+            className="text-ink-2 m-0 text-sm"
+            htmlFor={`${titleId}-input`}
+          >
+            Business name
+          </label>
+          <Input
+            id={`${titleId}-input`}
+            value={draft}
+            autoCapitalize="none"
+            autoComplete="organization"
+            spellCheck={false}
+            maxLength={BUSINESS_NAME_MAX}
+            onChange={(event) => {
+              dispatch({ type: "draft", value: event.target.value });
+            }}
+          />
+          <p className="text-ink-2 m-0 text-sm">
+            Shown on this report. The scan stays as it is.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              className="listwell-panel__action"
+              disabled={
+                pending ||
+                normalizeBusinessName(draft).length === 0 ||
+                isSameBusinessName(draft, name)
+              }
+            >
+              {pending ? "Saving" : "Save"}
+            </button>
+            <button
+              type="button"
+              className="listwell-panel__action"
+              disabled={pending}
+              onClick={() => {
+                dispatch({ name, type: "cancel" });
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+          {error ? (
+            <p className="text-ink m-0 text-sm" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
+    </div>
+  );
+};
 
 interface ReportSummaryProps {
   businessName: string;
   stats: BasicReportStats;
   businessId: string | null;
   onPreview: () => void;
+  onBusinessNameChange: (name: string) => void;
 }
 
 const buildCtaLabel = (
@@ -287,11 +506,228 @@ const ReportUnlockActions = ({
   </div>
 );
 
+/** Rename dialog for account row menu and other surfaces off the report header. */
+export const BusinessNameRenameDialog = ({
+  businessId,
+  name,
+  open,
+  onOpenChange,
+  onRenamed,
+}: {
+  businessId: string;
+  name: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRenamed: (name: string) => void;
+}) => {
+  const inputId = useId();
+  // react-doctor-disable-next-line react-doctor/no-derived-useState
+  const [draft, setDraft] = useState(name);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const save = async () => {
+    const next = normalizeBusinessName(draft);
+    if (next.length === 0 || next.length > BUSINESS_NAME_MAX) {
+      setError("Enter a business name");
+      return;
+    }
+    if (isSameBusinessName(next, name)) {
+      onOpenChange(false);
+      return;
+    }
+    setError(null);
+    setPending(true);
+    try {
+      const saved = await saveBusinessName(businessId, next);
+      setPending(false);
+      onRenamed(saved);
+      onOpenChange(false);
+    } catch (saveError) {
+      setPending(false);
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Could not save this name"
+      );
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!pending) {
+          onOpenChange(nextOpen);
+        }
+      }}
+    >
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rename business</DialogTitle>
+          <DialogDescription>
+            Shown on this report. The scan stays as it is.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="listwell-name-form flex flex-col gap-2" action={save}>
+          <label className="text-ink-2 m-0 text-sm" htmlFor={inputId}>
+            Business name
+          </label>
+          <Input
+            id={inputId}
+            value={draft}
+            autoCapitalize="none"
+            autoComplete="organization"
+            spellCheck={false}
+            maxLength={BUSINESS_NAME_MAX}
+            onChange={(event) => {
+              setDraft(event.target.value);
+            }}
+          />
+          {error ? (
+            <p className="text-ink m-0 text-sm" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <FormActions className="justify-end pt-0">
+            <QuietButton
+              disabled={pending}
+              type="button"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </QuietButton>
+            <PrimaryButton
+              disabled={
+                pending ||
+                normalizeBusinessName(draft).length === 0 ||
+                isSameBusinessName(draft, name)
+              }
+              type="submit"
+            >
+              {pending ? "Saving" : "Save"}
+            </PrimaryButton>
+          </FormActions>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export const BusinessRemoveDialog = ({
+  businessName,
+  open,
+  busy,
+  error,
+  onOpenChange,
+  onConfirm,
+}: {
+  businessName: string;
+  open: boolean;
+  busy: boolean;
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) => (
+  <Dialog
+    open={open}
+    onOpenChange={(nextOpen) => {
+      if (!busy) {
+        onOpenChange(nextOpen);
+      }
+    }}
+  >
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Remove business</DialogTitle>
+        <DialogDescription className="text-foreground leading-relaxed">
+          {businessName} will leave your account. Past scans, scores, and share
+          links for this business are deleted and cannot be restored. Active
+          billing for this business stops when it is removed.
+        </DialogDescription>
+      </DialogHeader>
+      {error ? (
+        <p className="listwell-panel__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <FormActions className="justify-end pt-0">
+        <QuietButton
+          disabled={busy}
+          type="button"
+          onClick={() => onOpenChange(false)}
+        >
+          Cancel
+        </QuietButton>
+        <UiButton
+          disabled={busy}
+          type="button"
+          variant="destructive"
+          onClick={onConfirm}
+        >
+          {busy ? "Removing…" : "Remove business"}
+        </UiButton>
+      </FormActions>
+    </DialogContent>
+  </Dialog>
+);
+
+export const MonthlyScansUpgradeDialog = ({
+  open,
+  busy,
+  error,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  busy: boolean;
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) => (
+  <Dialog
+    open={open}
+    onOpenChange={(nextOpen) => {
+      if (!busy) {
+        onOpenChange(nextOpen);
+      }
+    }}
+  >
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Monthly scans</DialogTitle>
+        <DialogDescription className="text-foreground leading-relaxed">
+          {MONTHLY_SCANS_UPGRADE_COPY}
+        </DialogDescription>
+      </DialogHeader>
+      <p className="text-muted-foreground text-sm">{REPORT_MONTHLY_PRICE}</p>
+      {error ? (
+        <p className="listwell-panel__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <FormActions className="justify-end pt-0">
+        <QuietButton
+          disabled={busy}
+          type="button"
+          onClick={() => onOpenChange(false)}
+        >
+          Not now
+        </QuietButton>
+        <PrimaryButton disabled={busy} type="button" onClick={onConfirm}>
+          {busy ? "Redirecting…" : "Continue to checkout"}
+        </PrimaryButton>
+      </FormActions>
+    </DialogContent>
+  </Dialog>
+);
+
 export const ReportSummary = ({
   businessName,
   stats,
   businessId,
   onPreview,
+  onBusinessNameChange,
 }: ReportSummaryProps) => {
   const score = scorePercent(stats);
   const fallbackAccess = entitlementStateSchema.parse({
@@ -305,6 +741,7 @@ export const ReportSummary = ({
   );
   const access = fetchedAccess ?? fallbackAccess;
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [monthlyDialogOpen, setMonthlyDialogOpen] = useState(false);
   const [redirecting, setRedirecting] = useState<CheckoutPlan | null>(null);
 
   const sessionRequired = Boolean(access.unlocked && access.sessionRequired);
@@ -312,14 +749,8 @@ export const ReportSummary = ({
   const ctaLabel = buildCtaLabel(access, redirecting, sessionRequired);
   const note = buildAccessNote(access, businessId);
 
-  const handleUnlock = async (
-    plan: CheckoutPlan = checkoutPlanSchema.parse("once")
-  ) => {
+  const startCheckout = async (plan: CheckoutPlan) => {
     if (!businessId) {
-      return;
-    }
-    if (access.unlocked) {
-      onPreview();
       return;
     }
     setCheckoutError(null);
@@ -335,15 +766,45 @@ export const ReportSummary = ({
     }
   };
 
+  const handleUnlock = (
+    plan: CheckoutPlan = checkoutPlanSchema.parse("once")
+  ) => {
+    if (!businessId) {
+      return;
+    }
+    if (access.unlocked) {
+      onPreview();
+      return;
+    }
+    if (plan === checkoutPlanSchema.parse("monthly")) {
+      setCheckoutError(null);
+      setMonthlyDialogOpen(true);
+      return;
+    }
+    void startCheckout(plan);
+  };
+
   return (
     <Card
       className="listwell-chat__report max-w-full ring-0"
       aria-label={`Visibility report for ${businessName}`}
     >
       <CardHeader className="gap-1">
-        <CardDescription className="text-foreground text-base">
-          {businessName}
-        </CardDescription>
+        {businessId ? (
+          <BusinessNameHeading
+            businessId={businessId}
+            canRename
+            heading="p"
+            name={businessName}
+            titleClassName="text-foreground m-0 text-base"
+            titleId="chat-report-title"
+            onRenamed={onBusinessNameChange}
+          />
+        ) : (
+          <CardDescription className="text-foreground text-base">
+            {businessName}
+          </CardDescription>
+        )}
         <CardTitle className="text-3xl font-semibold tracking-tight">
           {score}%
           <span className="text-muted-foreground text-lg font-normal">
@@ -351,11 +812,6 @@ export const ReportSummary = ({
             visibility
           </span>
         </CardTitle>
-        <CardDescription>
-          {formatCheckCount(stats.pass)} passing ·{" "}
-          {formatCheckCount(stats.fail)} need work
-          {stats.error > 0 ? ` · ${formatCheckCount(stats.error)} skipped` : ""}
-        </CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
@@ -394,7 +850,7 @@ export const ReportSummary = ({
           onUnlock={handleUnlock}
           onPreview={onPreview}
         />
-        {checkoutError ? (
+        {checkoutError && !monthlyDialogOpen ? (
           <Alert variant="destructive">
             <AlertDescription>{checkoutError}</AlertDescription>
           </Alert>
@@ -402,6 +858,17 @@ export const ReportSummary = ({
           <p className="text-muted-foreground text-sm">{note}</p>
         )}
       </CardFooter>
+      {businessId ? (
+        <MonthlyScansUpgradeDialog
+          busy={redirecting === checkoutPlanSchema.parse("monthly")}
+          error={checkoutError}
+          open={monthlyDialogOpen}
+          onConfirm={() => {
+            void startCheckout(checkoutPlanSchema.parse("monthly"));
+          }}
+          onOpenChange={setMonthlyDialogOpen}
+        />
+      ) : null}
     </Card>
   );
 };

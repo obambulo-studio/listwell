@@ -1,4 +1,7 @@
 import { Polar } from "@polar-sh/sdk";
+import { AlreadyCanceledSubscription } from "@polar-sh/sdk/models/errors/alreadycanceledsubscription";
+import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
+import { ResourceNotFound } from "@polar-sh/sdk/models/errors/resourcenotfound";
 import { z } from "zod";
 
 import { getExecutionContext, getCloudflareEnv } from "./audit-env";
@@ -7,6 +10,7 @@ import {
   getSessionUser,
   isAuthEnabled,
   maskEmail,
+  normalizeEmail,
 } from "./auth";
 import { fetchAuthMutation } from "./auth-server";
 import { CheckoutGrantError } from "./checkout-grant-error";
@@ -26,8 +30,10 @@ import {
   businessIdFromMetadata,
   checkoutCustomerIp,
   customerEmailFromPolarData,
+  customerNameFromPolarData,
   entitlementActionFromPolarEvent,
   entitlementKindFromCheckout,
+  parsePolarCustomerPortalUrl,
   polarCheckoutSchema,
 } from "./polar";
 import type { PolarWebhookEvent } from "./polar";
@@ -319,6 +325,53 @@ const polarClient = (config: PolarConfig): Polar =>
     server: config.server,
   });
 
+export class SubscriptionRevokeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SubscriptionRevokeError";
+  }
+}
+
+const subscriptionAlreadyRevoked = (error: unknown): boolean => {
+  if (error instanceof AlreadyCanceledSubscription) {
+    return true;
+  }
+  if (error instanceof ResourceNotFound) {
+    return true;
+  }
+  return error instanceof PolarError && error.statusCode === 404;
+};
+
+/** Cancels billing that this removal will delete. Does nothing when there is no subscription. */
+export const revokeSubscriptionsForBusinessRemoval = async (
+  subscriptionIds: readonly string[]
+): Promise<void> => {
+  if (subscriptionIds.length === 0) {
+    return;
+  }
+  const config = await getPolarConfig();
+  if (!config) {
+    throw new SubscriptionRevokeError(
+      "Billing is not configured, so this business cannot be removed"
+    );
+  }
+  const client = polarClient(config);
+  await Promise.all(
+    subscriptionIds.map(async (id) => {
+      try {
+        await client.subscriptions.revoke({ id });
+      } catch (error) {
+        if (subscriptionAlreadyRevoked(error)) {
+          return;
+        }
+        throw new SubscriptionRevokeError(
+          "Could not cancel billing for this business"
+        );
+      }
+    })
+  );
+};
+
 const allowedOrigins = (): string[] => {
   const values = [
     process.env.NEXT_PUBLIC_SITE_URL,
@@ -369,7 +422,8 @@ export const publicOrigin = (request: Request): string => {
 const signInWithEmailOtp = async (
   request: Request,
   email: string,
-  otp: string
+  otp: string,
+  name: string | undefined
 ): Promise<string[]> => {
   const siteUrl = convexSiteUrl();
   if (!siteUrl) {
@@ -394,10 +448,10 @@ const signInWithEmailOtp = async (
   }
 
   const at = email.indexOf("@");
-  const name = at > 0 ? email.slice(0, at) : email;
+  const fallbackName = at > 0 ? email.slice(0, at) : email;
 
   const response = await fetch(`${siteUrl}/api/auth/sign-in/email-otp`, {
-    body: JSON.stringify({ email, name, otp }),
+    body: JSON.stringify({ email, name: name ?? fallbackName, otp }),
     headers,
     method: "POST",
     redirect: "manual",
@@ -410,11 +464,12 @@ const signInWithEmailOtp = async (
 
 const signInPaidCustomer = async (
   request: Request,
-  email: string
+  email: string,
+  name: string | undefined
 ): Promise<string[]> => {
   try {
     const otp = await convexAction(api.users.createSignInOtp, { email });
-    const cookies = await signInWithEmailOtp(request, email, otp);
+    const cookies = await signInWithEmailOtp(request, email, otp, name);
     if (cookies.length === 0) {
       await sendPostPaymentSignInCode(email);
     }
@@ -482,6 +537,59 @@ export const createPolarCheckout = async (input: {
   });
 };
 
+export type PolarCustomerPortal =
+  | { status: "ready"; url: string }
+  | { status: "unconfigured" }
+  | { status: "missing" };
+
+const polarCustomerIdSchema = z.object({
+  id: z.string().min(1),
+});
+
+const polarCustomerListSchema = z.object({
+  result: z.object({
+    items: z.array(polarCustomerIdSchema),
+  }),
+});
+
+export const createPolarCustomerPortalUrl = async (input: {
+  email: string;
+  returnUrl: string;
+}): Promise<PolarCustomerPortal> => {
+  const config = await getPolarConfig();
+  if (!config) {
+    return { status: "unconfigured" };
+  }
+
+  const email = normalizeEmail(input.email);
+  const returnUrl = z.url().safeParse(input.returnUrl);
+  if (!email || !returnUrl.success) {
+    return { status: "missing" };
+  }
+
+  const page = await polarClient(config).customers.list({
+    email,
+    limit: 1,
+  });
+  const listed = polarCustomerListSchema.safeParse(page);
+  if (!listed.success) {
+    throw new Error("Unexpected billing customer list");
+  }
+  const customerId = listed.data.result.items[0]?.id;
+  if (!customerId) {
+    return { status: "missing" };
+  }
+
+  const session = await polarClient(config).customerSessions.create({
+    customerId,
+    returnUrl: returnUrl.data,
+  });
+  return {
+    status: "ready",
+    url: parsePolarCustomerPortalUrl(session.customerPortalUrl),
+  };
+};
+
 export const confirmPolarCheckout = async (
   checkoutId: string,
   request: Request
@@ -494,7 +602,9 @@ export const confirmPolarCheckout = async (
 
   const checkout = await polarClient(config).checkouts.get({ id: checkoutId });
   const parsed = polarCheckoutSchema.parse({
+    customerBillingName: checkout.customerBillingName,
     customerEmail: checkout.customerEmail,
+    customerName: checkout.customerName,
     id: checkout.id,
     metadata: checkout.metadata,
     productId: checkout.productId,
@@ -524,7 +634,8 @@ export const confirmPolarCheckout = async (
   );
 
   const email = customerEmailFromPolarData(parsed);
-  const cookies = email ? await signInPaidCustomer(request, email) : [];
+  const name = customerNameFromPolarData(parsed);
+  const cookies = email ? await signInPaidCustomer(request, email, name) : [];
 
   try {
     const user = await grantPaidAccess({

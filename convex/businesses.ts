@@ -1,9 +1,15 @@
 import { v } from "convex/values";
 
+import {
+  entitlementBelongsToAnotherUser,
+  otherAccountsStillHaveAccessMessage,
+  removalBlockedByOtherActiveEntitlement,
+  subscriptionIdsToRevoke,
+} from "../lib/account-business-remove";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
-import { authedQuery } from "./lib/customFunctions";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { businessResponseValidator } from "./lib/responseValidators";
 import {
   MAX_COMPETITORS,
@@ -17,6 +23,17 @@ import {
 } from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();
+
+const BUSINESS_NAME_MAX = 200;
+
+/** Trim and collapse spaces. Keep the casing the caller sent. */
+const storedBusinessName = (value: string): string => {
+  const name = value.trim().replaceAll(/\s+/gu, " ");
+  if (name.length === 0 || name.length > BUSINESS_NAME_MAX) {
+    throw new Error("Invalid business name");
+  }
+  return name;
+};
 
 const entitlementAllowsClaim = async (
   ctx: { db: MutationCtx["db"] },
@@ -157,9 +174,7 @@ export const create = mutation({
     youtubeUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    if (args.name.trim().length === 0 || args.name.length > 200) {
-      throw new Error("Invalid business name");
-    }
+    const name = storedBusinessName(args.name);
     if (args.category.length > 100) {
       throw new Error("Invalid category");
     }
@@ -194,7 +209,7 @@ export const create = mutation({
       linkedinUrl: args.linkedinUrl,
       locations: args.locations ?? [],
       menulogUrl: args.menulogUrl,
-      name: args.name,
+      name,
       tiktokUsername: args.tiktokUsername,
       uberEatsUrl: args.uberEatsUrl,
       updatedAt: timestamp,
@@ -252,9 +267,14 @@ export const update = mutation({
     } = args;
     const patch: Record<string, unknown> = { updatedAt: timestamp };
     for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
-        patch[key] = value;
+      if (value === undefined) {
+        continue;
       }
+      if (key === "name" && typeof value === "string") {
+        patch.name = storedBusinessName(value);
+        continue;
+      }
+      patch[key] = value;
     }
     if (categoryLabel === null) {
       patch.categoryLabel = undefined;
@@ -277,11 +297,42 @@ export const update = mutation({
 
 const MAX_PHRASE_CHARS = 80;
 
-const findBusinessDoc = (ctx: Pick<MutationCtx, "db">, externalId: string) =>
+const findBusinessDoc = (ctx: Pick<QueryCtx, "db">, externalId: string) =>
   ctx.db
     .query("businesses")
     .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
     .unique();
+
+const listEntitlements = (
+  ctx: Pick<QueryCtx, "db">,
+  businessExternalId: string
+) =>
+  ctx.db
+    .query("entitlements")
+    .withIndex("by_businessExternalId", (q) =>
+      q.eq("businessExternalId", businessExternalId)
+    )
+    .collect();
+
+const toRemovalEntitlement = (row: Doc<"entitlements">) => ({
+  polarSubscriptionId: row.polarSubscriptionId ?? null,
+  status: row.status,
+  userId: row.userId ?? null,
+});
+
+const assertNoForeignActiveEntitlement = (
+  entitlements: Doc<"entitlements">[],
+  ownerId: string
+): void => {
+  if (
+    removalBlockedByOtherActiveEntitlement(
+      entitlements.map(toRemovalEntitlement),
+      ownerId
+    )
+  ) {
+    throw new Error(otherAccountsStillHaveAccessMessage);
+  }
+};
 
 /** Replaces saved phrases. The Worker assigns ids; a new wording needs a new id. */
 export const setSearchPhrases = mutation({
@@ -406,6 +457,104 @@ export const claimInternal = mutation({
     return claimedCount;
   },
   returns: v.number(),
+});
+
+const deleteRowsForBusiness = async (
+  ctx: MutationCtx,
+  businessExternalId: string,
+  ownerId: string
+): Promise<void> => {
+  const entitlements = await listEntitlements(ctx, businessExternalId);
+  assertNoForeignActiveEntitlement(entitlements, ownerId);
+
+  const [scans, shares, budgets, observations] = await Promise.all([
+    ctx.db
+      .query("scans")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", businessExternalId)
+      )
+      .collect(),
+    ctx.db
+      .query("reportShares")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", businessExternalId)
+      )
+      .collect(),
+    ctx.db
+      .query("seoBudgets")
+      .withIndex("by_businessExternalId_and_periodStart", (q) =>
+        q.eq("businessExternalId", businessExternalId)
+      )
+      .collect(),
+    ctx.db
+      .query("seoObservations")
+      .withIndex("by_business_and_period", (q) =>
+        q.eq("businessExternalId", businessExternalId)
+      )
+      .collect(),
+  ]);
+
+  const ownedEntitlements = entitlements.filter(
+    (row) => !entitlementBelongsToAnotherUser(row.userId ?? null, ownerId)
+  );
+
+  await Promise.all([
+    Promise.all(scans.map((row) => ctx.db.delete("scans", row._id))),
+    Promise.all(
+      ownedEntitlements.map((row) => ctx.db.delete("entitlements", row._id))
+    ),
+    Promise.all(shares.map((row) => ctx.db.delete("reportShares", row._id))),
+    Promise.all(budgets.map((row) => ctx.db.delete("seoBudgets", row._id))),
+    Promise.all(
+      observations.map((row) => ctx.db.delete("seoObservations", row._id))
+    ),
+  ]);
+};
+
+/** Whether removal must stop, and which Polar subscriptions to revoke first. */
+export const removalPreview = authedQuery({
+  args: { externalId: v.string() },
+  handler: async (ctx, args) => {
+    const { user } = ctx;
+    const doc = await findBusinessDoc(ctx, args.externalId);
+    if (!doc) {
+      throw new Error("Business not found");
+    }
+    if (doc.userId !== user._id) {
+      throw new Error("Forbidden");
+    }
+    const entitlements = await listEntitlements(ctx, args.externalId);
+    const rows = entitlements.map(toRemovalEntitlement);
+    return {
+      blocked: removalBlockedByOtherActiveEntitlement(rows, user._id),
+      subscriptionIds: subscriptionIdsToRevoke(rows, user._id),
+    };
+  },
+  returns: v.object({
+    blocked: v.boolean(),
+    subscriptionIds: v.array(v.string()),
+  }),
+});
+
+/** Removes a business the signed-in user owns, including scans and entitlements. */
+export const removeOwned = authedMutation({
+  args: { externalId: v.string() },
+  handler: async (ctx, args) => {
+    const { user } = ctx;
+    const doc = await findBusinessDoc(ctx, args.externalId);
+    if (!doc) {
+      throw new Error("Business not found");
+    }
+    if (doc.userId !== user._id) {
+      throw new Error("Forbidden");
+    }
+    const entitlements = await listEntitlements(ctx, args.externalId);
+    assertNoForeignActiveEntitlement(entitlements, user._id);
+    await deleteRowsForBusiness(ctx, args.externalId, user._id);
+    await ctx.db.delete("businesses", doc._id);
+    return { ok: true as const };
+  },
+  returns: v.object({ ok: v.literal(true) }),
 });
 
 export const attachOwnerIfUnowned = mutation({

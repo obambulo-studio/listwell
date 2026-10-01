@@ -160,6 +160,7 @@ export const buildListwellPrompt = (
     "- Do not mention Visimate.",
     "- Product name is Listwell.",
     "- Plain language for an Australian small business owner.",
+    "- The overview should be 2–4 sentences: how many checks failed, the most important failing checks (by points), and notable passes when useful.",
     "- Use Australian English spelling (e.g. optimise, colour, organisation).",
     "- Do not use hype or invented statistics.",
     "- Prioritise next actions by the provided points, highest first.",
@@ -236,6 +237,110 @@ export const filterToCitedChecks = (
   return { nextActions, overview };
 };
 
+const OVERVIEW_NAMED_FAILS = 3;
+const OVERVIEW_NAMED_PASSES = 2;
+
+const joinCheckTitles = (titles: string[]): string => {
+  if (titles.length === 0) {
+    return "";
+  }
+  if (titles.length === 1) {
+    return titles[0] ?? "";
+  }
+  if (titles.length === 2) {
+    return `${titles[0]} and ${titles[1]}`;
+  }
+  const head = titles.slice(0, -1).join(", ");
+  const last = titles.at(-1);
+  return `${head}, and ${last}`;
+};
+
+const passHighlightSentence = (passed: CompletedCheck[]): string | null => {
+  if (passed.length === 0) {
+    return null;
+  }
+  const named = [...passed]
+    .toSorted((left, right) => right.points - left.points)
+    .slice(0, OVERVIEW_NAMED_PASSES)
+    .map((check) => check.title);
+  const extra = passed.length - named.length;
+  if (passed.length === 1) {
+    return `1 other check passed: ${named[0]}.`;
+  }
+  let text = `${passed.length} checks passed`;
+  if (named.length > 0) {
+    text += `, including ${joinCheckTitles(named)}`;
+  }
+  if (extra > 0) {
+    text += ` and ${extra} more`;
+  }
+  return `${text}.`;
+};
+
+const failGapSentence = (failed: CompletedCheck[]): string => {
+  const named = failed
+    .slice(0, OVERVIEW_NAMED_FAILS)
+    .map((check) => check.title);
+  const extra = failed.length - named.length;
+  if (failed.length === 2) {
+    return `Main gaps are ${joinCheckTitles(named)}.`;
+  }
+  const listed = joinCheckTitles(named);
+  if (extra > 0) {
+    const otherWord = extra === 1 ? "other" : "others";
+    return `Main gaps include ${listed}, plus ${extra} ${otherWord}.`;
+  }
+  return `Main gaps include ${listed}.`;
+};
+
+/** Plain-language overview when Workers AI is unavailable or invalid. */
+export const buildFallbackOverviewText = (
+  failed: CompletedCheck[],
+  passed: CompletedCheck[]
+): string => {
+  if (failed.length === 1) {
+    const [only] = failed;
+    if (only) {
+      const parts = [`${only.title} did not pass.`];
+      const passNote = passHighlightSentence(passed);
+      if (passNote) {
+        parts.push(passNote);
+      }
+      return parts.join(" ");
+    }
+  }
+  if (failed.length > 1) {
+    const parts = [
+      `${failed.length} checks did not pass.`,
+      failGapSentence(failed),
+    ];
+    const passNote = passHighlightSentence(passed);
+    if (passNote) {
+      parts.push(passNote);
+    }
+    return parts.join(" ");
+  }
+  if (passed.length > 0) {
+    const named = [...passed]
+      .toSorted((left, right) => right.points - left.points)
+      .slice(0, OVERVIEW_NAMED_PASSES)
+      .map((check) => check.title);
+    const extra = passed.length - named.length;
+    if (passed.length === 1) {
+      return `All ${passed.length} completed check passed: ${named[0]}.`;
+    }
+    let text = `All ${passed.length} completed checks passed`;
+    if (named.length > 0) {
+      text += `, including ${joinCheckTitles(named)}`;
+    }
+    if (extra > 0) {
+      text += ` and ${extra} more`;
+    }
+    return `${text}.`;
+  }
+  return "";
+};
+
 export const buildFallbackSummary = (
   checks: CompletedCheck[],
   reason: DegradedReason
@@ -256,23 +361,14 @@ export const buildFallbackSummary = (
     .toSorted((left, right) => right.points - left.points);
   const passed = checks.filter((check) => check.status === "pass");
   const overview: CitedClaim[] = [];
-  const [highest] = failed;
+  const overviewText = buildFallbackOverviewText(failed, passed);
 
-  if (failed.length === 1 && highest) {
-    overview.push({
-      checkIds: [highest.id],
-      text: `${highest.title} did not pass.`,
-    });
-  } else if (failed.length > 1 && highest) {
-    overview.push({
-      checkIds: failed.map((check) => check.id),
-      text: `${failed.length} checks did not pass. The highest-weight miss is ${highest.title}.`,
-    });
-  } else if (passed.length > 0) {
-    overview.push({
-      checkIds: passed.map((check) => check.id),
-      text: `All ${passed.length} completed checks passed.`,
-    });
+  if (overviewText.length > 0) {
+    const checkIds =
+      failed.length > 0
+        ? failed.map((check) => check.id)
+        : passed.map((check) => check.id);
+    overview.push({ checkIds, text: overviewText });
   }
 
   const nextActions: NextAction[] = failed.map((check, index) => ({

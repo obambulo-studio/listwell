@@ -1,9 +1,6 @@
 import { getSessionUser } from "./auth";
-import {
-  getActiveEntitlementOwner,
-  getBusiness,
-  getBusinessOwnerId,
-} from "./data";
+import { getBusiness, getBusinessOwnerId } from "./data";
+import { getReportAccess } from "./polar-server";
 
 export const canManageReportShare = async (
   businessId: string
@@ -13,23 +10,17 @@ export const canManageReportShare = async (
     return { allowed: false, reason: "not_found" };
   }
 
-  const [sessionUser, ownerId, entitlement] = await Promise.all([
-    getSessionUser(),
-    getBusinessOwnerId(businessId),
-    getActiveEntitlementOwner(businessId),
-  ]);
-
-  if (ownerId && ownerId !== sessionUser?.id) {
+  const access = await getReportAccess(businessId);
+  if (!access.unlocked || access.sessionRequired) {
     return { allowed: false, reason: "forbidden" };
   }
 
-  const paidOwnedBySomeoneElse =
-    entitlement.backendAvailable &&
-    entitlement.unlocked &&
-    entitlement.ownerUserId !== null &&
-    entitlement.ownerUserId !== sessionUser?.id;
+  const [sessionUser, ownerId] = await Promise.all([
+    getSessionUser(),
+    getBusinessOwnerId(businessId),
+  ]);
 
-  if (!ownerId && paidOwnedBySomeoneElse) {
+  if (ownerId && ownerId !== sessionUser?.id) {
     return { allowed: false, reason: "forbidden" };
   }
 

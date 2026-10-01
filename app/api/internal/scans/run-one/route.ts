@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { timingSafeEqual } from "@/lib/auth";
+import { sendPendingScanEmails } from "@/lib/scheduled-scan-notify";
 import { runReservedMonthlyScan } from "@/lib/scheduled-scan-run";
 
 export const dynamic = "force-dynamic";
@@ -68,6 +69,13 @@ export const POST = async (request: Request) => {
       },
       { status: 500 }
     );
+  }
+  if (outcome.scanEmailNotification) {
+    try {
+      await sendPendingScanEmails([outcome.scanEmailNotification]);
+    } catch (error) {
+      console.error("run-one scan: email delivery failed", error);
+    }
   }
   return NextResponse.json({ ok: true });
 };

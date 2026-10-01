@@ -1,17 +1,20 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
+import { emailAccent, emailOnAccent } from "../emails/shell";
 import {
   buildScanEmail,
+  formatVisibilityScoreTrendPlain,
   newlyBrokenChecks,
   pickScanEmailKind,
   scoreDelta,
+  visibilityScoreTrend,
+  visibilityScoreTrendLine,
 } from "./scan-email";
 import { hintFromCheckBody } from "./scan-email-hints";
+import { mergePendingScanEmails } from "./scheduled-scan-notify";
 
 const UNSUB = "https://listwell.dev/api/notifications/unsubscribe?token=sample";
+const SITE = "https://listwell.dev";
 
 describe("scan email helpers", () => {
   it("extracts plain-English hints from check copy", () => {
@@ -19,6 +22,32 @@ describe("scan email helpers", () => {
       "## What we're checking\n\nWe look for complete opening and closing times for each day of the week in your Google Business Profile.\n\n## How can I fix it?"
     );
     expect(definition).toContain("opening and closing times");
+  });
+
+  it("formats visibility score trend vs the prior scan", () => {
+    const down = visibilityScoreTrend(58, 63);
+    if (!down) {
+      throw new Error("expected down trend");
+    }
+    expect({
+      downPlain: formatVisibilityScoreTrendPlain(down),
+      noScore: visibilityScoreTrendLine(null, 60),
+      sameNoPrior: visibilityScoreTrendLine(72, null),
+      sameScore: visibilityScoreTrendLine(70, 70),
+      up: visibilityScoreTrend(72, 69),
+      upPlain: visibilityScoreTrendLine(72, 69),
+    }).toStrictEqual({
+      downPlain: "\u2193 Down 5 points from last month.",
+      noScore: null,
+      sameNoPrior: null,
+      sameScore: "\u2192 Same as last month.",
+      up: {
+        arrow: "\u2191",
+        direction: "up",
+        label: "Up 3 points from last month.",
+      },
+      upPlain: "\u2191 Up 3 points from last month.",
+    });
   });
 
   it("detects score drop and newly failing checks", () => {
@@ -43,174 +72,132 @@ describe("scan email helpers", () => {
     expect(pickScanEmailKind(previous, current)).toBe("score_alert");
   });
 
-  it("builds monthly summary with preferences link and top fixes", () => {
+  it("builds a scan-ready email with stacked rows and basic scan info", () => {
     const email = buildScanEmail({
-      businessCategory: "food",
-      businessName: "Harbour Cafe",
-      current: {
-        results: {
-          "google-listing-opening-times": { value: false },
-          website: { value: true },
+      businesses: [
+        {
+          businessId: "harbour-cafe",
+          businessName: "Harbour Cafe",
+          finishedAt: "2026-10-01T00:00:00.000Z",
+          previousScore: 69,
+          score: 72,
         },
-        score: 72,
-      },
-      previous: {
-        results: {
-          "google-listing-opening-times": { value: false },
-          website: { value: true },
-        },
-        score: 70,
-      },
-      reportUrl: "https://listwell.dev/demo-cafe",
+      ],
+      siteUrl: SITE,
       unsubscribeUrl: UNSUB,
     });
     expect({
-      htmlExcludesRawId: !email.html.includes("google-listing-opening-times"),
-      htmlIncludes: [
-        "Google Business Profile - Opening Hours",
-        UNSUB,
-        "Email preferences",
-      ].every((needle) => email.html.includes(needle)),
-      kind: email.kind,
-      listUnsubscribeUrl: email.listUnsubscribeUrl,
-      subjectHasCafe: email.subject.includes("Harbour Cafe"),
+      buttonUsesAccentInkText: email.html.includes(`color:${emailOnAccent}`),
+      buttonUsesBabyBlueBackground: email.html.includes(
+        `background-color:${emailAccent}`
+      ),
+      hasButton: email.html.includes("View Harbour Cafe"),
+      hasHeadlineMonth: email.html.includes("October scan ready"),
+      hasProfileUrl: email.html.includes(`${SITE}/harbour-cafe`),
+      hasScannedDate: email.text.includes("Scanned"),
+      hasScore: email.html.includes("Visibility score: 72%"),
+      hasTrendArrow: email.html.includes("\u2191"),
+      hasTrendLabel: email.html.includes("Up 3 points from last month."),
+      subject: email.subject,
       textHasPrefs: email.text.includes("Email preferences"),
+      textHasTrendArrow: email.text.includes(
+        "\u2191 Up 3 points from last month."
+      ),
     }).toStrictEqual({
-      htmlExcludesRawId: true,
-      htmlIncludes: true,
-      kind: "monthly_summary",
-      listUnsubscribeUrl: UNSUB,
-      subjectHasCafe: true,
+      buttonUsesAccentInkText: true,
+      buttonUsesBabyBlueBackground: true,
+      hasButton: true,
+      hasHeadlineMonth: true,
+      hasProfileUrl: true,
+      hasScannedDate: false,
+      hasScore: true,
+      hasTrendArrow: true,
+      hasTrendLabel: true,
+      subject: "Listwell · October scan — Harbour Cafe",
       textHasPrefs: true,
+      textHasTrendArrow: true,
     });
   });
 
-  it("builds alert with human titles and hints", () => {
+  it("combines multiple businesses for the same recipient", () => {
+    const merged = mergePendingScanEmails([
+      {
+        businesses: [
+          {
+            businessId: "harbour-cafe",
+            businessName: "Harbour Cafe",
+            finishedAt: "2026-10-01T00:00:00.000Z",
+            previousScore: null,
+            score: 72,
+          },
+        ],
+        listUnsubscribeUrl: UNSUB,
+        siteUrl: SITE,
+        to: "owner@example.com",
+        unsubscribeUrl: UNSUB,
+      },
+      {
+        businesses: [
+          {
+            businessId: "bean-bar",
+            businessName: "Bean Bar",
+            finishedAt: "2026-10-01T00:00:00.000Z",
+            previousScore: null,
+            score: 58,
+          },
+        ],
+        listUnsubscribeUrl: UNSUB,
+        siteUrl: SITE,
+        to: "owner@example.com",
+        unsubscribeUrl: UNSUB,
+      },
+    ]);
+    expect(merged).toHaveLength(1);
     const email = buildScanEmail({
-      businessCategory: "food",
-      businessName: "Harbour Cafe",
-      current: {
-        results: {
-          "google-listing-opening-times": { value: false },
-          website: { value: false },
-        },
-        score: 58,
-      },
-      previous: {
-        results: {
-          "google-listing-opening-times": { value: true },
-          website: { value: true },
-        },
-        score: 72,
-      },
-      reportUrl: "https://listwell.dev/demo-cafe",
+      businesses: merged[0]?.businesses ?? [],
+      siteUrl: SITE,
       unsubscribeUrl: UNSUB,
     });
-    expect(email.kind).toBe("score_alert");
-    expect(email.html).toContain("Google Business Profile - Opening Hours");
-    expect(email.text).toContain("Email preferences");
+    expect(email.subject).toBe("Listwell · October scans — 2 businesses");
+    expect(email.html).toContain("View Harbour Cafe");
+    expect(email.html).toContain("View Bean Bar");
+    expect(email.html).toContain("Visibility score: 58%");
   });
 
-  it("writes sample HTML artifacts", () => {
-    const alert = buildScanEmail({
-      businessCategory: "food",
-      businessName: "Harbour Cafe",
-      current: {
-        results: {
-          "google-listing-opening-times": { value: false },
-          website: { value: false },
-        },
-        score: 58,
+  it("keeps the latest scan when merging duplicate businesses", () => {
+    const merged = mergePendingScanEmails([
+      {
+        businesses: [
+          {
+            businessId: "harbour-cafe",
+            businessName: "Harbour Cafe",
+            finishedAt: "2026-09-01T00:00:00.000Z",
+            previousScore: null,
+            score: 60,
+          },
+        ],
+        listUnsubscribeUrl: UNSUB,
+        siteUrl: SITE,
+        to: "owner@example.com",
+        unsubscribeUrl: UNSUB,
       },
-      previous: {
-        results: {
-          "google-listing-opening-times": { value: true },
-          website: { value: true },
-        },
-        score: 72,
+      {
+        businesses: [
+          {
+            businessId: "harbour-cafe",
+            businessName: "Harbour Cafe",
+            finishedAt: "2026-10-01T00:00:00.000Z",
+            previousScore: 60,
+            score: 72,
+          },
+        ],
+        listUnsubscribeUrl: UNSUB,
+        siteUrl: SITE,
+        to: "owner@example.com",
+        unsubscribeUrl: UNSUB,
       },
-      reportUrl: "https://listwell.dev/demo-cafe",
-      unsubscribeUrl: UNSUB,
-    });
-    const summary = buildScanEmail({
-      businessCategory: "food",
-      businessName: "Harbour Cafe",
-      current: {
-        results: { website: { value: true } },
-        score: 72,
-      },
-      previous: {
-        results: { website: { value: true } },
-        score: 70,
-      },
-      reportUrl: "https://listwell.dev/demo-cafe",
-      unsubscribeUrl: UNSUB,
-    });
-    if (process.env.LISTWELL_WRITE_EMAIL_SAMPLES === "1") {
-      for (const artifactDir of [
-        path.join(process.cwd(), "artifacts"),
-        "/opt/cursor/artifacts",
-      ]) {
-        try {
-          mkdirSync(artifactDir, { recursive: true });
-          writeFileSync(
-            path.join(artifactDir, "monthly-scan-alert-sample.html"),
-            alert.html,
-            "utf-8"
-          );
-          writeFileSync(
-            path.join(artifactDir, "monthly-scan-summary-sample.html"),
-            summary.html,
-            "utf-8"
-          );
-        } catch {
-          // Optional sample output for docs and agent runs.
-        }
-      }
-    }
-    expect(alert.html).toContain("Listwell");
-    expect(summary.html).toContain("Email preferences");
-  });
-
-  it("adds the monthly change and alerts on lost map pack, rank, and a competitor pass", () => {
-    const research = {
-      competitorNames: { bean: "Bean Bar" },
-      current: {
-        aiOverview: { cafe: "cited" as const },
-        competitors: {
-          bean: { gridTop3Count: { cafe: 6 }, reviewCount: 40 },
-        },
-        gridTop3Count: { pin_1: { cafe: 0 } },
-        organicPosition: { cafe: 8 },
-        reviewCount: 12,
-      },
-      phraseLabels: { cafe: "cafe Newtown" },
-      previous: {
-        aiOverview: { cafe: "none" as const },
-        competitors: {
-          bean: { gridTop3Count: { cafe: 2 }, reviewCount: 26 },
-        },
-        gridTop3Count: { pin_1: { cafe: 4 } },
-        organicPosition: { cafe: 3 },
-        reviewCount: 9,
-      },
-    };
-    const summary = buildScanEmail({
-      businessCategory: "food",
-      businessName: "Harbour Cafe",
-      current: { results: { website: { value: true } }, score: 72 },
-      previous: { results: { website: { value: true } }, score: 70 },
-      reportUrl: "https://listwell.dev/demo-cafe",
-      research,
-      unsubscribeUrl: UNSUB,
-    });
-    expect(summary.kind).toBe("score_alert");
-    expect(summary.text).toContain("Reviews: 12, up 3 since last month.");
-    expect(summary.text).toContain("lost all of its map-pack cells");
-    expect(summary.text).toContain("fell from position 3 to position 8");
-    expect(summary.text).toContain(
-      "Bean Bar now holds more map-pack cells than you for 'cafe Newtown'."
-    );
+    ]);
+    expect(merged[0]?.businesses[0]?.score).toBe(72);
   });
 
   it("uses the stronger alert when research visibility drops without a score drop", () => {

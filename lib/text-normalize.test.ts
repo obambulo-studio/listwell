@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isSameBusinessName,
   isSkipCommand,
   normalizeBusinessName,
   normalizeCategoryText,
@@ -21,25 +22,41 @@ describe(normalizeLocation, () => {
 });
 
 describe(normalizeBusinessName, () => {
-  it("title-cases business names with small-word exceptions", () => {
-    expect(normalizeBusinessName("haddon institute")).toBe("Haddon Institute");
-    expect(normalizeBusinessName("smith and sons")).toBe("Smith and Sons");
-    expect(normalizeBusinessName("the corner store")).toBe("The Corner Store");
+  it("keeps the casing the user typed", () => {
+    expect(normalizeBusinessName("eBay")).toBe("eBay");
+    expect(normalizeBusinessName("iFixit")).toBe("iFixit");
+    expect(normalizeBusinessName("mcdonald's")).toBe("mcdonald's");
+    expect(normalizeBusinessName("haddon institute")).toBe("haddon institute");
   });
 
-  it("handles apostrophes in names", () => {
-    expect(normalizeBusinessName("mcdonald's cafe")).toBe("McDonald's Cafe");
-  });
-
-  it("handles hyphenated names", () => {
-    expect(normalizeBusinessName("north-side bakery")).toBe(
-      "North-Side Bakery"
+  it("trims and collapses whitespace", () => {
+    expect(normalizeBusinessName("  blackstar   coffee  ")).toBe(
+      "blackstar coffee"
     );
+  });
+
+  it("preserves deliberate case changes", () => {
+    expect(normalizeBusinessName("Obambulo Studio")).toBe("Obambulo Studio");
+    expect(normalizeBusinessName("obambulo studio")).toBe("obambulo studio");
+  });
+});
+
+describe(isSameBusinessName, () => {
+  it("treats case-only edits as a change", () => {
+    expect(
+      isSameBusinessName("Obambulo Studio", "obambulo studio")
+    ).toBeFalsy();
+  });
+
+  it("ignores extra whitespace", () => {
+    expect(
+      isSameBusinessName("Obambulo Studio", "  Obambulo   Studio ")
+    ).toBeTruthy();
   });
 });
 
 describe(normalizeCategoryText, () => {
-  it("uses business-name rules for free-text categories", () => {
+  it("title-cases free-text categories", () => {
     expect(normalizeCategoryText("pet grooming")).toBe("Pet Grooming");
   });
 });
@@ -69,12 +86,10 @@ describe(isSkipCommand, () => {
 });
 
 describe(normalizeChatInput, () => {
-  it("normalises business name phase input", () => {
-    expect(
-      normalizeChatInput("business_name", "haddon institute")
-    ).toStrictEqual({
+  it("keeps business name casing", () => {
+    expect(normalizeChatInput("business_name", "  eBay  ")).toStrictEqual({
       kind: "text",
-      value: "Haddon Institute",
+      value: "eBay",
     });
   });
 

@@ -37,6 +37,24 @@ describe("social extractors", () => {
     ).toBe("123456");
   });
 
+  it("keeps the full Facebook people profile URL", () => {
+    expect(
+      extractFacebookPage(
+        "https://www.facebook.com/people/Seoul-Bistro/100063123456789/"
+      )
+    ).toStrictEqual({
+      pageId: "100063123456789",
+      url: "https://www.facebook.com/people/Seoul-Bistro/100063123456789/",
+      urlType: "people",
+    });
+    expect(
+      extractFacebookPage(
+        "https://m.facebook.com/people/Seoul-Bistro/pfbid02AbCdEfGhIj?locale=en_GB"
+      )?.url
+    ).toBe("https://www.facebook.com/people/Seoul-Bistro/pfbid02AbCdEfGhIj/");
+    expect(extractFacebookPage("https://www.facebook.com/people/")).toBeNull();
+  });
+
   it("keeps Instagram and TikTok profiles and drops posts", () => {
     expect(
       extractInstagramProfile("https://www.instagram.com/seoulbistro/")

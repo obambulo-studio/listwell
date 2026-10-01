@@ -27,8 +27,9 @@ import { lookupProvidersFromEnv } from "./audit-env";
 import type { LookupProviders } from "./audit-env";
 import {
   CATEGORY_CONFIG,
+  categoryLabelFromGooglePlaceTypes,
   getCategoryIdFromGooglePlaceTypes,
-  primaryGooglePlaceTypeLabel,
+  matchBusinessCategory,
   recommendedSocialMedia,
 } from "./category";
 import type { CategoryId } from "./category";
@@ -73,6 +74,7 @@ export const discoverRequestSchema = z.object({
   appleMapsId: z.string().optional(),
   businessName: z.string().min(1),
   categoryId: z.enum(["food", "retail", "services", "other"]).optional(),
+  categoryLabel: z.string().optional(),
   facebookUrl: z.string().optional(),
   googlePlaceId: z.string().optional(),
   instagramUsername: z.string().optional(),
@@ -351,15 +353,24 @@ export const resolveCategoryDisplayLabel = async (input: {
   categoryId: CategoryId;
   fetchImpl?: typeof fetch;
   near?: string;
+  preferredLabel?: string;
 }): Promise<string> => {
-  if (input.categoryId !== "other") {
-    return CATEGORY_CONFIG[input.categoryId].label;
-  }
-
   const candidate = categoryHintCandidate(input.candidates);
-  const fromTypes = primaryGooglePlaceTypeLabel(candidate?.types);
+  const fromTypes = categoryLabelFromGooglePlaceTypes(candidate?.types);
   if (fromTypes) {
     return fromTypes;
+  }
+
+  const preferred = input.preferredLabel?.trim() ?? "";
+  if (preferred) {
+    const matched = matchBusinessCategory(preferred);
+    if (matched) {
+      return matched.label;
+    }
+  }
+
+  if (input.categoryId !== "other") {
+    return CATEGORY_CONFIG[input.categoryId].label;
   }
 
   const hintParts = [
@@ -705,6 +716,7 @@ export const discoverBusiness = async (
     categoryId,
     fetchImpl: options.fetchImpl,
     near: nearText,
+    preferredLabel: request.categoryLabel,
   });
 
   return discoverResponseSchema.parse({

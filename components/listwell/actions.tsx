@@ -1,8 +1,10 @@
 "use client";
 
+import { ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import type { ComponentProps, ReactNode } from "react";
 
 import { Button, ButtonLink } from "@/components/atoms/button";
+import { Icon } from "@/components/icon";
 import { cn } from "@/lib/utils";
 
 export const FormActions = ({
@@ -53,19 +55,7 @@ export const ComposerSubmit = ({
     disabled={disabled}
     aria-label={label}
   >
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M12 19V5M5 12l7-7 7 7" />
-    </svg>
+    <Icon icon={ArrowUp01Icon} size={14} />
   </Button>
 );
 

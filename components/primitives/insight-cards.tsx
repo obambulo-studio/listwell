@@ -1,9 +1,16 @@
 "use client";
 
+import {
+  ArrowUp01Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "@hugeicons/core-free-icons";
 import { Liveline } from "liveline";
 import type { LivelinePoint, LivelineSeries } from "liveline";
 import { useEffect, useMemo, useState } from "react";
 import type { ComponentType, PointerEvent, ReactNode } from "react";
+
+import { Icon } from "@/components/icon";
 
 /* ─────────────────────────────────────────────────────────
  * INSIGHT CARDS
@@ -323,18 +330,7 @@ const AnomalyCard = ({
     <div className="rounded-card bg-surface shadow-hairline min-h-[278px] p-3">
       <div className="flex items-center justify-between">
         <span className="text-ink flex items-center gap-1.5 text-[12px] font-medium">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--red)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
+          <Icon color="var(--red)" icon={ArrowUp01Icon} size={12} />
           High freezer spend
         </span>
         <span className="bg-field text-ink-2 rounded-full px-2 py-0.5 text-[10.5px] font-medium">
@@ -648,30 +644,22 @@ const InsightCards = ({
           </span>
         </span>
         <span className="flex items-center gap-0.5">
-          {(["M15 18l-6-6 6-6", "M9 6l6 6-6 6"] as const).map((d) => (
-            <button
-              key={d}
-              type="button"
-              aria-label={
-                d === "M15 18l-6-6 6-6" ? "Previous insight" : "Next insight"
-              }
-              onClick={() => move(d === "M15 18l-6-6 6-6" ? -1 : 1)}
-              className="text-ink-3 hover:bg-hover hover:text-ink flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-100 active:scale-[0.96]"
-            >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d={d} />
-              </svg>
-            </button>
-          ))}
+          <button
+            type="button"
+            aria-label="Previous insight"
+            onClick={() => move(-1)}
+            className="text-ink-3 hover:bg-hover hover:text-ink flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-100 active:scale-[0.96]"
+          >
+            <Icon icon={ChevronLeftIcon} size={13} />
+          </button>
+          <button
+            type="button"
+            aria-label="Next insight"
+            onClick={() => move(1)}
+            className="text-ink-3 hover:bg-hover hover:text-ink flex size-6 items-center justify-center rounded-[6px] transition-[background-color,color,transform] duration-100 active:scale-[0.96]"
+          >
+            <Icon icon={ChevronRightIcon} size={13} />
+          </button>
         </span>
       </div>
 

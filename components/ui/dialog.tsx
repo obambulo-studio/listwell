@@ -1,10 +1,11 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
 import * as React from "react";
 
+import { Icon } from "@/components/icon";
 import { Button } from "@/components/ui/button";
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -72,7 +73,7 @@ function DialogContent({
               />
             }
           >
-            <XIcon />
+            <Icon icon={Cancel01Icon} size={16} />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}

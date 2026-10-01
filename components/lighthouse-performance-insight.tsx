@@ -1,5 +1,7 @@
+import { Alert02Icon } from "@hugeicons/core-free-icons";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/icon";
 import {
   formatMsForDisplay,
   lcpBucket,
@@ -152,20 +154,7 @@ export const LighthousePerformanceInsight = ({
       aria-label="Lighthouse-style performance summary"
     >
       <div className="bg-inset border-line flex items-center gap-2 border-b px-3 py-2">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M12 2L4 20h16L12 2z"
-            stroke="var(--orange)"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M12 9v4M12 16h.01"
-            stroke="var(--orange)"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
+        <Icon color="var(--orange)" icon={Alert02Icon} size={14} />
         <span className="text-[12px] font-medium">Performance</span>
         <span className="text-ink-3 ml-auto font-mono text-[11px]">
           Lab test

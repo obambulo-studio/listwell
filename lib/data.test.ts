@@ -27,7 +27,7 @@ describe("anonymous audit store", () => {
 
   it("keeps a typed category label beside the other scoring bucket", () => {
     const choice = resolveTypedCategory("florist");
-    expect(choice).toStrictEqual({ categoryId: "other", label: "Florist" });
+    expect(choice).toStrictEqual({ categoryId: "retail", label: "Florist" });
     const business = businessFromCreateRequest({
       category: choice.categoryId,
       categoryLabel: persistedCategoryLabel(choice),
@@ -35,7 +35,7 @@ describe("anonymous audit store", () => {
       locations: [],
       name: "Stem",
     });
-    expect(business.category).toBe("other");
+    expect(business.category).toBe("retail");
     expect(business.categoryLabel).toBe("Florist");
     expect(resolveTypedCategory("Food and drink")).toStrictEqual({
       categoryId: "food",

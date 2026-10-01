@@ -25,9 +25,11 @@ import {
   getFetchWebsiteOptions,
 } from "./audit-env";
 import {
+  competitorTypesFor,
   getCategoryIdFromGooglePlaceTypes,
   primaryGooglePlaceTypeLabel,
 } from "./category";
+import type { CompetitorTypeQuery } from "./category";
 import type { DiscoveredProfile } from "./channel";
 import { scorePercent } from "./chat-onboarding";
 import { checksForCategory } from "./checks/registry";
@@ -65,12 +67,13 @@ export const PEER_LIMIT = 4;
 export const NEARBY_RADIUS_METERS = 5000;
 export const WIDENED_RADIUS_METERS = 15_000;
 const NEARBY_RESULT_COUNT = 10;
+const NEARBY_SEARCH_COUNT = 20;
 const PEER_JOB_TTL_SECONDS = 60 * 60 * 24;
 const PEER_RUNNING_WINDOW_MS = 30 * 60 * 1000;
 const PLACE_ID_PREFIX = /^places\//u;
 
 export const PEER_ORDER_CAPTION =
-  "Peers are ordered by how Google ranks similar places nearby. That is local prominence, not a keyword ranking.";
+  "Peers are the closest businesses of the same kind. A similar type fills in when few exact matches are nearby.";
 
 const peerCheckSchema = z.object({
   fromSearch: z.boolean().optional(),
@@ -710,12 +713,9 @@ const placeTypeLabelFor = (place: GooglePlace, primaryType: string): string => {
   return primaryGooglePlaceTypeLabel([primaryType]) ?? primaryType;
 };
 
-const placeMatchesType = (place: GooglePlace, primaryType: string): boolean => {
-  if (place.primaryType) {
-    return place.primaryType === primaryType;
-  }
-  return (place.types ?? []).includes(primaryType);
-};
+const EXACT_TYPE_SCORE = 3;
+const DIRECT_TYPE_SCORE = 2;
+const RELATED_TYPE_SCORE = 1;
 
 const emptySearch = (
   unavailable: PeerSearchResult["unavailable"]
@@ -728,84 +728,195 @@ const emptySearch = (
   unavailable,
 });
 
-const filterPeerPlaces = (
-  places: readonly GooglePlace[],
-  selfPlaceId: string,
-  primaryType: string,
-  limit = PEER_LIMIT
-): GooglePlace[] => {
-  const self = canonicalPlaceId(selfPlaceId);
-  const selected: GooglePlace[] = [];
-  for (const place of places) {
-    if (!place.id || canonicalPlaceId(place.id) === self) {
-      continue;
-    }
-    if (!placeMatchesType(place, primaryType)) {
-      continue;
-    }
-    selected.push(place);
-    if (selected.length >= limit) {
-      break;
+const peerSearchType = (place: GooglePlace): string | null => {
+  const primary = specificPrimaryType(place.primaryType);
+  if (primary) {
+    return primary;
+  }
+  for (const type of place.types ?? []) {
+    const specific = specificPrimaryType(type);
+    if (specific) {
+      return specific;
     }
   }
-  return selected;
+  return null;
+};
+
+const typeScore = (
+  place: GooglePlace,
+  primaryType: string,
+  query: CompetitorTypeQuery
+): number => {
+  const primary = place.primaryType;
+  if (primary) {
+    if (primary === primaryType) {
+      return EXACT_TYPE_SCORE;
+    }
+    if (query.direct.includes(primary)) {
+      return DIRECT_TYPE_SCORE;
+    }
+    if (query.related.includes(primary)) {
+      return RELATED_TYPE_SCORE;
+    }
+    return 0;
+  }
+  const types = place.types ?? [];
+  if (types.includes(primaryType)) {
+    return EXACT_TYPE_SCORE;
+  }
+  if (types.some((type) => query.direct.includes(type))) {
+    return DIRECT_TYPE_SCORE;
+  }
+  if (types.some((type) => query.related.includes(type))) {
+    return RELATED_TYPE_SCORE;
+  }
+  return 0;
+};
+
+interface RankedPeer {
+  distance: number;
+  group: number;
+  index: number;
+  place: GooglePlace;
+  score: number;
+}
+
+const placeDistance = (
+  place: GooglePlace,
+  origin: { latitude: number; longitude: number } | undefined
+): number => {
+  if (!origin || !place.location) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return distanceMetresBetween(origin, place.location);
+};
+
+const rankPeerPlaces = (input: {
+  group: number;
+  origin?: { latitude: number; longitude: number };
+  places: readonly GooglePlace[];
+  primaryType: string;
+  query: CompetitorTypeQuery;
+  selfPlaceId: string;
+}): RankedPeer[] => {
+  const self = canonicalPlaceId(input.selfPlaceId);
+  const ranked: RankedPeer[] = [];
+  const byId = new Map<string, RankedPeer>();
+  for (const [index, place] of input.places.entries()) {
+    if (!place.id) {
+      continue;
+    }
+    const id = canonicalPlaceId(place.id);
+    if (id.length === 0 || id === self) {
+      continue;
+    }
+    const score = typeScore(place, input.primaryType, input.query);
+    if (score === 0) {
+      continue;
+    }
+    const next: RankedPeer = {
+      distance: placeDistance(place, input.origin),
+      group: input.group,
+      index,
+      place,
+      score,
+    };
+    const current = byId.get(id);
+    const replace =
+      !current ||
+      next.score > current.score ||
+      (next.score === current.score && next.distance < current.distance);
+    if (replace) {
+      byId.set(id, next);
+    }
+  }
+  for (const peer of byId.values()) {
+    ranked.push(peer);
+  }
+  ranked.sort((left, right) => {
+    if (left.distance !== right.distance) {
+      return left.distance - right.distance;
+    }
+    if (left.score !== right.score) {
+      return right.score - left.score;
+    }
+    if (left.group !== right.group) {
+      return left.group - right.group;
+    }
+    return left.index - right.index;
+  });
+  return ranked;
+};
+
+const selectionFromRanked = (
+  ranked: readonly RankedPeer[],
+  limit: number,
+  source: PeerSelection["source"]
+): PeerSelection => {
+  const picked = ranked.slice(0, limit);
+  const widened = picked.some((peer) => peer.group > 0);
+  return {
+    peers: picked.map((peer) => peer.place),
+    radiusMeters: widened ? WIDENED_RADIUS_METERS : NEARBY_RADIUS_METERS,
+    source,
+  };
 };
 
 export const choosePeerPlaces = (input: {
   closePlaces: readonly GooglePlace[];
   farPlaces: readonly GooglePlace[];
   limit?: number;
+  origin?: { latitude: number; longitude: number };
   primaryType: string;
   selfPlaceId: string;
   textPlaces: readonly GooglePlace[];
 }): PeerSelection => {
   const limit = input.limit ?? PEER_LIMIT;
-  const close = filterPeerPlaces(
-    input.closePlaces,
-    input.selfPlaceId,
-    input.primaryType,
-    limit
-  );
+  const query = competitorTypesFor(input.primaryType);
+  const rank = (places: readonly GooglePlace[], group: number) =>
+    rankPeerPlaces({
+      group,
+      origin: input.origin,
+      places,
+      primaryType: input.primaryType,
+      query,
+      selfPlaceId: input.selfPlaceId,
+    });
+  const close = rank(input.closePlaces, 0);
+  const directClose = close.filter((peer) => peer.score >= DIRECT_TYPE_SCORE);
+  if (directClose.length >= 2) {
+    return selectionFromRanked(directClose, limit, "nearby");
+  }
   if (close.length >= 2) {
-    return {
-      peers: close,
-      radiusMeters: NEARBY_RADIUS_METERS,
-      source: "nearby",
-    };
+    return selectionFromRanked(close, limit, "nearby");
   }
-
-  const far = filterPeerPlaces(
-    input.farPlaces,
-    input.selfPlaceId,
-    input.primaryType,
-    limit
+  const merged = rank([...input.closePlaces, ...input.farPlaces], 0);
+  const farIds = new Set(
+    input.farPlaces.flatMap((place) =>
+      place.id ? [canonicalPlaceId(place.id)] : []
+    )
   );
-  if (far.length > 0) {
+  const closeIds = new Set(
+    input.closePlaces.flatMap((place) =>
+      place.id ? [canonicalPlaceId(place.id)] : []
+    )
+  );
+  if (merged.length > 0 && input.farPlaces.length > 0) {
+    const picked = merged.slice(0, limit);
+    const widened = picked.some((peer) => {
+      const id = canonicalPlaceId(peer.place.id ?? "");
+      return farIds.has(id) && !closeIds.has(id);
+    });
     return {
-      peers: far,
-      radiusMeters: WIDENED_RADIUS_METERS,
+      peers: picked.map((peer) => peer.place),
+      radiusMeters: widened ? WIDENED_RADIUS_METERS : NEARBY_RADIUS_METERS,
       source: "nearby",
     };
   }
-
   if (close.length > 0) {
-    return {
-      peers: close,
-      radiusMeters: NEARBY_RADIUS_METERS,
-      source: "nearby",
-    };
+    return selectionFromRanked(close, limit, "nearby");
   }
-
-  return {
-    peers: filterPeerPlaces(
-      input.textPlaces,
-      input.selfPlaceId,
-      input.primaryType,
-      limit
-    ),
-    radiusMeters: WIDENED_RADIUS_METERS,
-    source: "text",
-  };
+  return selectionFromRanked(rank(input.textPlaces, 1), limit, "text");
 };
 
 export const findPeerPlaces = async (input: {
@@ -815,7 +926,7 @@ export const findPeerPlaces = async (input: {
   place: GooglePlace;
   selfPlaceId: string;
 }): Promise<PeerSearchResult> => {
-  const primaryType = specificPrimaryType(input.place.primaryType);
+  const primaryType = peerSearchType(input.place);
   if (!primaryType) {
     return emptySearch("no_type");
   }
@@ -826,57 +937,62 @@ export const findPeerPlaces = async (input: {
 
   const fetchImpl = input.fetchImpl ?? fetch;
   const limit = input.limit ?? PEER_LIMIT;
-  const searchAt = (radiusMeters: number) =>
+  const query = competitorTypesFor(primaryType);
+  const searchAt = (radiusMeters: number, includedPrimaryTypes: string[]) =>
     searchNearbyPlaces(
       {
         googleApiKey: input.googleApiKey,
-        includedTypes: [primaryType],
+        includedPrimaryTypes,
         latitude: location.latitude,
         longitude: location.longitude,
-        maxResultCount: NEARBY_RESULT_COUNT,
+        maxResultCount: NEARBY_SEARCH_COUNT,
         radiusMeters,
+        rankPreference: "DISTANCE",
       },
       fetchImpl
     );
 
-  const closePlaces = await searchAt(NEARBY_RADIUS_METERS);
-  const close = filterPeerPlaces(
-    closePlaces,
-    input.selfPlaceId,
-    primaryType,
-    limit
-  );
-  const farPlaces =
-    close.length < 2 ? await searchAt(WIDENED_RADIUS_METERS) : [];
-  let selection = choosePeerPlaces({
-    closePlaces,
-    farPlaces,
-    limit,
-    primaryType,
-    selfPlaceId: input.selfPlaceId,
-    textPlaces: [],
-  });
+  const choose = (
+    closePlaces: readonly GooglePlace[],
+    farPlaces: readonly GooglePlace[],
+    textPlaces: readonly GooglePlace[]
+  ) =>
+    choosePeerPlaces({
+      closePlaces,
+      farPlaces,
+      limit,
+      origin: location,
+      primaryType,
+      selfPlaceId: input.selfPlaceId,
+      textPlaces,
+    });
+
+  let closePlaces = await searchAt(NEARBY_RADIUS_METERS, query.direct);
+  let selection = choose(closePlaces, [], []);
+  if (selection.peers.length < 2 && query.related.length > 0) {
+    const relatedPlaces = await searchAt(NEARBY_RADIUS_METERS, query.related);
+    closePlaces = [...closePlaces, ...relatedPlaces];
+    selection = choose(closePlaces, [], []);
+  }
+  let farPlaces: GooglePlace[] = [];
+  if (selection.peers.length < 2) {
+    farPlaces = await searchAt(WIDENED_RADIUS_METERS, query.direct);
+    selection = choose(closePlaces, farPlaces, []);
+  }
 
   if (selection.peers.length === 0) {
     const parts = locationPartsFromPlace(input.place);
     const near = parts.suburb ?? parts.city ?? "";
     const label = placeTypeLabelFor(input.place, primaryType);
-    const query = near.length > 0 ? `${label} near ${near}` : label;
+    const textQuery = near.length > 0 ? `${label} near ${near}` : label;
     const textPlaces = await searchGooglePlacesNear(
-      query,
+      textQuery,
       input.googleApiKey,
       location,
       WIDENED_RADIUS_METERS,
       fetchImpl
     );
-    selection = choosePeerPlaces({
-      closePlaces,
-      farPlaces,
-      limit,
-      primaryType,
-      selfPlaceId: input.selfPlaceId,
-      textPlaces,
-    });
+    selection = choose(closePlaces, farPlaces, textPlaces);
   }
 
   return {
@@ -970,7 +1086,7 @@ export const googlePlaceIdFromLocations = (
 
 export const peerAuditCaption = (job: PeerAuditJob): string => {
   if (job.source === "text") {
-    return "Peers came from a search for the same place type near this business. That is local prominence, not a keyword ranking.";
+    return "Peers came from a search for this kind of business near you.";
   }
   return PEER_ORDER_CAPTION;
 };

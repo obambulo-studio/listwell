@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CONTINUED_REPORT_COPY } from "./research-report";
 import {
   apiErrorSchema,
   checkoutRequestSchema,
@@ -21,8 +22,12 @@ const polarMetadataSchema = z.record(z.string(), z.unknown());
 const polarCustomerSchema = z
   .object({
     email: z.string().optional().nullable(),
+    name: z.string().optional().nullable(),
   })
   .passthrough();
+
+/** Matches the profile name field so a checkout name can be saved as-is. */
+const ACCOUNT_NAME_MAX_LENGTH = 80;
 
 export const polarWebhookEventSchema = z.object({
   data: z
@@ -43,9 +48,27 @@ export const polarWebhookEventSchema = z.object({
 });
 export type PolarWebhookEvent = z.infer<typeof polarWebhookEventSchema>;
 
+const polarPortalHost = (hostname: string): boolean =>
+  hostname === "polar.sh" || hostname === "sandbox.polar.sh";
+
+/** Polar customer-portal URLs only. Rejects other hosts before a redirect. */
+export const parsePolarCustomerPortalUrl = (value: string): string => {
+  const parsed = z.url().safeParse(value);
+  if (!parsed.success) {
+    throw new Error("Unexpected billing portal address");
+  }
+  const url = new URL(parsed.data);
+  if (url.protocol !== "https:" || !polarPortalHost(url.hostname)) {
+    throw new Error("Unexpected billing portal address");
+  }
+  return url.toString();
+};
+
 export const polarCheckoutSchema = z.object({
   customer: polarCustomerSchema.optional().nullable(),
+  customerBillingName: z.string().optional().nullable(),
   customerEmail: z.string().optional().nullable(),
+  customerName: z.string().optional().nullable(),
   id: z.string(),
   metadata: polarMetadataSchema.optional(),
   productId: z.string().optional(),
@@ -58,6 +81,8 @@ export const REPORT_ONCE_PRICE = "A$9.99";
 export const REPORT_MONTHLY_PRICE = "A$4.99/mo per business";
 export const REPORT_YEARLY_PRICE = "A$49/yr";
 export const REPORT_YEARLY_VALUE_NOTE = "about two months free";
+
+export const MONTHLY_SCANS_UPGRADE_COPY = `Listwell re-runs your local and website visibility check about every 30 days and emails you when the report is ready. You keep the full report with fix steps. ${CONTINUED_REPORT_COPY}`;
 
 export const unlockPricingNote = (access: {
   monthlyAvailable: boolean;
@@ -141,6 +166,54 @@ export const customerEmailFromPolarData = (
     return undefined;
   }
   return normalizePolarEmail(raw);
+};
+
+const polarNameSourceSchema = z
+  .object({
+    customer: polarCustomerSchema.optional().nullable(),
+    customerBillingName: z.string().optional().nullable(),
+    customerName: z.string().optional().nullable(),
+    customer_billing_name: z.string().optional().nullable(),
+    customer_name: z.string().optional().nullable(),
+  })
+  .passthrough();
+
+const accountNameFromRaw = (value: unknown): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const name = value.trim().replaceAll(/\s+/gu, " ");
+  if (name.length === 0) {
+    return undefined;
+  }
+  if (name.length <= ACCOUNT_NAME_MAX_LENGTH) {
+    return name;
+  }
+  return name.slice(0, ACCOUNT_NAME_MAX_LENGTH).trim();
+};
+
+/** Name the customer entered on Polar checkout, for a new Listwell account. */
+export const customerNameFromPolarData = (
+  data?: unknown
+): string | undefined => {
+  const parsed = polarNameSourceSchema.safeParse(data);
+  if (!parsed.success) {
+    return undefined;
+  }
+  const candidates = [
+    parsed.data.customerName,
+    parsed.data.customer_name,
+    parsed.data.customer?.name,
+    parsed.data.customerBillingName,
+    parsed.data.customer_billing_name,
+  ];
+  for (const candidate of candidates) {
+    const name = accountNameFromRaw(candidate);
+    if (name) {
+      return name;
+    }
+  }
+  return undefined;
 };
 
 export const entitlementKindFromCheckout = (

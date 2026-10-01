@@ -5,6 +5,8 @@ import {
   checkoutCustomerIp,
   checkoutReturnPath,
   customerEmailFromPolarData,
+  customerNameFromPolarData,
+  parsePolarCustomerPortalUrl,
   entitlementActionFromPolarEvent,
   entitlementKindFromCheckout,
   entitlementKindFromPolarData,
@@ -28,6 +30,35 @@ const polarProducts = {
   monthlyProductId: "prod_month",
   yearlyProductId: "prod_year",
 };
+
+describe(parsePolarCustomerPortalUrl, () => {
+  it("accepts Polar portal hosts", () => {
+    expect(
+      parsePolarCustomerPortalUrl(
+        "https://polar.sh/listwell/portal?customer_session_token=abc"
+      )
+    ).toBe("https://polar.sh/listwell/portal?customer_session_token=abc");
+    expect(
+      parsePolarCustomerPortalUrl(
+        "https://sandbox.polar.sh/listwell/portal?customer_session_token=abc"
+      )
+    ).toBe(
+      "https://sandbox.polar.sh/listwell/portal?customer_session_token=abc"
+    );
+  });
+
+  it("rejects other addresses", () => {
+    expect(() =>
+      parsePolarCustomerPortalUrl("http://polar.sh/listwell/portal")
+    ).toThrow("Unexpected billing portal address");
+    expect(() =>
+      parsePolarCustomerPortalUrl("https://polar.sh.evil.com/portal")
+    ).toThrow("Unexpected billing portal address");
+    expect(() =>
+      parsePolarCustomerPortalUrl("https://example.com/portal")
+    ).toThrow("Unexpected billing portal address");
+  });
+});
 
 describe(checkoutCustomerIp, () => {
   it("drops loopback addresses", () => {
@@ -345,6 +376,53 @@ describe(customerEmailFromPolarData, () => {
       customerEmailFromPolarData({ customer_email: "not-an-email" })
     ).toBeUndefined();
     expect(customerEmailFromPolarData({ customer_email: " " })).toBeUndefined();
+  });
+});
+
+describe(customerNameFromPolarData, () => {
+  it("reads the checkout customer name", () => {
+    expect(customerNameFromPolarData({ customerName: "Ada Lovelace" })).toBe(
+      "Ada Lovelace"
+    );
+    expect(customerNameFromPolarData({ customer_name: "Ada Lovelace" })).toBe(
+      "Ada Lovelace"
+    );
+    expect(
+      customerNameFromPolarData({ customer: { name: "Ada Lovelace" } })
+    ).toBe("Ada Lovelace");
+  });
+
+  it("prefers the checkout name over the billing name", () => {
+    expect(
+      customerNameFromPolarData({
+        customerBillingName: "Analytical Engines",
+        customerName: "Ada Lovelace",
+      })
+    ).toBe("Ada Lovelace");
+  });
+
+  it("falls back to the billing name", () => {
+    expect(
+      customerNameFromPolarData({ customer_billing_name: "Ada Lovelace" })
+    ).toBe("Ada Lovelace");
+  });
+
+  it("trims surrounding space and collapses gaps", () => {
+    expect(
+      customerNameFromPolarData({ customerName: "  Ada   Lovelace  " })
+    ).toBe("Ada Lovelace");
+  });
+
+  it("ignores a blank name", () => {
+    expect(customerNameFromPolarData({})).toBeUndefined();
+    expect(customerNameFromPolarData()).toBeUndefined();
+    expect(customerNameFromPolarData({ customerName: "   " })).toBeUndefined();
+    expect(
+      customerNameFromPolarData({
+        customerBillingName: "Ada Lovelace",
+        customerName: " ",
+      })
+    ).toBe("Ada Lovelace");
   });
 });
 

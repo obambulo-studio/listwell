@@ -1,3 +1,11 @@
+import {
+  MinusSignIcon,
+  MultiplicationSignIcon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
+
+import { Icon } from "@/components/icon";
 import type { CheckStatus } from "@/lib/chat-onboarding";
 
 export const checkStatusText = (status: CheckStatus): string => {
@@ -34,41 +42,29 @@ const markToneClass = (status: CheckStatus): string => {
   return "text-ink-3";
 };
 
-const markPath = (status: CheckStatus): string | null => {
+const markIcon = (status: CheckStatus): IconSvgElement | null => {
   if (status === "pass") {
-    return "M20 6L9 17l-5-5";
+    return Tick02Icon;
   }
   if (status === "fail") {
-    return "M18 6L6 18M6 6l12 12";
+    return MultiplicationSignIcon;
   }
   if (status === "error") {
-    return "M5 12h14";
+    return MinusSignIcon;
   }
   return null;
 };
 
 /** Round status mark matching the chat task rows. */
 export const CheckStatusMark = ({ status }: { status: CheckStatus }) => {
-  const path = markPath(status);
+  const icon = markIcon(status);
   return (
     <span
       className={`flex size-5.5 shrink-0 items-center justify-center rounded-full ${markToneClass(status)}`}
     >
       <span className="sr-only">{checkStatusText(status)}</span>
-      {path ? (
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d={path} />
-        </svg>
+      {icon ? (
+        <Icon absoluteStrokeWidth icon={icon} size={12} strokeWidth={1.6} />
       ) : (
         <span
           className="border-line border-t-ink-3 size-4 animate-spin rounded-full border-2"

@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  Add01Icon,
+  Building03Icon,
+  CreditCardIcon,
+  Login01Icon,
+  Logout01Icon,
+  UserIcon,
+} from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -13,6 +21,7 @@ import {
 } from "react";
 import type { KeyboardEvent } from "react";
 
+import { Icon } from "@/components/icon";
 import GlideMenu from "@/components/primitives/glide-menu";
 import { authClient } from "@/lib/auth-client";
 import { clearChatSession } from "@/lib/storage";
@@ -20,6 +29,37 @@ import { applyTheme } from "@/lib/theme";
 
 export const LISTWELL_LOGOUT_EVENT = "listwell:logout";
 export const LISTWELL_RESET_EVENT = "listwell:reset";
+
+/** Drop the saved home chat so the next visit starts a blank business form. */
+export const resetHomeBusinessForm = (): void => {
+  clearChatSession();
+  window.dispatchEvent(new Event(LISTWELL_RESET_EVENT));
+};
+
+export const AddBusinessLink = ({ className }: { className?: string }) => (
+  <Link
+    className={className}
+    href="/"
+    onClick={(event) => {
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.button !== 0
+      ) {
+        resetHomeBusinessForm();
+        return;
+      }
+      event.preventDefault();
+      resetHomeBusinessForm();
+      window.location.assign("/");
+    }}
+  >
+    <Icon icon={Add01Icon} size={16} />
+    Add business
+  </Link>
+);
 
 type AccountStatus = "loading" | "signed_out" | "signed_in";
 
@@ -34,41 +74,7 @@ const maskAccountEmail = (email: string): string => {
   return `${first}***@${domain}`;
 };
 
-const ResetIcon = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-    <path d="M21 3v5h-5" />
-    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-    <path d="M3 21v-5h5" />
-  </svg>
-);
-
-const AccountIcon = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.75"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <circle cx="12" cy="8" r="3.25" />
-    <path d="M5.5 19.5c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5" />
-  </svg>
-);
+const menuIconClass = "listwell-account-menu__icon";
 
 const menuItems = (menu: HTMLElement | null): HTMLElement[] => {
   if (!menu) {
@@ -95,6 +101,7 @@ const accountStatusFromSession = (
 const AccountMenuContent = ({
   status,
   email,
+  name,
   signedIn,
   authAvailable,
   signInHref,
@@ -103,20 +110,30 @@ const AccountMenuContent = ({
 }: {
   status: AccountStatus;
   email: string | null;
+  name: string | null;
   signedIn: boolean;
   authAvailable: boolean;
   signInHref: "/sign-in" | { pathname: "/sign-in"; query: { return: string } };
   onClose: (restoreFocus?: boolean) => void;
   onLogout: () => void;
 }) => (
-  <GlideMenu
-    className="listwell-account-menu__list"
-    highlightClassName="inset-x-0 rounded-[8px] bg-hover"
-  >
+  <GlideMenu className="listwell-account-menu__list">
     {status === "signed_in" && email ? (
-      <div className="listwell-account-menu__identity">
-        {maskAccountEmail(email)}
-      </div>
+      <Link
+        href="/account/profile"
+        role="menuitem"
+        data-menu-row
+        className="listwell-account-menu__identity"
+        onClick={() => onClose()}
+      >
+        <Icon className={menuIconClass} icon={UserIcon} size={15} />
+        <span className="listwell-account-menu__copy">
+          {name ? <span>{name}</span> : null}
+          <span className={name ? "listwell-account-menu__meta" : undefined}>
+            {maskAccountEmail(email)}
+          </span>
+        </span>
+      </Link>
     ) : null}
 
     {!signedIn && authAvailable ? (
@@ -127,6 +144,7 @@ const AccountMenuContent = ({
         className="listwell-account-menu__item"
         onClick={() => onClose()}
       >
+        <Icon className={menuIconClass} icon={Login01Icon} size={15} />
         Sign in
       </Link>
     ) : null}
@@ -139,8 +157,11 @@ const AccountMenuContent = ({
         className="listwell-account-menu__item"
         onClick={() => onClose(true)}
       >
-        <span>Sign in</span>
-        <span className="listwell-account-menu__meta">Coming soon</span>
+        <Icon className={menuIconClass} icon={Login01Icon} size={15} />
+        <span className="listwell-account-menu__copy">
+          <span>Sign in</span>
+          <span className="listwell-account-menu__meta">Coming soon</span>
+        </span>
       </button>
     ) : null}
 
@@ -151,17 +172,22 @@ const AccountMenuContent = ({
       className="listwell-account-menu__item"
       onClick={() => onClose()}
     >
+      <Icon className={menuIconClass} icon={Building03Icon} size={15} />
       Your businesses
     </Link>
-    <Link
-      href="/account"
+    <button
+      type="button"
       role="menuitem"
       data-menu-row
       className="listwell-account-menu__item"
-      onClick={() => onClose()}
+      onClick={() => {
+        onClose();
+        window.location.assign("/api/account/billing");
+      }}
     >
+      <Icon className={menuIconClass} icon={CreditCardIcon} size={15} />
       Billing
-    </Link>
+    </button>
     {signedIn ? (
       <>
         <div className="listwell-account-menu__rule" aria-hidden="true" />
@@ -172,6 +198,7 @@ const AccountMenuContent = ({
           className="listwell-account-menu__item listwell-account-menu__item--logout"
           onClick={onLogout}
         >
+          <Icon className={menuIconClass} icon={Logout01Icon} size={15} />
           Log out
         </button>
       </>
@@ -185,6 +212,10 @@ export const AccountControl = ({
   const { refresh } = useRouter();
   const pathname = usePathname();
   const menuId = useId();
+
+  useLayoutEffect(() => {
+    applyTheme();
+  }, []);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -209,6 +240,7 @@ export const AccountControl = ({
   const sessionEmail = session.data?.user.email ?? null;
   const status = accountStatusFromSession(session.isPending, sessionEmail);
   const email = sessionEmail;
+  const name = session.data?.user.name?.trim() || null;
 
   useEffect(() => {
     if (!open) {
@@ -326,7 +358,7 @@ export const AccountControl = ({
           setOpen((current) => !current);
         }}
       >
-        <AccountIcon />
+        <Icon icon={UserIcon} size={18} />
       </button>
       {open ? (
         <div
@@ -341,6 +373,7 @@ export const AccountControl = ({
           <AccountMenuContent
             status={status}
             email={email}
+            name={name}
             signedIn={signedIn}
             authAvailable={authAvailable}
             signInHref={signInHref}
@@ -351,56 +384,6 @@ export const AccountControl = ({
           />
         </div>
       ) : null}
-    </div>
-  );
-};
-
-export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
-  const { push } = useRouter();
-  const pathname = usePathname();
-
-  useLayoutEffect(() => {
-    applyTheme();
-  }, []);
-
-  const handleReset = useCallback(() => {
-    if (onReset) {
-      onReset();
-      return;
-    }
-    clearChatSession();
-    window.dispatchEvent(new Event(LISTWELL_RESET_EVENT));
-    if (pathname !== "/") {
-      push("/");
-    }
-  }, [onReset, pathname, push]);
-
-  return (
-    <div
-      className="listwell-page-controls listwell-page-controls--dock"
-      role="toolbar"
-      aria-label="Page controls"
-    >
-      <button
-        type="button"
-        className="listwell-page-controls__btn"
-        onClick={handleReset}
-        aria-label="Reset chat"
-        aria-describedby="page-controls-reset-desc"
-      >
-        <ResetIcon />
-        <span
-          id="page-controls-reset-desc"
-          className="listwell-page-controls__popover-sr"
-        >
-          Reset chat. Clears conversation and starts over.
-        </span>
-        <span className="listwell-page-controls__popover" aria-hidden="true">
-          <span className="listwell-page-controls__popover-label">
-            Reset chat
-          </span>
-        </span>
-      </button>
     </div>
   );
 };

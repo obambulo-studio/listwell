@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBasicReportStats,
+  chatDraftSchema,
+  draftFromListingCandidate,
   resolveListingLookupNext,
   scorePercent,
   visibilityCounts,
@@ -206,6 +208,23 @@ describe(visibilityCounts, () => {
         { status: "idle" },
       ])
     ).toStrictEqual({ error: 1, fail: 1, pass: 1 });
+  });
+});
+
+describe(draftFromListingCandidate, () => {
+  it("keeps the business name the user typed", () => {
+    const draft = chatDraftSchema.parse({
+      businessName: "eBay",
+      categoryId: "other",
+      location: "Logan",
+    });
+    const next = draftFromListingCandidate(draft, {
+      id: "place-1",
+      name: "Ebay Store",
+      source: "google",
+    });
+    expect(next.businessName).toBe("eBay");
+    expect(next.googlePlaceId).toBe("place-1");
   });
 });
 
