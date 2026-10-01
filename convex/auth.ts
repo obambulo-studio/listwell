@@ -6,13 +6,14 @@ import { emailOTP } from "better-auth/plugins/email-otp";
 
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
+import { env } from "./_generated/server";
 import authConfig from "./auth.config";
 import { sendSignInCode } from "./lib/email";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
 const authSiteUrl = (): string => {
-  const url = process.env.SITE_URL;
+  const url = env.SITE_URL;
   if (!url) {
     throw new Error("SITE_URL is not configured on Convex");
   }

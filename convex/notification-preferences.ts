@@ -89,7 +89,7 @@ export const unsubscribeByToken = mutation({
     if (!row) {
       return { ok: false as const };
     }
-    await ctx.db.patch(row._id, {
+    await ctx.db.patch("notificationPreferences", row._id, {
       monthlyScanEmails: false,
       updatedAt: nowIso(),
     });

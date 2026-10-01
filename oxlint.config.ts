@@ -1,3 +1,4 @@
+import convexPlugin from "@convex-dev/eslint-plugin";
 import { defineConfig } from "oxlint";
 import core from "ultracite/oxlint/core";
 import next from "ultracite/oxlint/next";
@@ -10,5 +11,13 @@ export default defineConfig({
     ...(core.ignorePatterns ?? []),
     "components/ui/**",
     "components/reui/**",
+    "convex/_generated/**",
+  ],
+  jsPlugins: ["@convex-dev/eslint-plugin"],
+  overrides: [
+    {
+      files: ["**/convex/**/*.ts"],
+      rules: convexPlugin.configs.recommended[0].rules,
+    },
   ],
 });

@@ -1,9 +1,10 @@
 import { httpRouter } from "convex/server";
 
+import { env } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
 
 const http = httpRouter();
-const siteUrl = process.env.SITE_URL;
+const siteUrl = env.SITE_URL;
 
 authComponent.registerRoutesLazy(http, createAuth, {
   cors: true,

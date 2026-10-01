@@ -1,3 +1,5 @@
+import { env } from "../_generated/server";
+
 const USESEND_DEFAULT_BASE = "https://app.usesend.com";
 
 const emailsUrl = (base: string): string => {
@@ -15,8 +17,8 @@ export const sendSignInCode = async (
   to: string,
   code: string
 ): Promise<boolean> => {
-  const apiKey = process.env.USESEND_API_KEY;
-  const from = process.env.USESEND_FROM;
+  const apiKey = env.USESEND_API_KEY;
+  const from = env.USESEND_FROM;
   if (!apiKey || !from) {
     console.error(
       "sendSignInCode: USESEND_API_KEY or USESEND_FROM is not configured on Convex"
@@ -24,7 +26,7 @@ export const sendSignInCode = async (
     return false;
   }
 
-  const baseUrl = process.env.USESEND_BASE_URL ?? USESEND_DEFAULT_BASE;
+  const baseUrl = env.USESEND_BASE_URL ?? USESEND_DEFAULT_BASE;
   const payload = {
     from,
     subject: "Your Listwell sign-in code",
