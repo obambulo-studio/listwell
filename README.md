@@ -85,7 +85,9 @@ Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun
 
 `wrangler.jsonc` is the OpenNext Worker config. Local `bun run build` still runs `next build`. In Workers CI (`WORKERS_CI=1`) it runs `opennextjs-cloudflare build`, then `npx wrangler deploy` uploads that Worker. Run `bun run cf:sync-build-env` to set the dashboard commands to `bun run cf:build` and `npx wrangler deploy --keep-vars`.
 
-On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`. On other branches, upload with `npx opennextjs-cloudflare upload -- --keep-vars`.
+On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`.
+
+**Preview deployments:** Non-`main` Workers Builds triggers run `npx wrangler preview` after the OpenNext build (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, R2, AI, Browser, Images, and Durable Objects. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`); production custom domain routes are not used for previews.
 
 ## Scripts
 

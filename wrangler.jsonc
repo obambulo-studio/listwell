@@ -90,4 +90,62 @@
     "USESEND_BASE_URL": "https://send.obambulo.studio",
     "USESEND_FROM": "Listwell <no-reply@t.listwell.dev>",
   },
+  // Required for Workers Builds `npx wrangler preview` on non-main branches.
+  // Workers Builds env + `--keep-vars` override Convex and secrets for preview.
+  "previews": {
+    "ai": {
+      "binding": "AI",
+    },
+    "browser": {
+      "binding": "BROWSER",
+    },
+    "images": {
+      "binding": "IMAGES",
+    },
+    "kv_namespaces": [
+      {
+        "binding": "AUDIT_KV",
+        "id": "06b74ff3aa6e41a9a5ea7a6eb365e711",
+      },
+    ],
+    "r2_buckets": [
+      {
+        "binding": "NEXT_INC_CACHE_R2_BUCKET",
+        "bucket_name": "listwell-next-cache",
+      },
+    ],
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "NEXT_CACHE_DO_QUEUE",
+          "class_name": "DOQueueHandler",
+        },
+      ],
+    },
+    "observability": {
+      "enabled": true,
+      "logs": {
+        "enabled": true,
+        "invocation_logs": true,
+        "persist": true,
+      },
+      "traces": {
+        "enabled": true,
+        "persist": true,
+      },
+    },
+    "placement": {
+      "mode": "smart",
+    },
+    "vars": {
+      "CONVEX_DEPLOYMENT": "prod:fine-elephant-894",
+      "NEXT_PUBLIC_CONVEX_SITE_URL": "https://fine-elephant-894.ap-southeast-2.convex.site",
+      "NEXT_PUBLIC_CONVEX_URL": "https://fine-elephant-894.ap-southeast-2.convex.cloud",
+      "NEXT_PUBLIC_SITE_URL": "https://listwell.dev",
+      "POLAR_SERVER": "sandbox",
+      "SITE_URL": "https://listwell.dev",
+      "USESEND_BASE_URL": "https://send.obambulo.studio",
+      "USESEND_FROM": "Listwell <no-reply@t.listwell.dev>",
+    },
+  },
 }
