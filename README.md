@@ -85,7 +85,15 @@ Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun
 
 `wrangler.jsonc` is the OpenNext Worker config. Local `bun run build` still runs `next build`. In Workers CI (`WORKERS_CI=1`) it runs `opennextjs-cloudflare build`, then `npx wrangler deploy` uploads that Worker. Run `bun run cf:sync-build-env` to set the dashboard commands to `bun run cf:build` and `npx wrangler deploy --keep-vars`.
 
-On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`. On other branches, upload with `npx opennextjs-cloudflare upload -- --keep-vars`.
+On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`.
+
+**Preview deployments:** Non-`main` branches use Cloudflare Workers Builds preview deployments. The preview trigger runs `npx wrangler versions upload --keep-vars` after `bun run cf:build` (see `scripts/sync-workers-build-env.mjs`). Each build gets a preview URL in the Workers Builds check on the pull request. Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` in `wrangler.jsonc` so previews do not share the live hostname.
+
+Run smoke against a preview host:
+
+```bash
+bun run smoke:discover https://<preview-url-from-workers-builds>
+```
 
 ## Scripts
 
@@ -318,7 +326,7 @@ Do not invent D1 ids or Google/Apple keys. This agent cannot bind hostnames (no 
 
 ## Prove Discover on production
 
-After merge and a production Workers Builds deploy:
+After merge, use the **preview deployment URL** from the pull request Workers Builds check while the branch is open. After a production Workers Builds deploy on `main`:
 
 ```bash
 bun run smoke:discover https://listwell.dev
