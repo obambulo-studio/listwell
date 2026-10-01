@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
+  env,
   internalAction,
   internalQuery,
   mutation,
@@ -286,7 +287,7 @@ export const listDueEntitlements = internalQuery({
 export const runDue = internalAction({
   args: {},
   handler: async (ctx): Promise<{ failed: number; ran: number }> => {
-    const secret = process.env.INTERNAL_API_SECRET;
+    const secret = env.INTERNAL_API_SECRET;
     if (!secret) {
       console.error("runDue: INTERNAL_API_SECRET is not configured");
       return { failed: 0, ran: 0 };

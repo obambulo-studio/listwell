@@ -1,3 +1,5 @@
+import { env } from "../_generated/server";
+
 export const timingSafeEqual = (left: string, right: string): boolean => {
   const encoder = new TextEncoder();
   const leftBytes = encoder.encode(left);
@@ -13,14 +15,14 @@ export const timingSafeEqual = (left: string, right: string): boolean => {
 };
 
 export const requireInternalSecret = (secret: string): void => {
-  const expected = process.env.INTERNAL_API_SECRET;
+  const expected = env.INTERNAL_API_SECRET;
   if (!expected || !timingSafeEqual(secret, expected)) {
     throw new Error("Unauthorized");
   }
 };
 
 export const siteUrl = (): string => {
-  const url = process.env.SITE_URL;
+  const url = env.SITE_URL;
   if (!url) {
     throw new Error("SITE_URL is not configured");
   }
