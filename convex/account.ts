@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 
-import { query } from "./_generated/server";
-import { authComponent } from "./auth";
+import { authedQuery } from "./lib/custom-functions";
 import { accountReportValidator } from "./lib/response-validators";
 
 type ReportPlan = "preview" | "once" | "monthly";
@@ -18,10 +17,10 @@ const planFromKind = (
   return "preview";
 };
 
-export const listReports = query({
+export const listReports = authedQuery({
   args: {},
   handler: async (ctx) => {
-    const user = await authComponent.getAuthUser(ctx);
+    const { user } = ctx;
     const byExternalId = new Map<
       string,
       {
