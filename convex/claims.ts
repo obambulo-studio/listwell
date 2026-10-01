@@ -1,9 +1,8 @@
 import { v } from "convex/values";
 
-import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { authComponent } from "./auth";
 import { linkPurchasedBusinesses } from "./entitlements";
+import { authedMutation } from "./lib/custom-functions";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -25,10 +24,10 @@ const entitlementAllowsClaim = async (
   return active.userId === userId;
 };
 
-export const claim = mutation({
+export const claim = authedMutation({
   args: { externalIds: v.array(v.string()) },
   handler: async (ctx, args) => {
-    const user = await authComponent.getAuthUser(ctx);
+    const { user } = ctx;
     await linkPurchasedBusinesses(ctx, {
       email: user.email,
       userId: user._id,

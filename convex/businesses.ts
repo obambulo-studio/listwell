@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import { authedQuery } from "./lib/custom-functions";
 import { businessResponseValidator } from "./lib/response-validators";
 import { locationValidator } from "./lib/validators";
 
@@ -94,6 +95,19 @@ const toBusinessResponse = (doc: {
   websiteUrl: doc.websiteUrl ?? null,
   xUsername: doc.xUsername ?? null,
   youtubeUrl: doc.youtubeUrl ?? null,
+});
+
+export const listOwned = authedQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = ctx;
+    const owned = await ctx.db
+      .query("businesses")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    return owned.map(toBusinessResponse);
+  },
+  returns: v.array(businessResponseValidator),
 });
 
 export const getByExternalId = query({

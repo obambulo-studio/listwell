@@ -9,6 +9,7 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
+import { authedMutation, authedQuery } from "./lib/custom-functions";
 import { requireInternalSecret } from "./lib/internal";
 import {
   dueEntitlementRowValidator,
@@ -216,16 +217,29 @@ const attachGrantOwner = async (
   );
 };
 
-export const attachPurchasesForCurrentUser = mutation({
+export const attachPurchasesForCurrentUser = authedMutation({
   args: {},
   handler: async (ctx) => {
-    const user = await authComponent.getAuthUser(ctx);
+    const { user } = ctx;
     return await linkPurchasedBusinesses(ctx, {
       email: user.email,
       userId: user._id,
     });
   },
   returns: v.number(),
+});
+
+export const listForCurrentUser = authedQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = ctx;
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    return rows.map(toEntitlementResponse);
+  },
+  returns: v.array(entitlementResponseValidator),
 });
 
 export const grant = mutation({
