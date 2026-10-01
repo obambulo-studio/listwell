@@ -1256,9 +1256,13 @@ export const reviewSampleFromResult = (
   const timestamps = items.map((item) =>
     parseDataForSeoTimestamp(item.timestamp)
   );
-  const ratings = items
-    .map((item) => item.rating?.value)
-    .filter((value) => typeof value === "number");
+  const ratings: number[] = [];
+  for (const item of items) {
+    const value = item.rating?.value;
+    if (typeof value === "number") {
+      ratings.push(value);
+    }
+  }
   const replied = items.filter((item) => item.owner_answer?.trim()).length;
   return {
     averageSampleRating:
@@ -1367,11 +1371,16 @@ export const linkGapFromResult = (
     if (!referring) {
       continue;
     }
+    const linksTo: string[] = [];
+    for (const [position] of linked) {
+      const domain = context.competitorDomains[Number(position) - 1];
+      if (typeof domain === "string") {
+        linksTo.push(domain);
+      }
+    }
     domains.push({
       domain: bareDomain(referring),
-      linksTo: linked
-        .map(([position]) => context.competitorDomains[Number(position) - 1])
-        .filter((value) => typeof value === "string"),
+      linksTo,
       rank: Math.max(...linked.map(([, entry]) => entry?.rank ?? 0)),
     });
   }

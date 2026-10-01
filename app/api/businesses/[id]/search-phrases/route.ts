@@ -3,6 +3,7 @@ import { ZodError, z } from "zod";
 
 import { getSessionUser } from "@/lib/auth";
 import {
+  getActiveEntitlementOwner,
   getBusiness,
   getBusinessOwnerId,
   setBusinessSearchPhrases,
@@ -40,11 +41,19 @@ export const PUT = async (
         { status: 404 }
       );
     }
-    const [sessionUser, ownerId] = await Promise.all([
+    const [sessionUser, ownerId, entitlement] = await Promise.all([
       getSessionUser(),
       getBusinessOwnerId(id),
+      getActiveEntitlementOwner(id),
     ]);
     if (!sessionUser || (ownerId && sessionUser.id !== ownerId)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const paidOwnedBySomeoneElse =
+      entitlement.backendAvailable &&
+      entitlement.unlocked &&
+      entitlement.ownerUserId !== sessionUser.id;
+    if (!ownerId && paidOwnedBySomeoneElse) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const body: unknown = await request.json();

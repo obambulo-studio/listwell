@@ -220,12 +220,16 @@ const aiInputForBot = (
   return wildcard?.aiInput ?? null;
 };
 
-const directiveTokens = (value: string): string[] =>
-  value
-    .toLowerCase()
-    .split(/[,;]/u)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
+const directiveTokens = (value: string): string[] => {
+  const tokens: string[] = [];
+  for (const part of value.toLowerCase().split(/[,;]/u)) {
+    const token = part.trim();
+    if (token.length > 0) {
+      tokens.push(token);
+    }
+  }
+  return tokens;
+};
 
 const metaOptsOutOfAi = (
   document: Awaited<ReturnType<CheckContext["getWebsiteDocument"]>>
@@ -236,7 +240,7 @@ const metaOptsOutOfAi = (
       continue;
     }
     const content = meta.getAttribute("content");
-    if (content && directiveTokens(content).includes("noai")) {
+    if (content && new Set(directiveTokens(content)).has("noai")) {
       return true;
     }
   }

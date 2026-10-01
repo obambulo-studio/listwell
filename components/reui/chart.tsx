@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactElement } from "react";
+// Recharts children must stay static so ResponsiveContainer can clone them.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { ResponsiveContainer } from "recharts";
 
 /** Report chart frame. Colours come from the report theme tokens. */

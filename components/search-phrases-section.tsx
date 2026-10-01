@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useReducer } from "react";
 
 import { Button } from "@/components/atoms/button";
 import { PrimaryButton, QuietButton } from "@/components/listwell/actions";
@@ -31,6 +31,79 @@ const savePhrases = async (
   return businessSchema.parse(await response.json()).searchPhrases;
 };
 
+interface SearchPhrasesState {
+  current: SearchPhrase[];
+  draft: string[];
+  editing: boolean;
+  error: string | null;
+  pending: boolean;
+}
+
+type SearchPhrasesAction =
+  | { type: "cancel" }
+  | { index: number; type: "draft"; value: string }
+  | { type: "edit" }
+  | { message: string; type: "save-failed" }
+  | { type: "save-start" }
+  | { phrases: SearchPhrase[]; type: "saved" };
+
+const searchPhrasesState = (phrases: SearchPhrase[]): SearchPhrasesState => ({
+  current: phrases,
+  draft: phrases.map((phrase) => phrase.text),
+  editing: false,
+  error: null,
+  pending: false,
+});
+
+const searchPhrasesReducer = (
+  state: SearchPhrasesState,
+  action: SearchPhrasesAction
+): SearchPhrasesState => {
+  switch (action.type) {
+    case "cancel": {
+      return {
+        ...state,
+        draft: state.current.map((phrase) => phrase.text),
+        editing: false,
+        error: null,
+      };
+    }
+    case "draft": {
+      return {
+        ...state,
+        draft: state.draft.map((item, itemIndex) =>
+          itemIndex === action.index ? action.value : item
+        ),
+      };
+    }
+    case "edit": {
+      return {
+        ...state,
+        draft: state.current.map((phrase) => phrase.text),
+        editing: true,
+      };
+    }
+    case "save-failed": {
+      return { ...state, error: action.message, pending: false };
+    }
+    case "save-start": {
+      return { ...state, error: null, pending: true };
+    }
+    case "saved": {
+      return {
+        current: action.phrases,
+        draft: action.phrases.map((phrase) => phrase.text),
+        editing: false,
+        error: null,
+        pending: false,
+      };
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
 /** Owner control for the phrases a continued report checks each month. */
 export const SearchPhrasesSection = ({
   businessId,
@@ -39,11 +112,12 @@ export const SearchPhrasesSection = ({
   businessId: string;
   phrases: SearchPhrase[];
 }) => {
-  const [current, setCurrent] = useState(phrases);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(phrases.map((phrase) => phrase.text));
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [state, dispatch] = useReducer(
+    searchPhrasesReducer,
+    phrases,
+    searchPhrasesState
+  );
+  const { current, draft, editing, error, pending } = state;
 
   if (current.length === 0) {
     return null;
@@ -52,21 +126,18 @@ export const SearchPhrasesSection = ({
   const persist = async (
     next: readonly { suggested?: boolean; text: string }[]
   ) => {
-    setPending(true);
-    setError(null);
+    dispatch({ type: "save-start" });
     try {
       const saved = await savePhrases(businessId, current, next);
-      setCurrent(saved);
-      setDraft(saved.map((phrase) => phrase.text));
-      setEditing(false);
-      setPending(false);
+      dispatch({ phrases: saved, type: "saved" });
     } catch (saveError) {
-      setPending(false);
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Could not save these phrases"
-      );
+      dispatch({
+        message:
+          saveError instanceof Error
+            ? saveError.message
+            : "Could not save these phrases",
+        type: "save-failed",
+      });
     }
   };
 
@@ -82,8 +153,7 @@ export const SearchPhrasesSection = ({
               disabled={pending}
               type="button"
               onClick={() => {
-                setDraft(current.map((phrase) => phrase.text));
-                setEditing(true);
+                dispatch({ type: "edit" });
               }}
             >
               Edit
@@ -110,12 +180,11 @@ export const SearchPhrasesSection = ({
                   id={`phrase-${index}`}
                   value={text}
                   onChange={(event) => {
-                    const { value } = event.target;
-                    setDraft((items) =>
-                      items.map((item, itemIndex) =>
-                        itemIndex === index ? value : item
-                      )
-                    );
+                    dispatch({
+                      index,
+                      type: "draft",
+                      value: event.target.value,
+                    });
                   }}
                 />
               </li>
@@ -165,9 +234,7 @@ export const SearchPhrasesSection = ({
               type="button"
               variant="secondary"
               onClick={() => {
-                setDraft(current.map((phrase) => phrase.text));
-                setEditing(false);
-                setError(null);
+                dispatch({ type: "cancel" });
               }}
             >
               Cancel

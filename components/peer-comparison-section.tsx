@@ -214,6 +214,305 @@ const PeerActions = ({
   </div>
 );
 
+const PeerBeatList = ({ lines }: { lines: string[] }) =>
+  lines.length > 0 ? (
+    <div className="listwell-panel__body">
+      <h3 className="text-ink font-medium">Where they beat you</h3>
+      <ul className="flex flex-col gap-1">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </div>
+  ) : null;
+
+const PeerTableHead = ({
+  canManage,
+  job,
+  onHide,
+  onPin,
+  onUnpin,
+  saving,
+  subjectName,
+  subjectStats,
+}: {
+  canManage: boolean;
+  job: PeerAuditJob;
+  onHide: (placeId: string) => void;
+  onPin: (placeId: string) => void;
+  onUnpin: (placeId: string) => void;
+  saving: boolean;
+  subjectName: string;
+  subjectStats: { fail: number; pass: number; score: number; skipped: number };
+}) => (
+  <thead>
+    <tr>
+      <th scope="col" className="align-bottom">
+        Check
+      </th>
+      <th scope="col" className="align-bottom">
+        <ScoreHeading name={subjectName} stats={subjectStats} />
+      </th>
+      {job.peers.map((peer) => (
+        <th key={peer.placeId} scope="col" className="align-bottom">
+          <ScoreHeading
+            name={peer.name}
+            reason={competitorReason(peer.source, peer.mapPackPhrase)}
+            stats={peer}
+          />
+          {canManage ? (
+            <PeerActions
+              peer={peer}
+              saving={saving}
+              onHide={onHide}
+              onPin={onPin}
+              onUnpin={onUnpin}
+            />
+          ) : null}
+        </th>
+      ))}
+    </tr>
+  </thead>
+);
+
+const PeerFactRows = ({ job }: { job: PeerAuditJob }) => {
+  const ratingValues = [
+    metric(job.subjectFacts?.rating),
+    ...job.peers.map((peer) => metric(peer.rating)),
+  ];
+  const reviewValues = [
+    metric(job.subjectFacts?.reviewCount),
+    ...job.peers.map((peer) => metric(peer.reviewCount)),
+  ];
+  const photoValues = [
+    metric(job.subjectFacts?.photoCount),
+    ...job.peers.map((peer) => metric(peer.photoCount)),
+  ];
+  const distanceValues = job.peers.map((peer) => metric(peer.distanceMetres));
+  const bestRating = new Set(bestNumberIndexes(ratingValues, true));
+  const bestReviews = new Set(bestNumberIndexes(reviewValues, true));
+  const bestPhotos = new Set(bestNumberIndexes(photoValues, true));
+  const bestDistance = new Set(bestNumberIndexes(distanceValues, false));
+
+  return (
+    <>
+      <tr>
+        <th scope="row" className="text-ink min-w-40 font-medium">
+          Rating
+        </th>
+        <td>
+          <NumberCell
+            text={formatRatingCell(ratingValues[0] ?? null, bestRating.has(0))}
+          />
+        </td>
+        {job.peers.map((peer, index) => (
+          <td key={peer.placeId}>
+            <NumberCell
+              text={formatRatingCell(
+                metric(peer.rating),
+                bestRating.has(index + 1)
+              )}
+            />
+          </td>
+        ))}
+      </tr>
+      <tr>
+        <th scope="row" className="text-ink min-w-40 font-medium">
+          Reviews
+        </th>
+        <td>
+          <NumberCell
+            text={formatCountCell(
+              reviewValues[0] ?? null,
+              bestReviews.has(0),
+              "review",
+              "reviews"
+            )}
+          />
+        </td>
+        {job.peers.map((peer, index) => (
+          <td key={peer.placeId}>
+            <NumberCell
+              text={formatCountCell(
+                metric(peer.reviewCount),
+                bestReviews.has(index + 1),
+                "review",
+                "reviews"
+              )}
+            />
+          </td>
+        ))}
+      </tr>
+      <tr>
+        <th scope="row" className="text-ink min-w-40 font-medium">
+          Photos
+        </th>
+        <td>
+          <NumberCell
+            text={formatCountCell(
+              photoValues[0] ?? null,
+              bestPhotos.has(0),
+              "photo",
+              "photos"
+            )}
+          />
+        </td>
+        {job.peers.map((peer, index) => (
+          <td key={peer.placeId}>
+            <NumberCell
+              text={formatCountCell(
+                metric(peer.photoCount),
+                bestPhotos.has(index + 1),
+                "photo",
+                "photos"
+              )}
+            />
+          </td>
+        ))}
+      </tr>
+      <tr>
+        <th scope="row" className="text-ink min-w-40 font-medium">
+          Category
+        </th>
+        <td>{job.subjectFacts?.primaryCategory ?? "Unknown"}</td>
+        {job.peers.map((peer) => (
+          <td key={peer.placeId}>{peer.primaryCategory ?? "Unknown"}</td>
+        ))}
+      </tr>
+      <tr>
+        <th scope="row" className="text-ink min-w-40 font-medium">
+          Distance
+        </th>
+        <td>This business</td>
+        {job.peers.map((peer, index) => (
+          <td key={peer.placeId}>
+            <NumberCell
+              text={formatDistanceCell(
+                metric(peer.distanceMetres),
+                bestDistance.has(index)
+              )}
+            />
+          </td>
+        ))}
+      </tr>
+    </>
+  );
+};
+
+interface PeerTableCheck {
+  id: string;
+  label?: string;
+  peerValues: (boolean | null)[];
+  subjectValue: boolean | null;
+  subjectWaiting: boolean;
+  title: string;
+}
+
+const PeerPhraseRows = ({ job }: { job: PeerAuditJob }) => (
+  <>
+    {(job.phraseRows ?? []).map((phrase) => {
+      const cellValues = [
+        phrase.subjectCells ?? null,
+        ...job.peers.map((peer) => peer.phraseCells?.[phrase.id] ?? null),
+      ];
+      const positionValues = [
+        phrase.subjectPosition ?? null,
+        ...job.peers.map((peer) => peer.phrasePosition?.[phrase.id] ?? null),
+      ];
+      const bestCells = new Set(bestNumberIndexes(cellValues, true));
+      const bestPosition = new Set(bestNumberIndexes(positionValues, false));
+      return (
+        <Fragment key={phrase.id}>
+          <tr>
+            <th scope="row" className="text-ink min-w-40 font-medium">
+              {`Map pack for '${phrase.text}'`}
+            </th>
+            <td>
+              <NumberCell
+                text={formatCountCell(
+                  cellValues[0] ?? null,
+                  bestCells.has(0),
+                  "cell",
+                  "cells"
+                )}
+              />
+            </td>
+            {job.peers.map((peer, index) => (
+              <td key={peer.placeId}>
+                <NumberCell
+                  text={formatCountCell(
+                    peer.phraseCells?.[phrase.id] ?? null,
+                    bestCells.has(index + 1),
+                    "cell",
+                    "cells"
+                  )}
+                />
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row" className="text-ink min-w-40 font-medium">
+              {`Organic position for '${phrase.text}'`}
+            </th>
+            <td>
+              <NumberCell
+                text={formatPositionCell(
+                  positionValues[0] ?? null,
+                  bestPosition.has(0)
+                )}
+              />
+            </td>
+            {job.peers.map((peer, index) => (
+              <td key={peer.placeId}>
+                <NumberCell
+                  text={formatPositionCell(
+                    peer.phrasePosition?.[phrase.id] ?? null,
+                    bestPosition.has(index + 1)
+                  )}
+                />
+              </td>
+            ))}
+          </tr>
+        </Fragment>
+      );
+    })}
+  </>
+);
+
+const PeerCheckRows = ({
+  job,
+  rows,
+}: {
+  job: PeerAuditJob;
+  rows: PeerTableCheck[];
+}) => (
+  <>
+    {rows.map((row) => (
+      <tr key={row.id}>
+        <th scope="row" className="text-ink min-w-40 font-medium">
+          {row.title}
+        </th>
+        <td>
+          <CheckCell
+            label={row.label}
+            value={row.subjectValue}
+            waiting={row.subjectWaiting}
+          />
+        </td>
+        {job.peers.map((peer, index) => (
+          <td key={peer.placeId}>
+            <CheckCell
+              fromSearch={peer.checks[row.id]?.fromSearch === true}
+              label={peer.checks[row.id]?.label}
+              value={row.peerValues[index] ?? null}
+            />
+          </td>
+        ))}
+      </tr>
+    ))}
+  </>
+);
+
 const PeerTable = ({
   canManage,
   job,
@@ -256,268 +555,30 @@ const PeerTable = ({
     score: scorePercent(counted),
     skipped: counted.error,
   };
-  const ratingValues = [
-    metric(job.subjectFacts?.rating),
-    ...job.peers.map((peer) => metric(peer.rating)),
-  ];
-  const reviewValues = [
-    metric(job.subjectFacts?.reviewCount),
-    ...job.peers.map((peer) => metric(peer.reviewCount)),
-  ];
-  const photoValues = [
-    metric(job.subjectFacts?.photoCount),
-    ...job.peers.map((peer) => metric(peer.photoCount)),
-  ];
-  const distanceValues = job.peers.map((peer) => metric(peer.distanceMetres));
-  const bestRating = new Set(bestNumberIndexes(ratingValues, true));
-  const bestReviews = new Set(bestNumberIndexes(reviewValues, true));
-  const bestPhotos = new Set(bestNumberIndexes(photoValues, true));
-  const bestDistance = new Set(bestNumberIndexes(distanceValues, false));
   const lines = summaryFor(job, subjectChecks);
 
   return (
     <>
-      {lines.length > 0 ? (
-        <div className="listwell-panel__body">
-          <h3 className="text-ink font-medium">Where they beat you</h3>
-          <ul className="flex flex-col gap-1">
-            {lines.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <PeerBeatList lines={lines} />
       <div className="overflow-x-auto">
         <table
           className="listwell-panel__table"
           aria-describedby="peer-comparison-caption"
         >
-          <thead>
-            <tr>
-              <th scope="col" className="align-bottom">
-                Check
-              </th>
-              <th scope="col" className="align-bottom">
-                <ScoreHeading name={subjectName} stats={subjectStats} />
-              </th>
-              {job.peers.map((peer) => (
-                <th key={peer.placeId} scope="col" className="align-bottom">
-                  <ScoreHeading
-                    name={peer.name}
-                    reason={competitorReason(peer.source, peer.mapPackPhrase)}
-                    stats={peer}
-                  />
-                  {canManage ? (
-                    <PeerActions
-                      peer={peer}
-                      saving={saving}
-                      onHide={onHide}
-                      onPin={onPin}
-                      onUnpin={onUnpin}
-                    />
-                  ) : null}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          <PeerTableHead
+            canManage={canManage}
+            job={job}
+            onHide={onHide}
+            onPin={onPin}
+            onUnpin={onUnpin}
+            saving={saving}
+            subjectName={subjectName}
+            subjectStats={subjectStats}
+          />
           <tbody>
-            <tr>
-              <th scope="row" className="text-ink min-w-40 font-medium">
-                Rating
-              </th>
-              <td>
-                <NumberCell
-                  text={formatRatingCell(
-                    ratingValues[0] ?? null,
-                    bestRating.has(0)
-                  )}
-                />
-              </td>
-              {job.peers.map((peer, index) => (
-                <td key={peer.placeId}>
-                  <NumberCell
-                    text={formatRatingCell(
-                      metric(peer.rating),
-                      bestRating.has(index + 1)
-                    )}
-                  />
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row" className="text-ink min-w-40 font-medium">
-                Reviews
-              </th>
-              <td>
-                <NumberCell
-                  text={formatCountCell(
-                    reviewValues[0] ?? null,
-                    bestReviews.has(0),
-                    "review",
-                    "reviews"
-                  )}
-                />
-              </td>
-              {job.peers.map((peer, index) => (
-                <td key={peer.placeId}>
-                  <NumberCell
-                    text={formatCountCell(
-                      metric(peer.reviewCount),
-                      bestReviews.has(index + 1),
-                      "review",
-                      "reviews"
-                    )}
-                  />
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row" className="text-ink min-w-40 font-medium">
-                Photos
-              </th>
-              <td>
-                <NumberCell
-                  text={formatCountCell(
-                    photoValues[0] ?? null,
-                    bestPhotos.has(0),
-                    "photo",
-                    "photos"
-                  )}
-                />
-              </td>
-              {job.peers.map((peer, index) => (
-                <td key={peer.placeId}>
-                  <NumberCell
-                    text={formatCountCell(
-                      metric(peer.photoCount),
-                      bestPhotos.has(index + 1),
-                      "photo",
-                      "photos"
-                    )}
-                  />
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row" className="text-ink min-w-40 font-medium">
-                Category
-              </th>
-              <td>{job.subjectFacts?.primaryCategory ?? "Unknown"}</td>
-              {job.peers.map((peer) => (
-                <td key={peer.placeId}>{peer.primaryCategory ?? "Unknown"}</td>
-              ))}
-            </tr>
-            <tr>
-              <th scope="row" className="text-ink min-w-40 font-medium">
-                Distance
-              </th>
-              <td>This business</td>
-              {job.peers.map((peer, index) => (
-                <td key={peer.placeId}>
-                  <NumberCell
-                    text={formatDistanceCell(
-                      metric(peer.distanceMetres),
-                      bestDistance.has(index)
-                    )}
-                  />
-                </td>
-              ))}
-            </tr>
-            {(job.phraseRows ?? []).map((phrase) => {
-              const cellValues = [
-                phrase.subjectCells ?? null,
-                ...job.peers.map(
-                  (peer) => peer.phraseCells?.[phrase.id] ?? null
-                ),
-              ];
-              const positionValues = [
-                phrase.subjectPosition ?? null,
-                ...job.peers.map(
-                  (peer) => peer.phrasePosition?.[phrase.id] ?? null
-                ),
-              ];
-              const bestCells = new Set(bestNumberIndexes(cellValues, true));
-              const bestPosition = new Set(
-                bestNumberIndexes(positionValues, false)
-              );
-              return (
-                <Fragment key={phrase.id}>
-                  <tr>
-                    <th scope="row" className="text-ink min-w-40 font-medium">
-                      {`Map pack for '${phrase.text}'`}
-                    </th>
-                    <td>
-                      <NumberCell
-                        text={formatCountCell(
-                          cellValues[0] ?? null,
-                          bestCells.has(0),
-                          "cell",
-                          "cells"
-                        )}
-                      />
-                    </td>
-                    {job.peers.map((peer, index) => (
-                      <td key={peer.placeId}>
-                        <NumberCell
-                          text={formatCountCell(
-                            peer.phraseCells?.[phrase.id] ?? null,
-                            bestCells.has(index + 1),
-                            "cell",
-                            "cells"
-                          )}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th scope="row" className="text-ink min-w-40 font-medium">
-                      {`Organic position for '${phrase.text}'`}
-                    </th>
-                    <td>
-                      <NumberCell
-                        text={formatPositionCell(
-                          positionValues[0] ?? null,
-                          bestPosition.has(0)
-                        )}
-                      />
-                    </td>
-                    {job.peers.map((peer, index) => (
-                      <td key={peer.placeId}>
-                        <NumberCell
-                          text={formatPositionCell(
-                            peer.phrasePosition?.[phrase.id] ?? null,
-                            bestPosition.has(index + 1)
-                          )}
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                </Fragment>
-              );
-            })}
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <th scope="row" className="text-ink min-w-40 font-medium">
-                  {row.title}
-                </th>
-                <td>
-                  <CheckCell
-                    label={row.label}
-                    value={row.subjectValue}
-                    waiting={row.subjectWaiting}
-                  />
-                </td>
-                {job.peers.map((peer, index) => (
-                  <td key={peer.placeId}>
-                    <CheckCell
-                      fromSearch={peer.checks[row.id]?.fromSearch === true}
-                      label={peer.checks[row.id]?.label}
-                      value={row.peerValues[index] ?? null}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
+            <PeerFactRows job={job} />
+            <PeerPhraseRows job={job} />
+            <PeerCheckRows job={job} rows={rows} />
           </tbody>
         </table>
       </div>

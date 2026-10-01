@@ -1,5 +1,7 @@
 "use client";
 
+// Recharts children must stay static so ResponsiveContainer can clone them.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import {
   Bar,
   BarChart,

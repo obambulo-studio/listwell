@@ -691,6 +691,8 @@ const runRankGrids = async (ctx: ResearchContext): Promise<void> => {
   }
   for (const phrase of ctx.phrases.slice(0, RANK_GRID_PHRASES)) {
     if (ctx.stop) {
+      // Later phrases must see ctx.stop set by earlier rank grids.
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await skip(ctx, "rank_grid", ctx.stop, {
         phraseId: phrase.id,
         pinId: ctx.pin.pinId,
@@ -709,6 +711,8 @@ const runOrganic = async (ctx: ResearchContext): Promise<void> => {
   for (const phrase of ctx.phrases) {
     const blocked = blockReason(ctx);
     if (blocked) {
+      // Later phrases must see ctx.stop set by earlier organic calls.
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await skip(ctx, "organic_serp", blocked, { phraseId: phrase.id });
       continue;
     }
@@ -932,6 +936,8 @@ const runReviews = async (
   for (const target of targets) {
     const blocked = blockReason(ctx);
     if (blocked) {
+      // Later targets must see ctx.stop set by earlier review calls.
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop
       await skip(ctx, "review_sample", blocked);
       continue;
     }
@@ -1161,16 +1167,25 @@ const domainsFor = (
   placeIds: readonly string[],
   selfDomain: string | null
 ): string[] => {
+  const domainByPlaceId = new Map<string, string | null>();
+  for (const note of notes) {
+    if (note.placeId === null || domainByPlaceId.has(note.placeId)) {
+      continue;
+    }
+    domainByPlaceId.set(note.placeId, note.domain);
+  }
   const domains: string[] = [];
+  const seenBare = new Set<string>();
   for (const placeId of placeIds) {
-    const domain = notes.find((note) => note.placeId === placeId)?.domain;
+    const domain = domainByPlaceId.get(placeId);
     if (!domain) {
       continue;
     }
     const bare = bareDomain(domain);
-    if (!bare || bare === selfDomain || domains.includes(bare)) {
+    if (!bare || bare === selfDomain || seenBare.has(bare)) {
       continue;
     }
+    seenBare.add(bare);
     domains.push(bare);
     if (domains.length >= LINK_GAP_COMPETITORS) {
       break;
@@ -1604,6 +1619,8 @@ export const finalizeResearchPeriod = async (
     if (row.kind !== "review_sample") {
       continue;
     }
+    // Work rows are read only to fill a Set; leave the loop as-is.
+    // react-doctor-disable-next-line react-doctor/async-await-in-loop
     const work = await readWork(ctx.taskStore, row.id);
     if (work?.placeId) {
       sampled.add(work.placeId);
@@ -1631,6 +1648,8 @@ export const finalizeResearchPeriod = async (
 };
 
 const runPass = async (ctx: ResearchContext): Promise<void> => {
+  // Reviews, posts, and link gap read observations produced by earlier steps.
+  // react-doctor-disable-next-line react-doctor/async-parallel
   await runRankGrids(ctx);
   await runOrganic(ctx);
   await runKeywords(ctx);
@@ -1795,6 +1814,8 @@ const gridFromCaches = async (
   const points = gridPoints(work.center);
   const cells: RankGridPayload["cells"] = [];
   for (const [index, point] of points.entries()) {
+    // A missing cell returns null immediately and must not require other cells.
+    // react-doctor-disable-next-line react-doctor/async-await-in-loop
     const cached = await readCached(
       ctx,
       mapsCache(ctx, work.phrase, index, work.center)
@@ -1937,6 +1958,8 @@ const completeQueuedPosts = async (
         ? JSON.stringify(questionsResultSchema.nullable().parse(result))
         : work.questionsJson,
   };
+  // Partial work must be stored before the incomplete posts or questions return.
+  // react-doctor-disable-next-line react-doctor/async-defer-await
   await writeWork(ctx.taskStore, observationId, next);
   if (next.postsJson === null || next.questionsJson === null) {
     return;

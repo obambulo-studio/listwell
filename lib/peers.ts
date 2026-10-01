@@ -205,15 +205,15 @@ export const normaliseCompetitorPlaceId = (id: string): string =>
 const canonicalPlaceId = (id: string): string => normaliseCompetitorPlaceId(id);
 
 const uniquePlaceIds = (ids: readonly string[]): string[] => {
-  const unique: string[] = [];
+  const unique = new Set<string>();
   for (const id of ids) {
     const canonical = canonicalPlaceId(id);
-    if (canonical.length === 0 || unique.includes(canonical)) {
+    if (canonical.length === 0) {
       continue;
     }
-    unique.push(canonical);
+    unique.add(canonical);
   }
-  return unique;
+  return [...unique];
 };
 
 const selectionFingerprint = (value: string): string => {
@@ -1461,6 +1461,13 @@ const phraseMetricsFor = (
   const phraseRows: NonNullable<PeerAuditJob["phraseRows"]> = [];
   const cellsForPlace = new Map<string, Record<string, number>>();
   const positionForPlace = new Map<string, Record<string, number>>();
+  const organicByPhraseId = new Map<string, OrganicSerpPayload>();
+  for (const item of organic) {
+    if (organicByPhraseId.has(item.phraseId)) {
+      continue;
+    }
+    organicByPhraseId.set(item.phraseId, item);
+  }
   const seen = new Set<string>();
   for (const grid of grids) {
     seen.add(grid.phraseId);
@@ -1469,7 +1476,7 @@ const phraseMetricsFor = (
       subjectCells: cellsHeldInGrid(grid.cells, selfPlaceId),
       text: grid.phrase,
     };
-    const serp = organic.find((item) => item.phraseId === grid.phraseId);
+    const serp = organicByPhraseId.get(grid.phraseId);
     if (serp?.position) {
       row.subjectPosition = serp.position;
     }
@@ -1567,6 +1574,8 @@ const saveFinishedPeerJob = async (input: {
     });
     return;
   }
+  // The complete status must be saved before the missing-period return.
+  // react-doctor-disable-next-line react-doctor/async-defer-await
   await saveJob(input.jobId, input.cacheKeys, { status: "complete" });
   if (!input.mapPack.periodStart) {
     return;
@@ -1688,6 +1697,8 @@ const executePeerAudit = async (
         website: item.place.websiteUri ?? null,
       }))
     );
+    // The running snapshot must be written before the empty-selection return.
+    // react-doctor-disable-next-line react-doctor/async-defer-await
     await saveJob(jobId, cacheKeys, {
       phraseRows: metrics.phraseRows,
       placeTypeLabel: search.placeTypeLabel ?? undefined,

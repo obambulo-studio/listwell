@@ -33,6 +33,8 @@ const ListingResearch = ({ view }: { view: ResearchView }) => (
                   {cell.places.length > 0 ? (
                     <ul className="m-0 list-none p-0">
                       {cell.places.map((place, index) => (
+                        // Place names can repeat and this list is not reordered.
+                        // react-doctor-disable-next-line react-doctor/no-array-index-as-key
                         <li key={`${cell.index}-${index}`}>{place}</li>
                       ))}
                     </ul>

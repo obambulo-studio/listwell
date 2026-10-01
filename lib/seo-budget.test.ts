@@ -288,6 +288,8 @@ describe("period cache", () => {
       },
       { store: memory.store }
     );
+    // Second call must see the cache row written by the first.
+    // react-doctor-disable-next-line react-doctor/server-sequential-independent-await
     const second = await runResearchCall(
       {
         budget: budgetFor("biz_b"),

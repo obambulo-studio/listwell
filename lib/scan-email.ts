@@ -97,15 +97,18 @@ const phraseIds = (
   current: PeriodSummaryPayload | null
 ): string[] => {
   const ids: string[] = [];
+  const seenIds = new Set<string>();
   for (const summary of [previous, current]) {
     for (const phraseId of Object.keys(summary?.organicPosition ?? {})) {
-      if (!ids.includes(phraseId)) {
+      if (!seenIds.has(phraseId)) {
+        seenIds.add(phraseId);
         ids.push(phraseId);
       }
     }
     for (const phrases of Object.values(summary?.gridTop3Count ?? {})) {
       for (const phraseId of Object.keys(phrases)) {
-        if (!ids.includes(phraseId)) {
+        if (!seenIds.has(phraseId)) {
+          seenIds.add(phraseId);
           ids.push(phraseId);
         }
       }
@@ -119,9 +122,11 @@ const competitorIds = (
   current: PeriodSummaryPayload | null
 ): string[] => {
   const ids: string[] = [];
+  const seenIds = new Set<string>();
   for (const summary of [previous, current]) {
     for (const placeId of Object.keys(summary?.competitors ?? {})) {
-      if (!ids.includes(placeId)) {
+      if (!seenIds.has(placeId)) {
+        seenIds.add(placeId);
         ids.push(placeId);
       }
     }

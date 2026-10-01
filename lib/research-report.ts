@@ -217,23 +217,28 @@ export const livelineWindowSeconds = (
   return Math.max(nowSeconds - earliest + DAY_MS / 1000, MONTH_SECONDS);
 };
 
+const periodMonthFormat = new Intl.DateTimeFormat("en-AU", {
+  month: "long",
+  timeZone: "Australia/Sydney",
+  year: "numeric",
+});
+
+const checkedDateFormat = new Intl.DateTimeFormat("en-AU", {
+  day: "numeric",
+  month: "long",
+  timeZone: "Australia/Sydney",
+  year: "numeric",
+});
+
+const countFormat = new Intl.NumberFormat("en-AU");
+
 export const formatPeriodMonth = (unixSeconds: number): string =>
-  new Intl.DateTimeFormat("en-AU", {
-    month: "long",
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-  }).format(new Date(unixSeconds * 1000));
+  periodMonthFormat.format(new Date(unixSeconds * 1000));
 
 export const formatCheckedDate = (iso: string): string =>
-  new Intl.DateTimeFormat("en-AU", {
-    day: "numeric",
-    month: "long",
-    timeZone: "Australia/Sydney",
-    year: "numeric",
-  }).format(new Date(iso));
+  checkedDateFormat.format(new Date(iso));
 
-export const formatCount = (value: number): string =>
-  new Intl.NumberFormat("en-AU").format(value);
+export const formatCount = (value: number): string => countFormat.format(value);
 
 export const changeSentence = (delta: number | null, unit: string): string => {
   if (delta === null) {
@@ -420,9 +425,11 @@ export const gridCellSeries = (
   currentPinId: string | null
 ): TrendSeries[] => {
   const pinIds: string[] = [];
+  const seenPinIds = new Set<string>();
   for (const period of periods) {
     for (const pinId of Object.keys(period.payload.gridTop3Count ?? {})) {
-      if (!pinIds.includes(pinId)) {
+      if (!seenPinIds.has(pinId)) {
+        seenPinIds.add(pinId);
         pinIds.push(pinId);
       }
     }
@@ -459,9 +466,11 @@ export const organicPositionSeries = (
 ): TrendSeries[] => {
   const ids: string[] = phrases.map((phrase) => phrase.id);
   const labels = new Map(phrases.map((phrase) => [phrase.id, phrase.text]));
+  const seenIds = new Set(ids);
   for (const period of periods) {
     for (const phraseId of Object.keys(period.payload.organicPosition ?? {})) {
-      if (!ids.includes(phraseId)) {
+      if (!seenIds.has(phraseId)) {
+        seenIds.add(phraseId);
         ids.push(phraseId);
       }
     }
@@ -518,9 +527,11 @@ export const competitorTrendSeries = (
   }
 ): TrendSeries[] => {
   const placeIds = [...input.currentPlaceIds];
+  const seenPlaceIds = new Set(placeIds);
   for (const period of periods) {
     for (const placeId of Object.keys(period.payload.competitors ?? {})) {
-      if (!placeIds.includes(placeId)) {
+      if (!seenPlaceIds.has(placeId)) {
+        seenPlaceIds.add(placeId);
         placeIds.push(placeId);
       }
     }
