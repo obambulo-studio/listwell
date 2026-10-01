@@ -4,6 +4,7 @@ import {
   entitlementCheckoutRetryPath,
   fixStepsWithoutPayment,
   isPaymentsIntentionallyDisabled,
+  reportResearchChrome,
   reportShowsFixSteps,
   sharedViewerEntitlementState,
 } from "./entitlements-access";
@@ -136,6 +137,25 @@ describe(sharedViewerEntitlementState, () => {
       access({ fixStepsWithoutPayment: true, unlocked: true })
     );
     expect(reportShowsFixSteps(viewer)).toBeTruthy();
+  });
+});
+
+describe(reportResearchChrome, () => {
+  it("shows research on a share without the phrases editor or fix steps", () => {
+    const viewer = sharedViewerEntitlementState(
+      access({ kind: "report_monthly", unlocked: true })
+    );
+    expect(
+      reportResearchChrome({
+        isOwner: false,
+        researchVisible: true,
+        showFixSteps: reportShowsFixSteps(viewer),
+      })
+    ).toStrictEqual({
+      fixSteps: false,
+      phrasesEditor: false,
+      research: true,
+    });
   });
 });
 

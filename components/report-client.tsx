@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useReducer, useState } from "react";
 import type { ReactNode } from "react";
@@ -20,8 +21,13 @@ import {
   CheckStatusMark,
   checkStatusText,
 } from "@/components/listwell/report-ui";
-import { PeerComparisonSection } from "@/components/peer-comparison-section";
+import {
+  PeerComparisonSection,
+  NextFixSection,
+} from "@/components/peer-comparison-section";
 import { ReportShareDialog } from "@/components/report-share-dialog";
+import { ResearchSections } from "@/components/research-sections";
+import { SearchPhrasesSection } from "@/components/search-phrases-section";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { CHANNEL_CONFIG } from "@/lib/channel";
@@ -35,6 +41,7 @@ import { pointsFor } from "@/lib/checks/types";
 import type { CheckDefinition } from "@/lib/checks/types";
 import {
   entitlementCheckoutRetryPath,
+  reportResearchChrome,
   reportShowsFixSteps,
 } from "@/lib/entitlements-access";
 import {
@@ -62,6 +69,8 @@ import {
   downloadReportPdf,
   reportPdfFilename,
 } from "@/lib/report-pdf";
+import { CONTINUED_REPORT_COPY } from "@/lib/research-report";
+import type { ResearchView } from "@/lib/research-view";
 import {
   auditJobPollSchema,
   businessSchema,
@@ -83,6 +92,18 @@ import {
   completedCheckSchema,
 } from "@/lib/summaries";
 import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
+
+const ResearchHistory = dynamic(
+  async () => {
+    const mod = await import("@/components/research-history");
+    return mod.ResearchHistory;
+  },
+  {
+    loading: () => (
+      <p className="listwell-panel__fine">Loading change over time.</p>
+    ),
+  }
+);
 
 const initialResultsSchema = z.record(z.string(), checkResultSchema);
 const JOB_POLL_INTERVAL_MS = 2000;
@@ -808,7 +829,7 @@ const ReportPaywallSection = ({
   const continuedPlansAvailable =
     access.monthlyAvailable || access.yearlyAvailable;
   const lede = continuedPlansAvailable
-    ? "Unlock fix steps with a one-off report or continued scans (monthly or yearly, per business)."
+    ? `Unlock fix steps with a one-off report or continued scans (monthly or yearly, per business). ${CONTINUED_REPORT_COPY}`
     : `Pay ${REPORT_ONCE_PRICE} once to unlock the step-by-step fixes for this business.`;
 
   return (
@@ -1689,6 +1710,85 @@ const ReportHeader = ({
   </header>
 );
 
+const ContinuedReportSections = ({
+  access,
+  businessId,
+  businessName,
+  canManageCompetitors,
+  isOwner,
+  peerAuditOverride,
+  phrases,
+  research,
+  researchVisible,
+  showFixSteps,
+  subjectChecks,
+}: {
+  access: EntitlementState;
+  businessId: string;
+  businessName: string;
+  canManageCompetitors: boolean;
+  isOwner: boolean;
+  peerAuditOverride?: PeerAuditJob;
+  phrases: Business["searchPhrases"];
+  research: ResearchView | null;
+  researchVisible: boolean;
+  showFixSteps: boolean;
+  subjectChecks: {
+    id: string;
+    label?: string;
+    queued?: boolean;
+    title: string;
+    value: boolean | null;
+  }[];
+}) => {
+  const chrome = reportResearchChrome({
+    isOwner,
+    researchVisible,
+    showFixSteps,
+  });
+  return (
+    <>
+      {isOwner && access.kind === "report_once" && access.unlocked ? (
+        <section className="listwell-panel" aria-labelledby="continued-reports">
+          <div className="listwell-panel__head">
+            <h2 className="listwell-panel__title" id="continued-reports">
+              Continued reports
+            </h2>
+          </div>
+          <div className="listwell-panel__body">
+            <p className="listwell-panel__note">{CONTINUED_REPORT_COPY}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {chrome.phrasesEditor ? (
+        <SearchPhrasesSection businessId={businessId} phrases={phrases} />
+      ) : null}
+
+      {canManageCompetitors ? (
+        <NextFixSection
+          businessId={businessId}
+          peerAuditOverride={peerAuditOverride}
+          subjectChecks={subjectChecks}
+        />
+      ) : null}
+
+      <PeerComparisonSection
+        businessId={businessId}
+        businessName={businessName}
+        canManageCompetitors={canManageCompetitors}
+        peerAuditOverride={peerAuditOverride}
+        subjectChecks={subjectChecks}
+      />
+
+      {chrome.research ? <ResearchSections view={research} /> : null}
+      {chrome.research && research ? (
+        <ResearchHistory businessName={businessName} view={research} />
+      ) : null}
+    </>
+  );
+};
+
 export const ReportClient = ({
   initialBusiness,
   checks,
@@ -1706,6 +1806,8 @@ export const ReportClient = ({
   listingReviewOverride,
   peerAuditOverride,
   scanHistoryOverride,
+  research = null,
+  researchVisible = false,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
@@ -1726,6 +1828,9 @@ export const ReportClient = ({
   peerAuditOverride?: PeerAuditJob;
   /** Dev UI fixture only — skips scan history fetch when set. */
   scanHistoryOverride?: ScanSummary[];
+  /** Stored research for a continued report. Null when it could not be loaded. */
+  research?: ResearchView | null;
+  researchVisible?: boolean;
 }) => {
   const business = useMemo(
     () => businessSchema.parse(initialBusiness),
@@ -1749,6 +1854,13 @@ export const ReportClient = ({
   const [ui, dispatch] = useReducer(reportUiReducer, initialReportUiState);
   const { checkoutError, filter, pickedId, redirecting, shareOpen } = ui;
   const isOwner = variant === "owner";
+  const subjectChecks = liveChecks.map((item) => ({
+    id: item.definition.id,
+    label: item.result?.label,
+    queued: item.result?.queued,
+    title: item.definition.title,
+    value: item.result?.value ?? null,
+  }));
 
   const expandedId =
     pickedId === undefined ? recommendedCheckId(summary, liveChecks) : pickedId;
@@ -1890,16 +2002,20 @@ export const ReportClient = ({
         <ScanHistorySection scans={scanHistory} />
       ) : null}
 
-      <PeerComparisonSection
+      <ContinuedReportSections
+        access={access}
         businessId={business.id}
         businessName={business.name}
+        canManageCompetitors={
+          isOwner && access.unlocked && !access.sessionRequired
+        }
+        isOwner={isOwner}
         peerAuditOverride={peerAuditOverride}
-        subjectChecks={liveChecks.map((item) => ({
-          id: item.definition.id,
-          queued: item.result?.queued,
-          title: item.definition.title,
-          value: item.result?.value ?? null,
-        }))}
+        phrases={business.searchPhrases}
+        research={research}
+        researchVisible={researchVisible}
+        showFixSteps={showFixSteps}
+        subjectChecks={subjectChecks}
       />
 
       <ChecksLedgerSection

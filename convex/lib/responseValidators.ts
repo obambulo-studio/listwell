@@ -3,8 +3,10 @@ import { v } from "convex/values";
 import {
   entitlementKindValidator,
   entitlementStatusValidator,
+  pinnedCompetitorValidator,
   scanStatusValidator,
   scanTriggerValidator,
+  searchPhraseValidator,
 } from "./validators";
 
 export const locationResponseValidator = v.object({
@@ -14,23 +16,29 @@ export const locationResponseValidator = v.object({
   createdAt: v.string(),
   googlePlaceId: v.union(v.string(), v.null()),
   id: v.number(),
+  latitude: v.union(v.number(), v.null()),
+  longitude: v.union(v.number(), v.null()),
   name: v.union(v.string(), v.null()),
+  pinId: v.union(v.string(), v.null()),
   updatedAt: v.string(),
 });
 
 export const businessResponseValidator = v.object({
   category: v.string(),
   categoryLabel: v.union(v.string(), v.null()),
+  competitors: v.array(pinnedCompetitorValidator),
   createdAt: v.string(),
   deliverooUrl: v.union(v.string(), v.null()),
   doorDashUrl: v.union(v.string(), v.null()),
   facebookUsername: v.union(v.string(), v.null()),
+  hiddenCompetitorPlaceIds: v.array(v.string()),
   id: v.string(),
   instagramUsername: v.union(v.string(), v.null()),
   linkedinUrl: v.union(v.string(), v.null()),
   locations: v.array(locationResponseValidator),
   menulogUrl: v.union(v.string(), v.null()),
   name: v.string(),
+  searchPhrases: v.array(searchPhraseValidator),
   tiktokUsername: v.union(v.string(), v.null()),
   uberEatsUrl: v.union(v.string(), v.null()),
   updatedAt: v.string(),

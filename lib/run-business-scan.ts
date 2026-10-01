@@ -9,6 +9,7 @@ import { scorePercent, statusFromResult } from "./chat-onboarding";
 import { publishSharedCheckRun } from "./check-snapshots";
 import { checksForCategory } from "./checks/registry";
 import { getBusiness, insertScan, updateScan } from "./data";
+import { runBusinessResearch } from "./research-runner";
 import { checkResultSchema } from "./schema";
 import type { ScanRow, ScanTrigger } from "./schema";
 
@@ -83,6 +84,18 @@ export const runScanForBusiness = async (
       status: "complete",
     });
     await publishSharedCheckRun(business, results);
+    if (trigger === "baseline" || trigger === "schedule") {
+      try {
+        await runBusinessResearch({
+          business,
+          checkResults: results,
+          listingScore: counts.score,
+          trigger,
+        });
+      } catch (error) {
+        console.error("SEO research failed after the listing scan", error);
+      }
+    }
     return completed;
   } catch (error) {
     return updateScan(scan.id, {

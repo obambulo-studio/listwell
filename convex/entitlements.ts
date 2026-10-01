@@ -9,14 +9,17 @@ import { internal } from "./_generated/api";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
-import { authedMutation, authedQuery } from "./lib/custom-functions";
+import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { requireInternalSecret } from "./lib/internal";
 import {
   dueEntitlementRowValidator,
   entitlementResponseValidator,
-} from "./lib/response-validators";
-import { runInSeries } from "./lib/run-in-series";
-import { entitlementKindValidator } from "./lib/validators";
+} from "./lib/responseValidators";
+import { runInSeries } from "./lib/runInSeries";
+import {
+  entitlementKindValidator,
+  entitlementStatusValidator,
+} from "./lib/validators";
 
 const SCAN_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -76,7 +79,7 @@ export const linkPurchasedBusinesses = async (
   if (assigned > 0) {
     await ctx.scheduler.runAfter(
       0,
-      internal["notification-preferences"].ensureForUser,
+      internal.notificationPreferences.ensureForUser,
       { userId: input.userId }
     );
   }
@@ -191,6 +194,39 @@ export const hasActive = query({
   returns: v.boolean(),
 });
 
+/** Active monthly entitlement when one exists, otherwise any active row. */
+export const getActiveForBusiness = query({
+  args: { businessExternalId: v.string(), secret: v.string() },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .collect();
+    const active = rows.filter((row) => row.status === "active");
+    const chosen =
+      active.find((row) => row.kind === "report_monthly") ?? active[0];
+    if (!chosen) {
+      return null;
+    }
+    return {
+      kind: chosen.kind,
+      nextScanAt: chosen.nextScanAt ?? null,
+      status: chosen.status,
+    };
+  },
+  returns: v.union(
+    v.object({
+      kind: entitlementKindValidator,
+      nextScanAt: v.union(v.string(), v.null()),
+      status: entitlementStatusValidator,
+    }),
+    v.null()
+  ),
+});
+
 const attachGrantOwner = async (
   ctx: MutationCtx,
   input: {
@@ -212,7 +248,7 @@ const attachGrantOwner = async (
   }
   await ctx.scheduler.runAfter(
     0,
-    internal["notification-preferences"].ensureForUser,
+    internal.notificationPreferences.ensureForUser,
     { userId }
   );
 };

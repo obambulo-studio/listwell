@@ -12,6 +12,7 @@ import {
   filterProfilesForCandidate,
 } from "@/lib/discover";
 import type { DiscoverResponse, PlaceCandidate } from "@/lib/discover";
+import { withDiscoveryPin } from "@/lib/place-pin";
 import { businessInputFromDiscovery } from "@/lib/profiles";
 import { businessSchema } from "@/lib/schema";
 import { addBusinessId } from "@/lib/storage";
@@ -35,13 +36,22 @@ const persistDiscovery = async (
   name: string,
   nextCategory: CategoryId,
   profiles: DiscoverResponse["profiles"],
-  nextAddress?: string
+  nextAddress?: string,
+  candidate?: PlaceCandidate
 ): Promise<string | null> => {
   try {
+    const payload = businessInputFromDiscovery(
+      name,
+      nextCategory,
+      profiles,
+      nextAddress
+    );
+    payload.locations = withDiscoveryPin(
+      payload.locations,
+      candidate?.source === "google" ? candidate : undefined
+    );
     const response = await fetch("/api/businesses", {
-      body: JSON.stringify(
-        businessInputFromDiscovery(name, nextCategory, profiles, nextAddress)
-      ),
+      body: JSON.stringify(payload),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -72,7 +82,8 @@ const goToConfirm = async (
     name,
     discovery.categoryId,
     profiles,
-    nextAddress
+    nextAddress,
+    candidate?.source === "google" ? candidate : undefined
   );
   if (persisted) {
     replace(`/new?id=${encodeURIComponent(persisted)}`);

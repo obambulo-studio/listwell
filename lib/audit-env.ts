@@ -1,5 +1,6 @@
 import {
   businessSnapshotSchema,
+  createTinyFishFetchBudget,
   LCP_PROBE_SCRIPT,
   parseSyntheticTiming,
   performanceFromTiming,
@@ -118,11 +119,47 @@ export const getAuditEngineEnv = async (): Promise<AuditEngineEnv> => {
     googleProgrammableSearchEngineId:
       readSecret(env?.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID) ??
       readSecret(process.env.GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID),
+    tinyFishApiKey:
+      readSecret(env?.TINYFISH_API_KEY) ??
+      readSecret(process.env.TINYFISH_API_KEY),
     typesafeApiKey:
       readSecret(env?.TYPESAFE_API_KEY) ??
       readSecret(process.env.TYPESAFE_API_KEY),
     typesafeModel:
       readSecret(env?.TYPESAFE_MODEL) ?? readSecret(process.env.TYPESAFE_MODEL),
+  };
+};
+
+export interface DataForSeoEnv {
+  apiKey: string | undefined;
+  monthlyCeilingUsd: number | undefined;
+  sandbox: boolean;
+  siteUrl: string | undefined;
+}
+
+const ceilingUsdSchema = z.coerce.number().nonnegative();
+
+/** DataForSEO runs on the Worker only. Convex never reads these. */
+export const getDataForSeoEnv = async (): Promise<DataForSeoEnv> => {
+  const env = await getCloudflareEnv();
+  const ceiling = ceilingUsdSchema.safeParse(
+    readSecret(env?.DATAFORSEO_MONTHLY_CEILING_USD) ??
+      readSecret(process.env.DATAFORSEO_MONTHLY_CEILING_USD)
+  );
+  const sandbox =
+    readSecret(env?.DATAFORSEO_SANDBOX) ??
+    readSecret(process.env.DATAFORSEO_SANDBOX);
+  return {
+    apiKey:
+      readSecret(env?.DATAFORSEO_API_KEY) ??
+      readSecret(process.env.DATAFORSEO_API_KEY),
+    monthlyCeilingUsd: ceiling.success ? ceiling.data : undefined,
+    sandbox: sandbox === "1" || sandbox?.toLowerCase() === "true",
+    siteUrl:
+      readSecret(env?.SITE_URL) ??
+      readSecret(env?.NEXT_PUBLIC_SITE_URL) ??
+      readSecret(process.env.SITE_URL) ??
+      readSecret(process.env.NEXT_PUBLIC_SITE_URL),
   };
 };
 
@@ -223,6 +260,9 @@ export const getFetchWebsiteOptions =
         : undefined,
       renderHtml: browser
         ? (url: string) => renderWithBrowserBinding(browser, url)
+        : undefined,
+      tinyFish: engineEnv.tinyFishApiKey
+        ? createTinyFishFetchBudget(engineEnv.tinyFishApiKey)
         : undefined,
     };
   };

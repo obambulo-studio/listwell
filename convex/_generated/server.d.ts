@@ -33,7 +33,7 @@ type Env = {
   readonly INTERNAL_API_SECRET: string;
   readonly SITE_URL: string;
   readonly USESEND_API_KEY: string;
-  readonly USESEND_BASE_URL?: string;
+  readonly USESEND_BASE_URL: string | undefined;
   readonly USESEND_FROM: string;
 };
 

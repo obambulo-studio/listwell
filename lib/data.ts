@@ -26,11 +26,19 @@ import type {
   CreateBusinessRequest,
   EntitlementKind,
   EntitlementRow,
+  EntitlementStatus,
   ScanRow,
   ScanTrigger,
   UpdateBusinessRequest,
   UserRow,
 } from "./schema";
+import {
+  hiddenCompetitorPlaceIdsSchema,
+  pinIdFromCoordinates,
+  pinnedCompetitorsSchema,
+  searchPhrasesSchema,
+} from "./seo-schema";
+import type { PinnedCompetitor, SearchPhrase } from "./seo-schema";
 
 export const idListQuerySchema = z.object({
   ids: z.string().optional(),
@@ -41,12 +49,30 @@ export const BUSINESS_KV_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const BUSINESS_KV_TTL_DAYS = 7;
 const BUSINESS_MEMORY_MAX = 500;
 
+const locationPinId = (
+  location: CreateBusinessRequest["locations"][number]
+): string | undefined => {
+  if (location.latitude === undefined || location.longitude === undefined) {
+    return undefined;
+  }
+  return (
+    location.pinId ??
+    pinIdFromCoordinates({
+      latitude: location.latitude,
+      longitude: location.longitude,
+    })
+  );
+};
+
 const mapLocations = (locations: CreateBusinessRequest["locations"]) =>
   locations.map((location) => ({
     address: location.address,
     appleMapsId: location.appleMapsId,
     googlePlaceId: location.googlePlaceId,
+    latitude: location.latitude,
+    longitude: location.longitude,
     name: location.name,
+    pinId: locationPinId(location),
   }));
 
 const storedBusinessKey = (id: string): string => `business:${id}`;
@@ -99,7 +125,10 @@ export const businessFromCreateRequest = (
       createdAt: timestamp,
       googlePlaceId: location.googlePlaceId ?? null,
       id: index + 1,
+      latitude: location.latitude ?? null,
+      longitude: location.longitude ?? null,
       name: location.name ?? null,
+      pinId: locationPinId(location) ?? null,
       updatedAt: timestamp,
     })),
     menulogUrl: optionalUrl(data.menulogUrl),
@@ -226,7 +255,10 @@ const locationInputsFromBusiness = (
     address: location.address ?? undefined,
     appleMapsId: location.appleMapsId ?? undefined,
     googlePlaceId: location.googlePlaceId ?? undefined,
+    latitude: location.latitude ?? undefined,
+    longitude: location.longitude ?? undefined,
     name: location.name ?? undefined,
+    pinId: location.pinId ?? undefined,
   }));
 
 const keepUrl = (
@@ -267,7 +299,10 @@ const mergeBusinessUpdate = (
   });
   return {
     ...next,
+    competitors: existing.competitors,
     createdAt: existing.createdAt,
+    hiddenCompetitorPlaceIds: existing.hiddenCompetitorPlaceIds,
+    searchPhrases: existing.searchPhrases,
     userId: existing.userId,
   };
 };
@@ -304,6 +339,33 @@ export const updateBusiness = async (
     throw new Error("Business not found");
   }
   return writeStoredBusiness(mergeBusinessUpdate(existing, input));
+};
+
+/** Use `reviseSearchPhrases` first so edited wording gets a new id. */
+export const setBusinessSearchPhrases = async (
+  businessId: string,
+  phrases: SearchPhrase[]
+): Promise<Business> => {
+  const searchPhrases = searchPhrasesSchema.parse(phrases);
+  const updated = await convexMutation(api.businesses.setSearchPhrases, {
+    externalId: businessId,
+    searchPhrases,
+  });
+  return writeStoredBusiness(businessSchema.parse(updated));
+};
+
+export const setBusinessCompetitors = async (
+  businessId: string,
+  input: { competitors: PinnedCompetitor[]; hiddenCompetitorPlaceIds: string[] }
+): Promise<Business> => {
+  const updated = await convexMutation(api.businesses.setCompetitors, {
+    competitors: pinnedCompetitorsSchema.parse(input.competitors),
+    externalId: businessId,
+    hiddenCompetitorPlaceIds: hiddenCompetitorPlaceIdsSchema.parse(
+      input.hiddenCompetitorPlaceIds
+    ),
+  });
+  return writeStoredBusiness(businessSchema.parse(updated));
 };
 
 export const getBusinessOwnerId = async (
@@ -385,6 +447,30 @@ export type EntitlementOwnerSnapshot =
       ownerEmail: string | null;
       ownerUserId: string | null;
     };
+
+export const getResearchEntitlement = async (
+  businessId: string
+): Promise<{
+  kind: EntitlementKind;
+  nextScanAt: string | null;
+  status: EntitlementStatus;
+} | null> => {
+  const row = await tryConvexQuery(() =>
+    convexQuery(api.entitlements.getActiveForBusiness, {
+      businessExternalId: businessId,
+    })
+  );
+  if (!row) {
+    return null;
+  }
+  return z
+    .object({
+      kind: entitlementKindSchema,
+      nextScanAt: z.string().nullable(),
+      status: entitlementStatusSchema,
+    })
+    .parse(row);
+};
 
 export const getActiveEntitlementOwner = async (
   businessId: string
@@ -476,7 +562,7 @@ export const getScanEmailRecipient = async (
 };
 
 export const ensureNotificationPrefs = (userId: string): Promise<string> =>
-  convexMutation(api["notification-preferences"].ensureForUserInternal, {
+  convexMutation(api.notificationPreferences.ensureForUserInternal, {
     userId,
   });
 

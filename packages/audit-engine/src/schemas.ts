@@ -17,6 +17,7 @@ export const channelCategorySchema = z.enum([
 export const checkIdSchema = z.enum([
   "website",
   "website-200-299",
+  "website-ai-visibility",
   "website-title",
   "website-meta-description",
   "website-canonical",

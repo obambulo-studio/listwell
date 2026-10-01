@@ -8,12 +8,38 @@ export interface BrowserRenderingConfig {
   apiToken?: string;
 }
 
+/** Distinct TinyFish Fetch pages per audit: home, contact, and menu. */
+export const TINYFISH_RENDER_URL_CAP = 3;
+
+const TINYFISH_FETCH_ENDPOINT = "https://api.fetch.tinyfish.ai";
+
+/**
+ * Free TinyFish Fetch budget shared by one audit.
+ * Agent and search endpoints are not on this object.
+ */
+export interface TinyFishFetchBudget {
+  apiKey: string;
+  rendered: Map<string, Promise<string>>;
+}
+
+export const createTinyFishFetchBudget = (
+  apiKey: string
+): TinyFishFetchBudget => ({
+  apiKey,
+  rendered: new Map(),
+});
+
 export interface FetchWebsiteOptions {
   browserRendering?: BrowserRenderingConfig;
   fetchImpl?: typeof fetch;
   preferBrowser?: boolean;
   /** Workers Browser Rendering binding (or any HTML renderer). Used after a thin-SPA fetch. */
   renderHtml?: (url: string) => Promise<string>;
+  /**
+   * Free rendered HTML for thin pages. When set, extra pages past the cap stay on the plain fetch.
+   * Browser Rendering still measures LCP separately.
+   */
+  tinyFish?: TinyFishFetchBudget;
   /** Optional synthetic LCP / load timing from the Browser Rendering session. */
   measurePerformance?: (url: string) => Promise<{
     lcp?: number;
@@ -102,32 +128,106 @@ export const fetchBrowserRenderingHtml = async (
   return parsed.result;
 };
 
-/**
- * Prefer a plain fetch. Fall back to Browser Rendering only when the page
- * looks like a thin SPA — faster than always launching puppeteer.
- */
-export const fetchWebsiteHtml = async (
-  url: string,
-  options: FetchWebsiteOptions = {}
-): Promise<string> => {
-  const fetchImpl = options.fetchImpl ?? fetch;
+const tinyFishFetchResponseSchema = z.object({
+  errors: z
+    .array(
+      z.object({
+        error: z.string().optional(),
+        url: z.string().optional(),
+      })
+    )
+    .optional(),
+  results: z
+    .array(
+      z.object({
+        text: z.string().nullable().optional(),
+      })
+    )
+    .optional(),
+});
 
-  if (!options.preferBrowser) {
+/**
+ * Render one known URL. Fetch is free. Do not call TinyFish Agent or Exa here:
+ * those are priced per step and do not fit the monthly report.
+ */
+export const fetchTinyFishHtml = async (
+  url: string,
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string> => {
+  const response = await fetchImpl(TINYFISH_FETCH_ENDPOINT, {
+    body: JSON.stringify({
+      format: "html",
+      purpose: "Read a small-business page for a local SEO checklist",
+      urls: [url],
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-Key": apiKey,
+    },
+    method: "POST",
+    signal: AbortSignal.timeout(45_000),
+  });
+
+  const json: unknown = await response.json();
+  const parsed = tinyFishFetchResponseSchema.parse(json);
+  const text = parsed.results?.[0]?.text?.trim() ?? "";
+  if (!response.ok || !text.includes("<")) {
+    const reason =
+      parsed.errors?.[0]?.error ?? `TinyFish Fetch failed (${response.status})`;
+    throw new Error(reason);
+  }
+  return text;
+};
+
+type TinyFishRead =
+  | { html: string; kind: "html" }
+  | { kind: "capped" }
+  | { kind: "failed" }
+  | { kind: "unused" };
+
+const readTinyFishHtml = async (
+  url: string,
+  budget: TinyFishFetchBudget | undefined,
+  fetchImpl: typeof fetch
+): Promise<TinyFishRead> => {
+  if (!budget) {
+    return { kind: "unused" };
+  }
+
+  const cached = budget.rendered.get(url);
+  if (cached) {
     try {
-      const plain = await fetchPlain(url, fetchImpl);
-      if (plain.ok && !looksLikeThinSpa(plain.body)) {
-        return plain.body;
-      }
+      return { html: await cached, kind: "html" };
     } catch {
-      // Fall through to Browser Rendering.
+      return { kind: "failed" };
     }
   }
 
+  if (budget.rendered.size >= TINYFISH_RENDER_URL_CAP) {
+    return { kind: "capped" };
+  }
+
+  const pending = fetchTinyFishHtml(url, budget.apiKey, fetchImpl);
+  budget.rendered.set(url, pending);
+  try {
+    return { html: await pending, kind: "html" };
+  } catch {
+    budget.rendered.delete(url);
+    return { kind: "failed" };
+  }
+};
+
+const readBrowserHtml = async (
+  url: string,
+  options: FetchWebsiteOptions,
+  fetchImpl: typeof fetch
+): Promise<string | undefined> => {
   if (options.renderHtml) {
     try {
       return await options.renderHtml(url);
     } catch {
-      // Fall through to REST Browser Rendering or the last plain fetch.
+      // Fall through to REST Browser Rendering.
     }
   }
 
@@ -140,6 +240,50 @@ export const fetchWebsiteHtml = async (
       options.browserRendering,
       fetchImpl
     );
+  }
+
+  return undefined;
+};
+
+/**
+ * Prefer a plain fetch. Thin pages use TinyFish Fetch, up to three distinct URLs.
+ * Browser Rendering stays the LCP path, and the HTML fallback when TinyFish is unset or fails.
+ */
+export const fetchWebsiteHtml = async (
+  url: string,
+  options: FetchWebsiteOptions = {}
+): Promise<string> => {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  let plainBody: string | undefined;
+  let plainOk = false;
+
+  if (!options.preferBrowser) {
+    try {
+      const plain = await fetchPlain(url, fetchImpl);
+      plainBody = plain.body;
+      plainOk = plain.ok;
+      if (plain.ok && !looksLikeThinSpa(plain.body)) {
+        return plain.body;
+      }
+    } catch {
+      // Fall through to a rendered fetch.
+    }
+  }
+
+  const rendered = await readTinyFishHtml(url, options.tinyFish, fetchImpl);
+  if (rendered.kind === "html") {
+    return rendered.html;
+  }
+
+  if (rendered.kind !== "capped") {
+    const browserHtml = await readBrowserHtml(url, options, fetchImpl);
+    if (browserHtml !== undefined) {
+      return browserHtml;
+    }
+  }
+
+  if (plainOk && plainBody !== undefined) {
+    return plainBody;
   }
 
   const fallback = await fetchPlain(url, fetchImpl);

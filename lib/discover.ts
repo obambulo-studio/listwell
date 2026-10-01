@@ -57,6 +57,8 @@ export const placeCandidateSchema = z.object({
   address: z.string().optional(),
   categoryId: z.enum(["food", "retail", "services", "other"]).optional(),
   id: z.string(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   name: z.string(),
   score: z.number().optional(),
   source: z.enum(["google", "apple", "osm"]),
@@ -128,6 +130,8 @@ export const candidateFromGooglePlace = (
       ? getCategoryIdFromGooglePlaceTypes(place.types)
       : undefined,
     id: place.id,
+    latitude: place.location?.latitude,
+    longitude: place.location?.longitude,
     name: place.displayName.text,
     source: "google",
     types: place.types,

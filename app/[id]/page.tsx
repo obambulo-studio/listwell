@@ -9,10 +9,13 @@ import { pointsFor } from "@/lib/checks/types";
 import {
   BUSINESS_KV_TTL_DAYS,
   getBusiness,
+  getResearchEntitlement,
   hasAuditKv,
   probeConvexBusinesses,
 } from "@/lib/data";
+import { monthlyResearchVisible } from "@/lib/entitlements-access";
 import { getReportAccess } from "@/lib/polar-server";
+import { loadResearchView } from "@/lib/research-load";
 import { isFileLikePathId } from "@/lib/site-metadata";
 import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
 
@@ -124,6 +127,10 @@ const ReportPage = async ({
     completedChecks,
     completedChecks.length === 0 ? "no_completed_checks" : "ai_binding_missing"
   );
+  const entitlement = await getResearchEntitlement(id);
+  const researchVisible =
+    monthlyResearchVisible(entitlement) && access.unlocked;
+  const research = researchVisible ? await loadResearchView(business) : null;
 
   return (
     <ReportClient
@@ -138,6 +145,8 @@ const ReportPage = async ({
       showKvExpiryNotice={showKvExpiryNotice}
       kvExpiryDays={BUSINESS_KV_TTL_DAYS}
       checkJobId={batch.pending.length > 0 ? batch.jobId : undefined}
+      research={research}
+      researchVisible={researchVisible}
     />
   );
 };

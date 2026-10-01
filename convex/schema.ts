@@ -5,24 +5,33 @@ import {
   entitlementKindValidator,
   entitlementStatusValidator,
   locationValidator,
+  pinnedCompetitorValidator,
   scanStatusValidator,
   scanTriggerValidator,
+  searchPhraseValidator,
+  seoCacheStatusValidator,
+  seoObservationKindValidator,
+  seoObservationStatusValidator,
+  seoSkipReasonValidator,
 } from "./lib/validators";
 
 export default defineSchema({
   businesses: defineTable({
     category: v.string(),
     categoryLabel: v.optional(v.string()),
+    competitors: v.optional(v.array(pinnedCompetitorValidator)),
     createdAt: v.string(),
     deliverooUrl: v.optional(v.string()),
     doorDashUrl: v.optional(v.string()),
     externalId: v.string(),
     facebookUsername: v.optional(v.string()),
+    hiddenCompetitorPlaceIds: v.optional(v.array(v.string())),
     instagramUsername: v.optional(v.string()),
     linkedinUrl: v.optional(v.string()),
     locations: v.array(locationValidator),
     menulogUrl: v.optional(v.string()),
     name: v.string(),
+    searchPhrases: v.optional(v.array(searchPhraseValidator)),
     tiktokUsername: v.optional(v.string()),
     uberEatsUrl: v.optional(v.string()),
     updatedAt: v.string(),
@@ -100,4 +109,45 @@ export default defineSchema({
     status: scanStatusValidator,
     trigger: scanTriggerValidator,
   }).index("by_businessExternalId", ["businessExternalId"]),
+
+  seoBudgets: defineTable({
+    businessExternalId: v.string(),
+    capUsdMicros: v.number(),
+    periodStart: v.string(),
+    spentUsdMicros: v.number(),
+    updatedAt: v.string(),
+  }).index("by_businessExternalId_and_periodStart", [
+    "businessExternalId",
+    "periodStart",
+  ]),
+
+  seoCache: defineTable({
+    costUsdMicros: v.number(),
+    fingerprint: v.string(),
+    finishedAt: v.optional(v.string()),
+    payloadJson: v.optional(v.string()),
+    startedAt: v.string(),
+    status: seoCacheStatusValidator,
+  }).index("by_fingerprint", ["fingerprint"]),
+
+  seoObservations: defineTable({
+    businessExternalId: v.string(),
+    costUsdMicros: v.number(),
+    kind: seoObservationKindValidator,
+    observedAt: v.string(),
+    payloadJson: v.optional(v.string()),
+    periodStart: v.string(),
+    phraseId: v.optional(v.string()),
+    pinId: v.optional(v.string()),
+    skipReason: v.optional(seoSkipReasonValidator),
+    status: seoObservationStatusValidator,
+  })
+    .index("by_business_and_kind", ["businessExternalId", "kind"])
+    .index("by_business_and_period", ["businessExternalId", "periodStart"]),
+
+  seoSpend: defineTable({
+    month: v.string(),
+    spentUsdMicros: v.number(),
+    updatedAt: v.string(),
+  }).index("by_month", ["month"]),
 });

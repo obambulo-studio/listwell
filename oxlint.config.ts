@@ -17,7 +17,11 @@ export default defineConfig({
   overrides: [
     {
       files: ["**/convex/**/*.ts"],
-      rules: convexPlugin.configs.recommended[0].rules,
+      rules: {
+        ...convexPlugin.configs.recommended[0].rules,
+        // Convex module paths reject hyphens, so kebab-case file names cannot deploy.
+        "unicorn/filename-case": "off",
+      },
     },
   ],
 });

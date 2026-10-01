@@ -29,6 +29,7 @@ import {
 } from "./social";
 import {
   checkWebsite200,
+  checkWebsiteAiVisibility,
   checkWebsiteCanonical,
   checkWebsiteGbpNap,
   checkWebsiteLocalBusinessJsonLd,
@@ -69,6 +70,7 @@ export const CHECK_RUNNERS: Record<CheckId, CheckRunner> = {
   "uber-eats-listing": checkUberEatsListing,
   website: checkWebsite,
   "website-200-299": checkWebsite200,
+  "website-ai-visibility": checkWebsiteAiVisibility,
   "website-canonical": checkWebsiteCanonical,
   "website-gbp-name-address-phone": checkWebsiteGbpNap,
   "website-localbusiness-jsonld": checkWebsiteLocalBusinessJsonLd,

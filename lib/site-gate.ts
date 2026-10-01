@@ -135,6 +135,9 @@ export const isSiteGateExemptPath = (pathname: string): boolean => {
   if (pathname === "/api/webhook/polar") {
     return true;
   }
+  if (pathname === "/api/internal/dataforseo/postback") {
+    return true;
+  }
   return false;
 };
 

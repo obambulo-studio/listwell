@@ -4,7 +4,7 @@ import { googlePlaceSchema } from "../schemas";
 import type { GooglePlace, PlacePrediction } from "../types";
 
 const PLACE_LIST_FIELD_MASK =
-  "places.id,places.displayName,places.websiteUri,places.formattedAddress,places.types,places.primaryType,places.primaryTypeDisplayName,places.location";
+  "places.id,places.displayName,places.websiteUri,places.formattedAddress,places.types,places.primaryType,places.primaryTypeDisplayName,places.location,places.rating,places.userRatingCount,places.photos";
 
 const GENERIC_PRIMARY_TYPES = new Set([
   "administrative_area_level_1",

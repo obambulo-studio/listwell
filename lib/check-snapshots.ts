@@ -41,7 +41,7 @@ const delay = (ms: number): Promise<void> =>
 const readSnapshot = async (
   snapshotId: string
 ): Promise<StoredSnapshot | null> => {
-  const row = await convexQuery(api["check-snapshots"].get, { snapshotId });
+  const row = await convexQuery(api.checkSnapshots.get, { snapshotId });
   return row;
 };
 
@@ -62,7 +62,7 @@ const claimShared = async (
   forceFresh: boolean,
   errorRetries: number
 ): Promise<SharedCheckRun> => {
-  const claim = await convexMutation(api["check-snapshots"].claim, {
+  const claim = await convexMutation(api.checkSnapshots.claim, {
     fingerprint,
     forceFresh,
   });
@@ -111,7 +111,7 @@ export const beginSharedCheckRun = async (
 
 export const failSharedCheckRun = async (snapshotId: string): Promise<void> => {
   try {
-    await convexMutation(api["check-snapshots"].finish, {
+    await convexMutation(api.checkSnapshots.finish, {
       snapshotId,
       status: "error",
     });
@@ -125,7 +125,7 @@ export const finishSharedCheckRun = async (
   payload: CheckBatchResponse
 ): Promise<void> => {
   try {
-    await convexMutation(api["check-snapshots"].finish, {
+    await convexMutation(api.checkSnapshots.finish, {
       payloadJson: JSON.stringify(payload),
       snapshotId,
       status: "complete",
@@ -149,7 +149,7 @@ export const publishSharedCheckRun = async (
   }
   try {
     const payload = checkBatchResponseSchema.parse({ pending: [], results });
-    await convexMutation(api["check-snapshots"].publish, {
+    await convexMutation(api.checkSnapshots.publish, {
       fingerprint,
       payloadJson: JSON.stringify(payload),
     });
@@ -167,7 +167,7 @@ export const readReusableCheckPayload = async (business: {
     return null;
   }
   try {
-    const rows = await convexQuery(api["check-snapshots"].latest, {
+    const rows = await convexQuery(api.checkSnapshots.latest, {
       fingerprint,
     });
     const selected = selectReusableSnapshot({

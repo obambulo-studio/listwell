@@ -173,7 +173,7 @@ const syncShareToConvex = async (input: {
   token: string;
 }): Promise<void> => {
   try {
-    await convexMutation(api["report-shares"].upsertActive, {
+    await convexMutation(api.reportShares.upsertActive, {
       businessExternalId: input.businessExternalId,
       expiresAt: input.expiresAt,
       token: input.token,
@@ -188,7 +188,7 @@ const revokeShareInConvex = async (input: {
   token: string;
 }): Promise<void> => {
   try {
-    await convexMutation(api["report-shares"].revoke, {
+    await convexMutation(api.reportShares.revoke, {
       businessExternalId: input.businessExternalId,
       token: input.token,
     });
@@ -201,7 +201,7 @@ const readShareFromConvex = async (
   token: string
 ): Promise<ReportShareRecord | null> => {
   const result = await runConvexRead(() =>
-    convexPublicQuery(api["report-shares"].getByToken, { token })
+    convexPublicQuery(api.reportShares.getByToken, { token })
   );
   if (result.status === "unavailable" || !result.value) {
     return null;
@@ -213,7 +213,7 @@ const readActiveShareFromConvex = async (
   businessId: string
 ): Promise<ReportShareRecord | null> => {
   const result = await runConvexRead(() =>
-    convexPublicQuery(api["report-shares"].getActiveForBusiness, {
+    convexPublicQuery(api.reportShares.getActiveForBusiness, {
       businessExternalId: businessId,
     })
   );

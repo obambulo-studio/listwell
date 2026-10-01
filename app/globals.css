@@ -1964,6 +1964,7 @@ button.listwell-panel__row:hover {
     animation: none;
   }
 
+  .listwell-research-chart,
   .listwell-panel__action,
   .listwell-chip,
   .listwell-panel__chevron,
@@ -2028,6 +2029,29 @@ button.listwell-panel__row:hover {
   display: none;
 }
 
+.listwell-chart {
+  --chart-1: var(--ink);
+  --chart-2: var(--accent);
+  --chart-3: var(--ink-3);
+  color: var(--ink-2);
+}
+
+.listwell-map-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.listwell-map-grid__cell {
+  min-width: 0;
+  padding: 8px;
+  border-radius: var(--radius-control);
+  background: var(--inset);
+  box-shadow: var(--shadow-hairline);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 @media print {
   @page {
     margin: 14mm 12mm;
@@ -2046,6 +2070,7 @@ button.listwell-panel__row:hover {
   .listwell-report .listwell-notice,
   .listwell-report form,
   .listwell-chat__composer,
+  .listwell-research-chart,
   [data-sonner-toaster] {
     display: none !important;
   }

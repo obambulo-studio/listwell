@@ -144,6 +144,208 @@ export const checkWebsiteRobots = async (
   }
 };
 
+const AI_ANSWER_BOTS = [
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "PerplexityBot",
+  "Claude-SearchBot",
+  "Claude-User",
+] as const;
+
+interface RobotsGroup {
+  agents: string[];
+  aiInput: "yes" | "no" | null;
+  acceptingAgents: boolean;
+}
+
+const parseAiInput = (value: string): "yes" | "no" | null => {
+  const match = /(?:^|,)\s*ai-input\s*=\s*(?<value>yes|no)\b/iu.exec(value);
+  const parsed = match?.groups?.value?.toLowerCase();
+  if (parsed === "yes" || parsed === "no") {
+    return parsed;
+  }
+  return null;
+};
+
+const parseRobotsGroups = (body: string): RobotsGroup[] => {
+  const groups: RobotsGroup[] = [];
+  let current: RobotsGroup | null = null;
+
+  for (const rawLine of body.split(/\r?\n/u)) {
+    const line = rawLine.replace(/#.*$/u, "").trim();
+    if (line.length === 0) {
+      continue;
+    }
+    const separator = line.indexOf(":");
+    if (separator === -1) {
+      continue;
+    }
+    const key = line.slice(0, separator).trim().toLowerCase();
+    const value = line.slice(separator + 1).trim();
+    if (key === "user-agent") {
+      if (current?.acceptingAgents) {
+        current.agents.push(value);
+      } else {
+        current = { acceptingAgents: true, agents: [value], aiInput: null };
+        groups.push(current);
+      }
+      continue;
+    }
+    if (!current) {
+      continue;
+    }
+    current.acceptingAgents = false;
+    if (key === "content-signal") {
+      const aiInput = parseAiInput(value);
+      if (aiInput) {
+        current.aiInput = aiInput;
+      }
+    }
+  }
+
+  return groups;
+};
+
+const aiInputForBot = (
+  groups: readonly RobotsGroup[],
+  bot: string
+): "yes" | "no" | null => {
+  const specific = groups.find((group) =>
+    group.agents.some((agent) => agent.toLowerCase() === bot.toLowerCase())
+  );
+  if (specific) {
+    return specific.aiInput;
+  }
+  const wildcard = groups.find((group) => group.agents.includes("*"));
+  return wildcard?.aiInput ?? null;
+};
+
+const directiveTokens = (value: string): string[] =>
+  value
+    .toLowerCase()
+    .split(/[,;]/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+
+const metaOptsOutOfAi = (
+  document: Awaited<ReturnType<CheckContext["getWebsiteDocument"]>>
+): boolean => {
+  for (const meta of document.querySelectorAll("meta")) {
+    const name = meta.getAttribute("name")?.toLowerCase();
+    if (name !== "robots" && name !== "googlebot") {
+      continue;
+    }
+    const content = meta.getAttribute("content");
+    if (content && directiveTokens(content).includes("noai")) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const headerOptsOutOfAi = (headers: Record<string, string>): boolean => {
+  const header = headers["x-robots-tag"];
+  return header ? directiveTokens(header).includes("noai") : false;
+};
+
+const looksLikeLlmsTxt = (body: string): boolean => {
+  const trimmed = body.trim();
+  if (trimmed.length < 8 || !trimmed.startsWith("#")) {
+    return false;
+  }
+  const head = trimmed.slice(0, 200).toLowerCase();
+  return !(
+    head.startsWith("<!doctype") ||
+    head.startsWith("<html") ||
+    head.startsWith("<head")
+  );
+};
+
+const aiVisibilityLabel = (
+  reasons: readonly string[],
+  missingRobots: boolean,
+  hasLlmsTxt: boolean
+): string => {
+  if (reasons.length > 0) {
+    return reasons.join(". ");
+  }
+  const access = missingRobots
+    ? "No robots.txt, so AI answer crawlers can read the homepage"
+    : "AI answer crawlers can read the homepage";
+  return hasLlmsTxt ? `${access}. llms.txt is published` : access;
+};
+
+export const checkWebsiteAiVisibility = async (
+  ctx: CheckContext
+): Promise<CheckResult> => {
+  if (!ctx.business.websiteUrl) {
+    return noWebsiteResult();
+  }
+  try {
+    const websiteUrl = new URL(ctx.business.websiteUrl);
+    const baseUrl = `${websiteUrl.protocol}//${websiteUrl.host}`;
+    const robotsUrl = `${baseUrl}/robots.txt`;
+    const homepageUrl = `${baseUrl}/`;
+    const fetched = await ctx.fetchText(robotsUrl);
+    const missingRobots = !fetched.ok && fetched.status === 404;
+
+    if (!fetched.ok && !missingRobots) {
+      return checkResult(
+        null,
+        `Could not access robots.txt: ${fetched.status || "Unknown error"}`
+      );
+    }
+    if (fetched.ok && !fetched.body) {
+      return checkResult(null, "Could not read robots.txt content");
+    }
+
+    const robots = fetched.ok ? robotsParser(robotsUrl, fetched.body) : null;
+    const groups = fetched.ok ? parseRobotsGroups(fetched.body) : [];
+    const blockedBots = AI_ANSWER_BOTS.filter(
+      (bot) => robots?.isAllowed(homepageUrl, bot) === false
+    );
+    const optedOutBots = AI_ANSWER_BOTS.filter(
+      (bot) => aiInputForBot(groups, bot) === "no"
+    );
+    const reasons: string[] = [];
+    if (blockedBots.length > 0) {
+      reasons.push(
+        `robots.txt blocks the homepage for ${blockedBots.join(", ")}`
+      );
+    }
+    if (optedOutBots.length > 0) {
+      reasons.push("Content-Signal sets ai-input=no");
+    }
+
+    try {
+      const [document, response] = await Promise.all([
+        ctx.getWebsiteDocument(),
+        ctx.getWebsiteResponse(),
+      ]);
+      if (metaOptsOutOfAi(document)) {
+        reasons.push("Homepage meta robots includes noai");
+      }
+      if (headerOptsOutOfAi(response.headers)) {
+        reasons.push("X-Robots-Tag includes noai");
+      }
+    } catch (error) {
+      if (reasons.length === 0) {
+        return fetchErrorResult(error, "Error fetching website");
+      }
+    }
+
+    const llms = await ctx.fetchText(`${baseUrl}/llms.txt`);
+    const hasLlmsTxt = llms.ok && looksLikeLlmsTxt(llms.body);
+
+    return checkResult(
+      reasons.length === 0,
+      aiVisibilityLabel(reasons, missingRobots, hasLlmsTxt)
+    );
+  } catch (error) {
+    return fetchErrorResult(error, "Error checking AI visibility");
+  }
+};
+
 const looksLikeSitemap = (content: string): boolean => {
   const trimmed = content.trim();
   return (

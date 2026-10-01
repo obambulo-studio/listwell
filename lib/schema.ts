@@ -1,12 +1,20 @@
 import { z } from "zod";
 
 import { categoryIdSchema, categoryLabelInputSchema } from "./category";
+import {
+  hiddenCompetitorPlaceIdsSchema,
+  pinnedCompetitorsSchema,
+  searchPhrasesSchema,
+} from "./seo-schema";
 
 export const locationInputSchema = z.object({
   address: z.string().optional(),
   appleMapsId: z.string().optional(),
   googlePlaceId: z.string().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   name: z.string().optional(),
+  pinId: z.string().optional(),
 });
 
 export const createBusinessRequestSchema = z.object({
@@ -42,23 +50,29 @@ export const locationSchema = z.object({
   createdAt: z.string(),
   googlePlaceId: z.string().nullable(),
   id: z.number(),
+  latitude: z.number().nullable().default(null),
+  longitude: z.number().nullable().default(null),
   name: z.string().nullable(),
+  pinId: z.string().nullable().default(null),
   updatedAt: z.string(),
 });
 
 export const businessSchema = z.object({
   category: categoryIdSchema,
   categoryLabel: z.string().nullable().default(null),
+  competitors: pinnedCompetitorsSchema.default([]),
   createdAt: z.string(),
   deliverooUrl: z.string().nullable(),
   doorDashUrl: z.string().nullable(),
   facebookUsername: z.string().nullable(),
+  hiddenCompetitorPlaceIds: hiddenCompetitorPlaceIdsSchema.default([]),
   id: z.string(),
   instagramUsername: z.string().nullable(),
   linkedinUrl: z.string().nullable(),
   locations: z.array(locationSchema),
   menulogUrl: z.string().nullable(),
   name: z.string(),
+  searchPhrases: searchPhrasesSchema.default([]),
   tiktokUsername: z.string().nullable(),
   uberEatsUrl: z.string().nullable(),
   updatedAt: z.string(),

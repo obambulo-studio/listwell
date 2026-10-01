@@ -1,11 +1,23 @@
 import type { CategoryId } from "./category";
-import { SCORE_DROP_ALERT_POINTS } from "./scan-config";
+import {
+  citationCount,
+  formatCount,
+  mapPackCellTotal,
+  phraseCellCount,
+  positionChangeSentence,
+  reviewGainSentence,
+} from "./research-report";
+import {
+  ORGANIC_RANK_DROP_ALERT_PLACES,
+  SCORE_DROP_ALERT_POINTS,
+} from "./scan-config";
 import {
   checkFixItem,
   failingCheckIds,
   rankFailingChecks,
 } from "./scan-email-hints";
 import type { CheckFixItem } from "./scan-email-hints";
+import type { PeriodSummaryPayload } from "./seo-schema";
 
 export interface ScanCheckResult {
   label?: string;
@@ -70,15 +82,269 @@ export const scoreDelta = (
   return current.score - previous.score;
 };
 
+export interface ScanEmailResearch {
+  competitorNames: Record<string, string>;
+  current: PeriodSummaryPayload | null;
+  phraseLabels: Record<string, string>;
+  previous: PeriodSummaryPayload | null;
+}
+
+const phraseLabel = (research: ScanEmailResearch, phraseId: string): string =>
+  research.phraseLabels[phraseId] ?? "a saved phrase";
+
+const phraseIds = (
+  previous: PeriodSummaryPayload | null,
+  current: PeriodSummaryPayload | null
+): string[] => {
+  const ids: string[] = [];
+  for (const summary of [previous, current]) {
+    for (const phraseId of Object.keys(summary?.organicPosition ?? {})) {
+      if (!ids.includes(phraseId)) {
+        ids.push(phraseId);
+      }
+    }
+    for (const phrases of Object.values(summary?.gridTop3Count ?? {})) {
+      for (const phraseId of Object.keys(phrases)) {
+        if (!ids.includes(phraseId)) {
+          ids.push(phraseId);
+        }
+      }
+    }
+  }
+  return ids;
+};
+
+const competitorIds = (
+  previous: PeriodSummaryPayload | null,
+  current: PeriodSummaryPayload | null
+): string[] => {
+  const ids: string[] = [];
+  for (const summary of [previous, current]) {
+    for (const placeId of Object.keys(summary?.competitors ?? {})) {
+      if (!ids.includes(placeId)) {
+        ids.push(placeId);
+      }
+    }
+  }
+  return ids;
+};
+
+const rankAndPackAlerts = (research: ScanEmailResearch): string[] => {
+  const lines: string[] = [];
+  for (const phraseId of phraseIds(research.previous, research.current)) {
+    const before = phraseCellCount(research.previous?.gridTop3Count, phraseId);
+    const after = phraseCellCount(research.current?.gridTop3Count, phraseId);
+    if (before !== undefined && before > 0 && after === 0) {
+      lines.push(
+        `'${phraseLabel(research, phraseId)}' lost all of its map-pack cells.`
+      );
+    }
+    const earlier = research.previous?.organicPosition?.[phraseId];
+    const later = research.current?.organicPosition?.[phraseId];
+    const dropped =
+      earlier !== undefined &&
+      later !== undefined &&
+      later - earlier >= ORGANIC_RANK_DROP_ALERT_PLACES;
+    if (dropped) {
+      lines.push(
+        `'${phraseLabel(research, phraseId)}' fell from position ${earlier} to position ${later}.`
+      );
+    }
+  }
+  return lines;
+};
+
+const competitorPassed = (
+  beforeSelf: number | undefined,
+  afterSelf: number | undefined,
+  beforeComp: number | undefined,
+  afterComp: number | undefined
+): boolean =>
+  beforeSelf !== undefined &&
+  afterSelf !== undefined &&
+  beforeComp !== undefined &&
+  afterComp !== undefined &&
+  beforeComp <= beforeSelf &&
+  afterComp > afterSelf;
+
+const competitorPassAlerts = (research: ScanEmailResearch): string[] => {
+  const lines: string[] = [];
+  for (const placeId of competitorIds(research.previous, research.current)) {
+    const name = research.competitorNames[placeId] ?? "A competitor";
+    for (const phraseId of phraseIds(research.previous, research.current)) {
+      if (
+        competitorPassed(
+          phraseCellCount(research.previous?.gridTop3Count, phraseId),
+          phraseCellCount(research.current?.gridTop3Count, phraseId),
+          research.previous?.competitors?.[placeId]?.gridTop3Count?.[phraseId],
+          research.current?.competitors?.[placeId]?.gridTop3Count?.[phraseId]
+        )
+      ) {
+        lines.push(
+          `${name} now holds more map-pack cells than you for '${phraseLabel(research, phraseId)}'.`
+        );
+      }
+    }
+  }
+  return lines;
+};
+
+export const researchAlertLines = (research: ScanEmailResearch): string[] => [
+  ...rankAndPackAlerts(research),
+  ...competitorPassAlerts(research),
+];
+
+const countChange = (
+  label: string,
+  previous: number | undefined,
+  current: number | undefined
+): string | null => {
+  if (current === undefined) {
+    return null;
+  }
+  if (previous === undefined) {
+    return `${label}: ${formatCount(current)}. No previous month yet.`;
+  }
+  const delta = current - previous;
+  if (delta === 0) {
+    return `${label}: ${formatCount(current)}. No change since last month.`;
+  }
+  const direction = delta > 0 ? "up" : "down";
+  return `${label}: ${formatCount(current)}, ${direction} ${formatCount(Math.abs(delta))} since last month.`;
+};
+
+const pushLine = (lines: string[], line: string | null): void => {
+  if (line) {
+    lines.push(line);
+  }
+};
+
+const organicChangeLines = (research: ScanEmailResearch): string[] => {
+  const lines: string[] = [];
+  for (const phraseId of phraseIds(research.previous, research.current)) {
+    const earlier = research.previous?.organicPosition?.[phraseId];
+    const later = research.current?.organicPosition?.[phraseId];
+    if (later === undefined) {
+      continue;
+    }
+    const label = phraseLabel(research, phraseId);
+    if (earlier === undefined) {
+      lines.push(
+        `'${label}' organic position: ${later}. No previous month yet.`
+      );
+      continue;
+    }
+    lines.push(
+      `'${label}' organic position: ${later}, ${positionChangeSentence(earlier, later)}.`
+    );
+  }
+  return lines;
+};
+
+const cellsTakenLines = (research: ScanEmailResearch): string[] => {
+  const lines: string[] = [];
+  for (const placeId of competitorIds(research.previous, research.current)) {
+    const name = research.competitorNames[placeId] ?? "A competitor";
+    for (const phraseId of phraseIds(research.previous, research.current)) {
+      const beforeSelf = phraseCellCount(
+        research.previous?.gridTop3Count,
+        phraseId
+      );
+      const afterSelf = phraseCellCount(
+        research.current?.gridTop3Count,
+        phraseId
+      );
+      const beforeComp =
+        research.previous?.competitors?.[placeId]?.gridTop3Count?.[phraseId];
+      const afterComp =
+        research.current?.competitors?.[placeId]?.gridTop3Count?.[phraseId];
+      const tookCells =
+        beforeSelf !== undefined &&
+        afterSelf !== undefined &&
+        beforeComp !== undefined &&
+        afterComp !== undefined &&
+        afterComp > beforeComp &&
+        afterSelf < beforeSelf;
+      if (tookCells) {
+        lines.push(
+          `${name} took map-pack cells from you for '${phraseLabel(research, phraseId)}'.`
+        );
+      }
+    }
+  }
+  return lines;
+};
+
+export const researchChangeLines = (research: ScanEmailResearch): string[] => {
+  const lines: string[] = [];
+  pushLine(
+    lines,
+    countChange(
+      "Reviews",
+      research.previous?.reviewCount,
+      research.current?.reviewCount
+    )
+  );
+  pushLine(
+    lines,
+    countChange(
+      "Map-pack cells",
+      mapPackCellTotal(research.previous?.gridTop3Count),
+      mapPackCellTotal(research.current?.gridTop3Count)
+    )
+  );
+  lines.push(...organicChangeLines(research));
+  pushLine(
+    lines,
+    countChange(
+      "AI Overview citations",
+      citationCount(research.previous?.aiOverview),
+      citationCount(research.current?.aiOverview)
+    )
+  );
+  pushLine(
+    lines,
+    reviewGainSentence({
+      competitors: competitorIds(research.previous, research.current).map(
+        (placeId) => ({
+          current: research.current?.competitors?.[placeId]?.reviewCount,
+          name: research.competitorNames[placeId] ?? "A competitor",
+          previous: research.previous?.competitors?.[placeId]?.reviewCount,
+        })
+      ),
+      selfCurrent: research.current?.reviewCount,
+      selfPrevious: research.previous?.reviewCount,
+    })
+  );
+  lines.push(...cellsTakenLines(research));
+  return lines;
+};
+
+const researchTableHtml = (lines: readonly string[]): string => {
+  if (lines.length === 0) {
+    return "";
+  }
+  const rows = lines
+    .map(
+      (line) =>
+        `<tr><td style="padding:6px 0;font-size:14px;line-height:1.45;color:#222">${escapeHtml(line)}</td></tr>`
+    )
+    .join("");
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:16px">${rows}</table>`;
+};
+
 export const pickScanEmailKind = (
   previous: ScanSnapshot | null,
-  current: ScanSnapshot
+  current: ScanSnapshot,
+  research?: ScanEmailResearch | null
 ): ScanEmailKind => {
   const delta = scoreDelta(previous, current);
   const broken = newlyBrokenChecks(previous, current);
+  const visibility = research ? researchAlertLines(research) : [];
   if (
     broken.length > 0 ||
-    (delta !== null && delta <= -SCORE_DROP_ALERT_POINTS)
+    (delta !== null && delta <= -SCORE_DROP_ALERT_POINTS) ||
+    visibility.length > 0
   ) {
     return "score_alert";
   }
@@ -198,6 +464,7 @@ export const buildScanEmail = (input: {
   previous: ScanSnapshot | null;
   listUnsubscribeUrl?: string;
   reportUrl: string;
+  research?: ScanEmailResearch | null;
   unsubscribeUrl: string;
 }): ScanEmailContent => {
   if (!input.unsubscribeUrl.trim()) {
@@ -208,7 +475,7 @@ export const buildScanEmail = (input: {
 
   const delta = scoreDelta(input.previous, input.current);
   const newlyBroken = newlyBrokenChecks(input.previous, input.current);
-  const kind = pickScanEmailKind(input.previous, input.current);
+  const kind = pickScanEmailKind(input.previous, input.current, input.research);
   const failing = rankFailingChecks(
     failingCheckIds(input.current),
     input.businessCategory
@@ -217,6 +484,11 @@ export const buildScanEmail = (input: {
   const alertItems = rankFailingChecks(newlyBroken, input.businessCategory).map(
     (id) => checkFixItem(id)
   );
+  const changeLines = input.research ? researchChangeLines(input.research) : [];
+  const alertLines = input.research ? researchAlertLines(input.research) : [];
+  const researchText =
+    changeLines.length > 0 ? `\n\n${changeLines.join("\n")}` : "";
+  const alertText = alertLines.length > 0 ? `\n\n${alertLines.join("\n")}` : "";
 
   const scoreLine =
     input.current.score === null
@@ -225,13 +497,19 @@ export const buildScanEmail = (input: {
   const deltaLine = formatDeltaText(delta);
 
   const preferencesFooter = `\n\nEmail preferences: ${input.unsubscribeUrl}`;
+  const scoreDropped =
+    newlyBroken.length > 0 ||
+    (delta !== null && delta <= -SCORE_DROP_ALERT_POINTS);
 
   if (kind === "score_alert") {
-    const subject = `Listwell alert: ${input.businessName} listing health dropped`;
-    const intro =
-      "Your scheduled Listwell scan found issues worth fixing soon.";
-    const text = `Hi,\n\n${intro}\n\n${scoreLine}\n${deltaLine}${fixListText(alertItems)}\n\nView the full report: ${input.reportUrl}${preferencesFooter}`;
-    const bodyHtml = `<p style="margin:0;font-size:16px;line-height:1.55;color:#222">Hi,</p><p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#222">${escapeHtml(intro)}</p>${fixListHtml("Checks that need attention", alertItems, "No new failing checks since your last scan.")}`;
+    const subject = scoreDropped
+      ? `Listwell alert: ${input.businessName} listing health dropped`
+      : `Listwell alert: ${input.businessName}`;
+    const intro = scoreDropped
+      ? "Your scheduled Listwell scan found issues worth fixing soon."
+      : "Your scheduled Listwell scan found a change in search visibility.";
+    const text = `Hi,\n\n${intro}\n\n${scoreLine}\n${deltaLine}${researchText}${alertText}${fixListText(alertItems)}\n\nView the full report: ${input.reportUrl}${preferencesFooter}`;
+    const bodyHtml = `<p style="margin:0;font-size:16px;line-height:1.55;color:#222">Hi,</p><p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#222">${escapeHtml(intro)}</p>${researchTableHtml(changeLines)}${researchTableHtml(alertLines)}${fixListHtml("Checks that need attention", alertItems, "No new failing checks since your last scan.")}`;
     return {
       html: renderEmailDocument({
         bodyHtml,
@@ -253,13 +531,13 @@ export const buildScanEmail = (input: {
   const intro = "Your monthly Listwell scan is ready.";
   const topFixHeading = "Top things to fix";
   const emptyFix = "Nothing new to fix — nice work.";
-  const text = `Hi,\n\n${intro}\n\n${scoreLine}\n${deltaLine}${
+  const text = `Hi,\n\n${intro}\n\n${scoreLine}\n${deltaLine}${researchText}${
     topThree.length > 0
       ? `\n\n${topFixHeading}:${fixListText(topThree)}`
       : `\n\n${emptyFix}`
   }\n\nView the report: ${input.reportUrl}${preferencesFooter}`;
 
-  const bodyHtml = `<p style="margin:0;font-size:16px;line-height:1.55;color:#222">Hi,</p><p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#222">${escapeHtml(intro)}</p>${fixListHtml(topFixHeading, topThree, emptyFix)}`;
+  const bodyHtml = `<p style="margin:0;font-size:16px;line-height:1.55;color:#222">Hi,</p><p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#222">${escapeHtml(intro)}</p>${researchTableHtml(changeLines)}${fixListHtml(topFixHeading, topThree, emptyFix)}`;
 
   return {
     html: renderEmailDocument({

@@ -2,8 +2,8 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireInternalSecret } from "./lib/internal";
-import { selectReusableSnapshot } from "./lib/scan-freshness";
-import type { SnapshotStatus } from "./lib/scan-freshness";
+import { selectReusableSnapshot } from "./lib/scanFreshness";
+import type { SnapshotStatus } from "./lib/scanFreshness";
 
 const RECENT_SNAPSHOT_LIMIT = 8;
 const MAX_PAYLOAD_CHARS = 400_000;

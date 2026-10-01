@@ -163,6 +163,7 @@ describe("website html checks", () => {
         "website-localbusiness-jsonld",
         "website-mobile-responsive",
         "website-robots",
+        "website-ai-visibility",
         "website-sitemap",
         "website-200-299",
       ],
@@ -184,6 +185,84 @@ describe("website html checks", () => {
     });
     expect(result.value).toBeFalsy();
     expect(result.label).toContain("too long");
+  });
+});
+
+describe("AI visibility", () => {
+  it("passes when only a training crawler is blocked", async () => {
+    const fetchImpl = mockFetch({
+      "seoulbistro.example": websitePage,
+      "seoulbistro.example/llms.txt": "# Seoul Bistro\n\n> Korean restaurant.",
+      "seoulbistro.example/robots.txt":
+        "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nAllow: /\nContent-Signal: ai-input=yes",
+    });
+    const result = await runCheck("website-ai-visibility", cafe, { fetchImpl });
+    expect(result).toStrictEqual(
+      checkResult(
+        true,
+        "AI answer crawlers can read the homepage. llms.txt is published"
+      )
+    );
+  });
+
+  it("fails when an answer crawler is blocked", async () => {
+    const fetchImpl = mockFetch({
+      "seoulbistro.example": websitePage,
+      "seoulbistro.example/robots.txt":
+        "User-agent: OAI-SearchBot\nDisallow: /\n\nUser-agent: *\nAllow: /",
+    });
+    const result = await runCheck("website-ai-visibility", cafe, { fetchImpl });
+    expect(result.value).toBeFalsy();
+    expect(result.label).toContain("OAI-SearchBot");
+  });
+
+  it("fails when Content-Signal opts out of AI answers", async () => {
+    const fetchImpl = mockFetch({
+      "seoulbistro.example": websitePage,
+      "seoulbistro.example/robots.txt":
+        "User-agent: *\nAllow: /\nContent-Signal: search=yes, ai-input=no, ai-train=no",
+    });
+    const result = await runCheck("website-ai-visibility", cafe, { fetchImpl });
+    expect(result).toMatchObject({
+      label: "Content-Signal sets ai-input=no",
+      value: false,
+    });
+  });
+
+  it("fails when the homepage meta tag opts out", async () => {
+    const fetchImpl = mockFetch({
+      "seoulbistro.example":
+        '<html><head><meta name="robots" content="index, noai" /></head><body></body></html>',
+      "seoulbistro.example/robots.txt": "User-agent: *\nAllow: /",
+    });
+    const result = await runCheck("website-ai-visibility", cafe, { fetchImpl });
+    expect(result.label).toContain("noai");
+    expect(result.value).toBeFalsy();
+  });
+
+  it("treats a missing robots.txt as allowed", async () => {
+    const fetchImpl = mockFetch({
+      "seoulbistro.example": websitePage,
+      "seoulbistro.example/robots.txt": new Response("not found", {
+        status: 404,
+      }),
+    });
+    const result = await runCheck("website-ai-visibility", cafe, { fetchImpl });
+    expect(result).toStrictEqual(
+      checkResult(
+        true,
+        "No robots.txt, so AI answer crawlers can read the homepage"
+      )
+    );
+  });
+
+  it("skips when no website is stored", async () => {
+    const result = await runCheck("website-ai-visibility", {
+      ...cafe,
+      websiteUrl: null,
+    });
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("No website URL");
   });
 });
 

@@ -26,6 +26,25 @@ export const fixStepsWithoutPayment = (input: {
 export const reportShowsFixSteps = (access: EntitlementState): boolean =>
   access.fixStepsWithoutPayment || (access.unlocked && !access.sessionRequired);
 
+/** Continued research stays visible on a share even though the viewer plan is cleared. */
+export const monthlyResearchVisible = (
+  entitlement: {
+    kind: EntitlementState["kind"];
+    status: "active" | "revoked";
+  } | null
+): boolean =>
+  entitlement?.kind === "report_monthly" && entitlement.status === "active";
+
+export const reportResearchChrome = (input: {
+  isOwner: boolean;
+  researchVisible: boolean;
+  showFixSteps: boolean;
+}): { fixSteps: boolean; phrasesEditor: boolean; research: boolean } => ({
+  fixSteps: input.showFixSteps,
+  phrasesEditor: input.isOwner && input.researchVisible,
+  research: input.researchVisible,
+});
+
 /** Read-only share links never inherit the purchaser's unlock state. */
 export const sharedViewerEntitlementState = (
   access: EntitlementState

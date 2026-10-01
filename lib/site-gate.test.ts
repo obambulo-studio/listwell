@@ -17,6 +17,9 @@ describe("site gate paths", () => {
   it("exempts auth, webhooks, and gate APIs", () => {
     expect(isSiteGateExemptPath("/api/auth/sign-in")).toBeTruthy();
     expect(isSiteGateExemptPath("/api/webhook/polar")).toBeTruthy();
+    expect(
+      isSiteGateExemptPath("/api/internal/dataforseo/postback")
+    ).toBeTruthy();
     expect(isSiteGateExemptPath("/api/site-gate/unlock")).toBeTruthy();
     expect(isSiteGateExemptPath("/.well-known/ai-catalog.json")).toBeTruthy();
   });

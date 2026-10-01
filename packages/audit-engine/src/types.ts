@@ -109,6 +109,7 @@ export interface AuditEngineEnv {
   appleMapkitPrivateKey?: string;
   cloudflareAccountId?: string;
   cloudflareApiToken?: string;
+  tinyFishApiKey?: string;
   typesafeApiKey?: string;
   typesafeModel?: string;
 }

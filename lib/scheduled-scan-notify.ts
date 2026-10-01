@@ -3,8 +3,10 @@ import type { CategoryId } from "./category";
 import {
   ensureNotificationPrefs,
   getActiveEntitlementOwner,
+  getBusiness,
   getScanEmailRecipient,
 } from "./data";
+import { loadEmailResearch } from "./research-load";
 import { buildScanEmail } from "./scan-email";
 import type { ScanSnapshot } from "./scan-email";
 import type { ScanRow } from "./schema";
@@ -100,6 +102,16 @@ export const notifyScheduledScanComplete = async (input: {
   const listUnsubscribeUrl = `${siteBase}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`;
 
   let email;
+  let research = null;
+  try {
+    const business = await getBusiness(input.businessId);
+    research = business ? await loadEmailResearch(business) : null;
+  } catch (error) {
+    console.error(
+      "notifyScheduledScanComplete: research summary skipped",
+      error
+    );
+  }
   try {
     email = buildScanEmail({
       businessCategory: input.businessCategory,
@@ -110,6 +122,7 @@ export const notifyScheduledScanComplete = async (input: {
         ? toSnapshot(input.previousComplete)
         : null,
       reportUrl,
+      research,
       unsubscribeUrl,
     });
   } catch (error) {

@@ -171,4 +171,75 @@ describe("scan email helpers", () => {
     expect(alert.html).toContain("Listwell");
     expect(summary.html).toContain("Email preferences");
   });
+
+  it("adds the monthly change and alerts on lost map pack, rank, and a competitor pass", () => {
+    const research = {
+      competitorNames: { bean: "Bean Bar" },
+      current: {
+        aiOverview: { cafe: "cited" as const },
+        competitors: {
+          bean: { gridTop3Count: { cafe: 6 }, reviewCount: 40 },
+        },
+        gridTop3Count: { pin_1: { cafe: 0 } },
+        organicPosition: { cafe: 8 },
+        reviewCount: 12,
+      },
+      phraseLabels: { cafe: "cafe Newtown" },
+      previous: {
+        aiOverview: { cafe: "none" as const },
+        competitors: {
+          bean: { gridTop3Count: { cafe: 2 }, reviewCount: 26 },
+        },
+        gridTop3Count: { pin_1: { cafe: 4 } },
+        organicPosition: { cafe: 3 },
+        reviewCount: 9,
+      },
+    };
+    const summary = buildScanEmail({
+      businessCategory: "food",
+      businessName: "Harbour Cafe",
+      current: { results: { website: { value: true } }, score: 72 },
+      previous: { results: { website: { value: true } }, score: 70 },
+      reportUrl: "https://listwell.dev/demo-cafe",
+      research,
+      unsubscribeUrl: UNSUB,
+    });
+    expect(summary.kind).toBe("score_alert");
+    expect(summary.text).toContain("Reviews: 12, up 3 since last month.");
+    expect(summary.text).toContain("lost all of its map-pack cells");
+    expect(summary.text).toContain("fell from position 3 to position 8");
+    expect(summary.text).toContain(
+      "Bean Bar now holds more map-pack cells than you for 'cafe Newtown'."
+    );
+  });
+
+  it("uses the stronger alert when research visibility drops without a score drop", () => {
+    const research = {
+      competitorNames: { bean: "Bean Bar" },
+      current: {
+        competitors: {
+          bean: { gridTop3Count: { cafe: 6 }, reviewCount: 40 },
+        },
+        gridTop3Count: { pin_1: { cafe: 0 } },
+        organicPosition: { cafe: 8 },
+        reviewCount: 12,
+      },
+      phraseLabels: { cafe: "cafe Newtown" },
+      previous: {
+        competitors: {
+          bean: { gridTop3Count: { cafe: 2 }, reviewCount: 26 },
+        },
+        gridTop3Count: { pin_1: { cafe: 4 } },
+        organicPosition: { cafe: 3 },
+        reviewCount: 9,
+      },
+    };
+    expect(
+      pickScanEmailKind(
+        { results: { website: { value: true } }, score: 70 },
+        { results: { website: { value: true } }, score: 72 },
+        research
+      )
+    ).toBe("score_alert");
+  });
 });

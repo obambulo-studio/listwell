@@ -76,6 +76,7 @@ import {
   lookupResponseSchema,
 } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
+import { withDiscoveryPin } from "@/lib/place-pin";
 import {
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
@@ -101,6 +102,11 @@ import {
 } from "@/lib/storage";
 import { normalizeChatInput } from "@/lib/text-normalize";
 import { waitForMs } from "@/lib/wait";
+
+const googleCandidate = (
+  candidate: PlaceCandidate | undefined
+): PlaceCandidate | undefined =>
+  candidate?.source === "google" ? candidate : undefined;
 
 const INITIAL_DRAFT: ChatDraft = {
   businessName: "",
@@ -1329,6 +1335,10 @@ const useListwellChat = () => {
         nextDraft.businessName,
         resolvedCategory,
         profiles
+      );
+      payload.locations = withDiscoveryPin(
+        payload.locations,
+        googleCandidate(candidate)
       );
       const address =
         discovery.address ?? nextDraft.address ?? candidate?.address;

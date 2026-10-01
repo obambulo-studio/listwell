@@ -24,7 +24,7 @@ const unsubscribeByToken = async (
 
   try {
     const result = await getConvexClient().mutation(
-      api["notification-preferences"].unsubscribeByToken,
+      api.notificationPreferences.unsubscribeByToken,
       { token: parsed.data.token }
     );
     if (!result.ok) {

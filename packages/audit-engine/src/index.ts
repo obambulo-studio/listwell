@@ -16,12 +16,19 @@ export { createCheckContext, firstGooglePlaceId } from "./context";
 export { runCheck, runChecks, splitQueuedChecks } from "./run";
 export { CHECK_RUNNERS } from "./checks";
 export {
+  TINYFISH_RENDER_URL_CAP,
+  createTinyFishFetchBudget,
   fetchWebsiteHtml,
   fetchWebsiteResponse,
   fetchBrowserRenderingHtml,
+  fetchTinyFishHtml,
   fetchPlain,
 } from "./browser";
-export type { FetchWebsiteOptions, BrowserRenderingConfig } from "./browser";
+export type {
+  FetchWebsiteOptions,
+  BrowserRenderingConfig,
+  TinyFishFetchBudget,
+} from "./browser";
 export { parseDocument, parseJsonLd } from "./html";
 export {
   fetchGooglePlace,

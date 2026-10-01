@@ -5,7 +5,7 @@ import { action, internalQuery, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import { authComponent, createAuth } from "./auth";
 import { requireInternalSecret } from "./lib/internal";
-import { userSummaryValidator } from "./lib/response-validators";
+import { userSummaryValidator } from "./lib/responseValidators";
 
 const userIdFromEmail = async (
   ctx: QueryCtx,

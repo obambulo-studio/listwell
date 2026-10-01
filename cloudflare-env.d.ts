@@ -105,6 +105,9 @@ interface CloudflareEnv {
   BROWSER?: Fetcher;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_API_TOKEN?: string;
+  DATAFORSEO_API_KEY?: string;
+  DATAFORSEO_MONTHLY_CEILING_USD?: string;
+  DATAFORSEO_SANDBOX?: string;
   GOOGLE_API_KEY?: string;
   GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID?: string;
   IMAGES?: ImagesBinding;
@@ -125,6 +128,7 @@ interface CloudflareEnv {
   POLAR_WEBHOOK_SECRET?: string;
   SITE_PASSWORD?: string;
   SITE_URL?: string;
+  TINYFISH_API_KEY?: string;
   TYPESAFE_API_KEY?: string;
   TYPESAFE_MODEL?: string;
   USESEND_API_KEY?: string;

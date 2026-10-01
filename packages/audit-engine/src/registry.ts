@@ -167,6 +167,13 @@ export const CHECK_DEFINITIONS: Record<CheckId, CheckDefinition> = {
     points: points(6, 8, 6, 7),
     queued: false,
   },
+  "website-ai-visibility": {
+    businessCategories: null,
+    channelCategory: "Website",
+    id: "website-ai-visibility",
+    points: points(2, 2, 3, 2),
+    queued: false,
+  },
   "website-canonical": {
     businessCategories: null,
     channelCategory: "Website",

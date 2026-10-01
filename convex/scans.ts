@@ -15,9 +15,9 @@ import {
   latestCompleteScanValidator,
   scanResponseValidator,
   scanSummaryValidator,
-} from "./lib/response-validators";
-import { runInSeries } from "./lib/run-in-series";
-import { parseScanResultsJson } from "./lib/scan-results";
+} from "./lib/responseValidators";
+import { runInSeries } from "./lib/runInSeries";
+import { parseScanResultsJson } from "./lib/scanResults";
 import { scanStatusValidator, scanTriggerValidator } from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();

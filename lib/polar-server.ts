@@ -34,6 +34,7 @@ import type { PolarWebhookEvent } from "./polar";
 import { startBaselineScan } from "./scans";
 import { checkoutPlanSchema, entitlementStateSchema } from "./schema";
 import type { CheckoutPlan, EntitlementKind, EntitlementState } from "./schema";
+import { ensureSuggestedSearchPhrases } from "./suggest-search-phrases";
 
 const optionalString = z.string().min(1).optional();
 const polarServerSchema = z.enum(["sandbox", "production"]);
@@ -230,6 +231,11 @@ export const polarCheckoutConfirmSchema = z.object({
 export type PolarCheckoutConfirm = z.infer<typeof polarCheckoutConfirmSchema>;
 
 const afterMonthlyGrant = async (businessId: string): Promise<void> => {
+  try {
+    await ensureSuggestedSearchPhrases(businessId);
+  } catch (error) {
+    console.error("Search phrase suggestions failed", error);
+  }
   await startBaselineScan(businessId);
 };
 

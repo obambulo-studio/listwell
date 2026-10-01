@@ -1,10 +1,20 @@
 import { v } from "convex/values";
 
+import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { authedQuery } from "./lib/custom-functions";
-import { businessResponseValidator } from "./lib/response-validators";
-import { locationValidator } from "./lib/validators";
+import { authedQuery } from "./lib/customFunctions";
+import { businessResponseValidator } from "./lib/responseValidators";
+import {
+  MAX_COMPETITORS,
+  MAX_HIDDEN_COMPETITORS,
+  MAX_SEARCH_PHRASES,
+} from "./lib/seo";
+import {
+  locationValidator,
+  pinnedCompetitorValidator,
+  searchPhraseValidator,
+} from "./lib/validators";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -27,12 +37,7 @@ const entitlementAllowsClaim = async (
 };
 
 const toLocationResponse = (
-  location: {
-    googlePlaceId?: string;
-    appleMapsId?: string;
-    name?: string;
-    address?: string;
-  },
+  location: Doc<"businesses">["locations"][number],
   businessExternalId: string,
   index: number,
   timestamp: string
@@ -43,43 +48,22 @@ const toLocationResponse = (
   createdAt: timestamp,
   googlePlaceId: location.googlePlaceId ?? null,
   id: index + 1,
+  latitude: location.latitude ?? null,
+  longitude: location.longitude ?? null,
   name: location.name ?? null,
+  pinId: location.pinId ?? null,
   updatedAt: timestamp,
 });
 
-const toBusinessResponse = (doc: {
-  _id: string;
-  externalId: string;
-  name: string;
-  category: string;
-  categoryLabel?: string;
-  websiteUrl?: string;
-  facebookUsername?: string;
-  instagramUsername?: string;
-  tiktokUsername?: string;
-  xUsername?: string;
-  linkedinUrl?: string;
-  youtubeUrl?: string;
-  uberEatsUrl?: string;
-  doorDashUrl?: string;
-  deliverooUrl?: string;
-  menulogUrl?: string;
-  userId?: string;
-  locations: {
-    googlePlaceId?: string;
-    appleMapsId?: string;
-    name?: string;
-    address?: string;
-  }[];
-  createdAt: string;
-  updatedAt: string;
-}) => ({
+const toBusinessResponse = (doc: Doc<"businesses">) => ({
   category: doc.category,
   categoryLabel: doc.categoryLabel ?? null,
+  competitors: doc.competitors ?? [],
   createdAt: doc.createdAt,
   deliverooUrl: doc.deliverooUrl ?? null,
   doorDashUrl: doc.doorDashUrl ?? null,
   facebookUsername: doc.facebookUsername ?? null,
+  hiddenCompetitorPlaceIds: doc.hiddenCompetitorPlaceIds ?? [],
   id: doc.externalId,
   instagramUsername: doc.instagramUsername ?? null,
   linkedinUrl: doc.linkedinUrl ?? null,
@@ -88,6 +72,7 @@ const toBusinessResponse = (doc: {
   ),
   menulogUrl: doc.menulogUrl ?? null,
   name: doc.name,
+  searchPhrases: doc.searchPhrases ?? [],
   tiktokUsername: doc.tiktokUsername ?? null,
   uberEatsUrl: doc.uberEatsUrl ?? null,
   updatedAt: doc.updatedAt,
@@ -281,6 +266,98 @@ export const update = mutation({
     }
 
     await ctx.db.patch("businesses", doc._id, patch);
+    const updated = await ctx.db.get("businesses", doc._id);
+    if (!updated) {
+      throw new Error("Failed to load updated business");
+    }
+    return toBusinessResponse(updated);
+  },
+  returns: businessResponseValidator,
+});
+
+const MAX_PHRASE_CHARS = 80;
+
+const findBusinessDoc = (ctx: Pick<MutationCtx, "db">, externalId: string) =>
+  ctx.db
+    .query("businesses")
+    .withIndex("by_externalId", (q) => q.eq("externalId", externalId))
+    .unique();
+
+/** Replaces saved phrases. The Worker assigns ids; a new wording needs a new id. */
+export const setSearchPhrases = mutation({
+  args: {
+    externalId: v.string(),
+    searchPhrases: v.array(searchPhraseValidator),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { requireInternalSecret } = await import("./lib/internal");
+    requireInternalSecret(args.secret);
+    if (args.searchPhrases.length > MAX_SEARCH_PHRASES) {
+      throw new Error("Too many search phrases");
+    }
+    const ids = new Set(args.searchPhrases.map((phrase) => phrase.id));
+    if (ids.size !== args.searchPhrases.length) {
+      throw new Error("Search phrase ids must be unique");
+    }
+    for (const phrase of args.searchPhrases) {
+      const text = phrase.text.trim();
+      if (text.length === 0 || text.length > MAX_PHRASE_CHARS) {
+        throw new Error("Invalid search phrase");
+      }
+    }
+    const doc = await findBusinessDoc(ctx, args.externalId);
+    if (!doc) {
+      throw new Error("Business not found");
+    }
+    await ctx.db.patch("businesses", doc._id, {
+      searchPhrases: args.searchPhrases.map((phrase) => ({
+        ...phrase,
+        text: phrase.text.trim(),
+      })),
+      updatedAt: nowIso(),
+    });
+    const updated = await ctx.db.get("businesses", doc._id);
+    if (!updated) {
+      throw new Error("Failed to load updated business");
+    }
+    return toBusinessResponse(updated);
+  },
+  returns: businessResponseValidator,
+});
+
+/** Pinned rivals and hidden suggestions. Grid and nearby rivals are computed per period. */
+export const setCompetitors = mutation({
+  args: {
+    competitors: v.array(pinnedCompetitorValidator),
+    externalId: v.string(),
+    hiddenCompetitorPlaceIds: v.array(v.string()),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { requireInternalSecret } = await import("./lib/internal");
+    requireInternalSecret(args.secret);
+    const pinned = [
+      ...new Set(args.competitors.map((competitor) => competitor.placeId)),
+    ];
+    if (pinned.length > MAX_COMPETITORS) {
+      throw new Error("Too many pinned competitors");
+    }
+    const hidden = [...new Set(args.hiddenCompetitorPlaceIds)].filter(
+      (placeId) => !pinned.includes(placeId)
+    );
+    if (hidden.length > MAX_HIDDEN_COMPETITORS) {
+      throw new Error("Too many hidden competitors");
+    }
+    const doc = await findBusinessDoc(ctx, args.externalId);
+    if (!doc) {
+      throw new Error("Business not found");
+    }
+    await ctx.db.patch("businesses", doc._id, {
+      competitors: pinned.map((placeId) => ({ placeId, source: "pinned" })),
+      hiddenCompetitorPlaceIds: hidden,
+      updatedAt: nowIso(),
+    });
     const updated = await ctx.db.get("businesses", doc._id);
     if (!updated) {
       throw new Error("Failed to load updated business");

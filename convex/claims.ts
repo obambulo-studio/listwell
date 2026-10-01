@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import type { MutationCtx } from "./_generated/server";
 import { linkPurchasedBusinesses } from "./entitlements";
-import { authedMutation } from "./lib/custom-functions";
+import { authedMutation } from "./lib/customFunctions";
 
 const nowIso = (): string => new Date().toISOString();
 

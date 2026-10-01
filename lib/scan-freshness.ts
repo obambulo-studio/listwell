@@ -3,8 +3,8 @@ export {
   SCAN_REUSE_WINDOW_MS,
   scanFingerprint,
   selectReusableSnapshot,
-} from "../convex/lib/scan-freshness";
+} from "../convex/lib/scanFreshness";
 export type {
   SnapshotClock,
   SnapshotStatus,
-} from "../convex/lib/scan-freshness";
+} from "../convex/lib/scanFreshness";

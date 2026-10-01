@@ -2,14 +2,16 @@ import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
-import { getBusiness } from "@/lib/data";
+import { getBusiness, getResearchEntitlement } from "@/lib/data";
 import {
   ensurePeerAudit,
   googlePlaceIdFromLocations,
   peerAuditJobSchema,
+  peerSelectionKeyForAudit,
   readLatestPeerJob,
   readPeerJob,
 } from "@/lib/peers";
+import { getReportAccess } from "@/lib/polar-server";
 import { consumeRateLimit } from "@/lib/rate-limit-kv";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,22 @@ const querySchema = z.object({
 const missingBusiness = () =>
   NextResponse.json({ error: "Business not found" }, { status: 404 });
 
+/** Free previews stay nearby-only. Continued reports add the map pack. Pins stay on unlocked reports. */
+const comparisonMode = async (
+  businessId: string
+): Promise<{ includeMapPack: boolean; preview: boolean }> => {
+  const [access, entitlement] = await Promise.all([
+    getReportAccess(businessId),
+    getResearchEntitlement(businessId),
+  ]);
+  const continued =
+    entitlement?.kind === "report_monthly" && entitlement.status === "active";
+  return {
+    includeMapPack: continued,
+    preview: !access.unlocked && !continued,
+  };
+};
+
 export const GET = async (
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -39,11 +57,13 @@ export const GET = async (
     const query = querySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams)
     );
+    const mode = await comparisonMode(business.id);
     const placeId = googlePlaceIdFromLocations(business.locations);
+    const selectionKey = await peerSelectionKeyForAudit(business, mode);
     const job = query.jobId
       ? await readPeerJob(query.jobId)
-      : await readLatestPeerJob(business.id, placeId);
-    const shared = await readLatestPeerJob(business.id, placeId);
+      : await readLatestPeerJob(business.id, placeId, selectionKey);
+    const shared = await readLatestPeerJob(business.id, placeId, selectionKey);
     if (!job || (job.businessId !== business.id && shared?.id !== job.id)) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
@@ -82,7 +102,11 @@ export const POST = async (
     if (!business) {
       return missingBusiness();
     }
-    const job = await ensurePeerAudit(business);
+    const mode = await comparisonMode(business.id);
+    const job = await ensurePeerAudit(business, {
+      includeMapPack: mode.includeMapPack,
+      preview: mode.preview,
+    });
     return NextResponse.json(peerAuditJobSchema.parse(job));
   } catch (error) {
     if (error instanceof ZodError) {

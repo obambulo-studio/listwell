@@ -98,7 +98,7 @@ export const PlaceSearch = ({
   label,
   onSelect,
 }: {
-  source: "google-search" | "apple-search" | "places";
+  source: "apple-search" | "google-autocomplete" | "google-search" | "places";
   label: string;
   onSelect: (candidate: PlaceCandidate) => void;
 }) => {

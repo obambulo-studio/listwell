@@ -145,11 +145,20 @@ Lookups:
 - `GOOGLE_API_KEY` - Google Places, Google Business Profile checks, Programmable Search, CrUX, PageSpeed
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - web search for social and website discovery
 - `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY` - Apple Maps search
-- `LISTWELL_BROWSER_RENDERING_ACCOUNT_ID`, `LISTWELL_BROWSER_RENDERING_API_TOKEN` - Browser Rendering REST
+- `LISTWELL_BROWSER_RENDERING_ACCOUNT_ID`, `LISTWELL_BROWSER_RENDERING_API_TOKEN` - Browser Rendering REST for synthetic LCP, and for HTML when TinyFish Fetch is unset
+- `TINYFISH_API_KEY` - optional free TinyFish Fetch for up to three thin pages per audit. Agent and Exa calls are not used on the report
 - `TYPESAFE_API_KEY` - optional TypeSafe Jev for listing disambiguation, social/website hit selection, and chat intake (chat and discover fall back without it)
 - `TYPESAFE_MODEL` - optional, default `jev-latest`
 
 Business names, suburbs, and URLs sent to Jev are processed by TypeSafe when this key is set. Do not enable it for flows that must stay fully on-prem unless your privacy policy covers that.
+
+SEO research (continued reports only, Worker only):
+
+- `DATAFORSEO_API_KEY` - base64 of `login:password` from the DataForSEO API access page. Research is skipped without it
+- `DATAFORSEO_MONTHLY_CEILING_USD` - spend limit across all businesses for one calendar month (UTC). Research is skipped with reason `ceiling` when it is reached or unset
+- `DATAFORSEO_SANDBOX` - `1` sends every call to `sandbox.dataforseo.com`, which returns sample data at no cost. Use it for local development and tests
+
+Business names, suburbs, website domains, and saved phrases are sent to DataForSEO when `DATAFORSEO_API_KEY` is set. Do not enable it unless your privacy policy covers that.
 
 Payments and email:
 
@@ -228,7 +237,7 @@ npx wrangler secret put SITE_PASSWORD --config wrangler.jsonc
 bun run cf:sync-env
 ```
 
-Health checks, `robots.txt`, `sitemap.xml`, static assets, Better Auth (`/api/auth/*`), Polar webhooks, and the gate APIs stay reachable without the cookie.
+Health checks, `robots.txt`, `sitemap.xml`, static assets, Better Auth (`/api/auth/*`), Polar webhooks, the DataForSEO postback, and the gate APIs stay reachable without the cookie.
 
 Waitlist rows are stored in `AUDIT_KV` under `site-interest:by-email:<email>` (easy to migrate into Convex later).
 
@@ -251,6 +260,8 @@ bash scripts/export-site-interest.sh site-interest-export.json
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - social and website discovery
 - `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY`
 - `LISTWELL_BROWSER_RENDERING_ACCOUNT_ID` and `LISTWELL_BROWSER_RENDERING_API_TOKEN`
+- `TINYFISH_API_KEY` - optional free rendered HTML for thin pages
+- `DATAFORSEO_API_KEY`, `DATAFORSEO_MONTHLY_CEILING_USD` - SEO research on continued reports. Queued DataForSEO tasks post results to `/api/internal/dataforseo/postback` with a per-task token
 
 You can use `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` instead of the `LISTWELL_BROWSER_RENDERING_*` pair for Browser Rendering REST.
 
@@ -258,7 +269,9 @@ Full Google Business Profile quality needs `GOOGLE_API_KEY`. That key gives offi
 
 Without the key, create-audit and listing checks use Nominatim, pasted URLs, website markup, and a synthetic browser LCP. That path does not give official reviews, a photo gallery, Places category, or claimed-listing facts.
 
-The product does not scrape Google Maps HTML. It does not bypass bot walls.
+Listwell does not scrape Google itself. Continued reports buy Maps, organic, review, keyword, and backlink data from DataForSEO. It does not bypass bot walls.
+
+Places, the listing checks, and the free preview do not use DataForSEO.
 
 ## Polar payments
 

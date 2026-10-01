@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
-import { authedQuery } from "./lib/custom-functions";
-import { accountReportValidator } from "./lib/response-validators";
+import { authedQuery } from "./lib/customFunctions";
+import { accountReportValidator } from "./lib/responseValidators";
 
 type ReportPlan = "preview" | "once" | "monthly";
 

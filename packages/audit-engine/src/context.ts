@@ -1,4 +1,9 @@
-import { fetchText, fetchWebsiteHtml, fetchWebsiteResponse } from "./browser";
+import {
+  createTinyFishFetchBudget,
+  fetchText,
+  fetchWebsiteHtml,
+  fetchWebsiteResponse,
+} from "./browser";
 import type { FetchWebsiteOptions } from "./browser";
 import { parseDocument } from "./html";
 import type { HtmlDocument } from "./html";
@@ -86,6 +91,11 @@ export const createCheckContext = (
       apiToken: env.cloudflareApiToken,
     },
     fetchImpl,
+    tinyFish:
+      options.tinyFish ??
+      (env.tinyFishApiKey
+        ? createTinyFishFetchBudget(env.tinyFishApiKey)
+        : undefined),
   };
 
   let htmlPromise: Promise<string> | undefined;
