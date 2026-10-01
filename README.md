@@ -87,7 +87,7 @@ Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun
 
 On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`.
 
-**Preview deployments:** Non-`main` branches use Cloudflare Workers Builds preview deployments. The preview trigger runs `npx wrangler versions upload --keep-vars` after `bun run cf:build` (see `scripts/sync-workers-build-env.mjs`). Each build gets a preview URL in the Workers Builds check on the pull request. Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` in `wrangler.jsonc` so previews do not share the live hostname.
+**Preview deployments:** Non-`main` Workers Builds triggers run `npx wrangler preview` after the OpenNext build (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, R2, AI, Browser, Images, and Durable Objects. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
 
 Run smoke against a preview host:
 
