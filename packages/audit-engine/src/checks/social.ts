@@ -55,11 +55,22 @@ export const checkSocialProfileBanner = async (
   if (resolved.kind === "result") {
     return resolved.result;
   }
-  const missing = resolved.profiles.filter((profile) => !profile.bannerUrl);
+  const decided = resolved.profiles.filter(
+    (profile) => profile.hasBanner !== undefined || profile.bannerUrl
+  );
+  if (decided.length === 0) {
+    return checkResult(
+      null,
+      "Cover image could not be read. We do not invent a missing image."
+    );
+  }
+  const missing = decided.filter(
+    (profile) => !profile.bannerUrl && profile.hasBanner !== true
+  );
   if (missing.length > 0) {
     return checkResult(false, `No banner on ${joinLabels(missing)}.`);
   }
-  return checkResult(true, `Banner found on ${joinLabels(resolved.profiles)}.`);
+  return checkResult(true, `Banner found on ${joinLabels(decided)}.`);
 };
 
 export const checkSocialProfileImageMatch = async (
@@ -100,6 +111,9 @@ export const checkSocialProfileFreshness = async (
   let passes = true;
   for (const profile of resolved.profiles) {
     if (!profile.latestPostAt) {
+      if (!profile.postKnown) {
+        continue;
+      }
       parts.push(`${profile.label} no public post (0)`);
       passes = false;
       continue;
@@ -115,6 +129,12 @@ export const checkSocialProfileFreshness = async (
     if (score < FRESHNESS_PASS_SCORE) {
       passes = false;
     }
+  }
+  if (parts.length === 0) {
+    return checkResult(
+      null,
+      "No public post date could be read. We do not invent a post date."
+    );
   }
   return checkResult(passes, parts.join(" · "));
 };

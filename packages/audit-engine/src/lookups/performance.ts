@@ -39,6 +39,19 @@ const pageSpeedSchema = z.object({
         .optional(),
     })
     .optional(),
+  loadingExperience: z
+    .object({
+      metrics: z
+        .object({
+          LARGEST_CONTENTFUL_PAINT_MS: z
+            .object({
+              percentile: z.number().optional(),
+            })
+            .optional(),
+        })
+        .optional(),
+    })
+    .optional(),
 });
 
 export const performanceDataSchema = z.object({
@@ -103,6 +116,43 @@ export const performanceFromTiming = (
   });
 };
 
+const cruxOrigin = (url: string): string | undefined => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+};
+
+const queryCruxRecord = async (
+  body: { origin: string } | { url: string },
+  googleApiKey: string,
+  fetchImpl: typeof fetch
+): Promise<PerformanceData> => {
+  const response = await fetchImpl(
+    `https://chromeuxreport.googleapis.com/v1/records:queryRecord?key=${googleApiKey}`,
+    {
+      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }
+  );
+  const parsed = cruxSchema.safeParse(await response.json());
+  const lcp = parsed.success
+    ? parsed.data.record?.metrics?.largest_contentful_paint?.percentiles?.p75
+    : undefined;
+  const passes = lcp !== undefined && lcp < LCP_GOOD_MS;
+  const scope = "origin" in body ? " for the site origin" : "";
+  return {
+    lcp,
+    message:
+      lcp === undefined
+        ? "No LCP data available"
+        : `LCP p75${scope}: ${lcp}ms (${passes ? "good" : "needs improvement"})`,
+    passes,
+  };
+};
+
 export const fetchCruxPerformance = async (
   url: string,
   googleApiKey: string | undefined,
@@ -113,27 +163,19 @@ export const fetchCruxPerformance = async (
   }
 
   try {
-    const response = await fetchImpl(
-      `https://chromeuxreport.googleapis.com/v1/records:queryRecord?key=${googleApiKey}`,
-      {
-        body: JSON.stringify({ url }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }
-    );
-    const parsed = cruxSchema.safeParse(await response.json());
-    const lcp = parsed.success
-      ? parsed.data.record?.metrics?.largest_contentful_paint?.percentiles?.p75
-      : undefined;
-    const passes = lcp !== undefined && lcp < LCP_GOOD_MS;
-    return {
-      lcp,
-      message:
-        lcp === undefined
-          ? "No LCP data available"
-          : `LCP p75: ${lcp}ms (${passes ? "good" : "needs improvement"})`,
-      passes,
-    };
+    const page = await queryCruxRecord({ url }, googleApiKey, fetchImpl);
+    if (page.lcp !== undefined) {
+      return page;
+    }
+    const origin = cruxOrigin(url);
+    if (!origin) {
+      return page;
+    }
+    const site = await queryCruxRecord({ origin }, googleApiKey, fetchImpl);
+    if (site.lcp !== undefined) {
+      return site;
+    }
+    return page;
   } catch (error) {
     return {
       message: `CrUX API error: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -154,13 +196,18 @@ export const fetchPageSpeedPerformance = async (
 
   try {
     const response = await fetchImpl(
-      `https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${googleApiKey}`
+      `https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&key=${googleApiKey}`
     );
     const parsed = pageSpeedSchema.safeParse(await response.json());
-    const lcpValue = parsed.success
+    const lighthouse = parsed.success
       ? parsed.data.lighthouseResult?.audits?.["largest-contentful-paint"]
           ?.numericValue
       : undefined;
+    const field = parsed.success
+      ? parsed.data.loadingExperience?.metrics?.LARGEST_CONTENTFUL_PAINT_MS
+          ?.percentile
+      : undefined;
+    const lcpValue = lighthouse ?? field;
     const passes = lcpValue !== undefined && lcpValue < LCP_GOOD_MS;
     return {
       lcp: lcpValue === undefined ? undefined : Math.round(lcpValue),

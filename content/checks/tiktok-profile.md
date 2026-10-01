@@ -14,7 +14,7 @@ businessCategories:
 
 Reach younger audiences and showcase your business personality on TikTok - the fastest-growing social platform with over 1 billion active users worldwide.
 
-::tech-detail{summary="What we check for TikTok presence"} We verify if your business has an active TikTok profile URL stored in our system. This indicates whether you've created and maintained a presence on TikTok's platform. TikTok is particularly effective for businesses targeting Gen Z and millennial customers, with high engagement rates and viral potential. ::
+::tech-detail{summary="What we check for TikTok presence"} We use a TikTok profile URL stored on the audit. When that URL is missing and a Google search key is configured, we search for a public TikTok profile. A search with no matching profile fails the check. If there is no stored URL and no search key, the check does not run. ::
 
 ## What we're checking
 

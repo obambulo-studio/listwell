@@ -195,7 +195,7 @@ export const recommendedSocialMedia: Record<
   z.infer<typeof channelIdSchema>[]
 > = {
   food: ["facebook", "instagram", "tiktok"],
-  other: ["facebook", "instagram"],
+  other: ["facebook", "instagram", "tiktok"],
   retail: ["facebook", "instagram", "tiktok", "youtube"],
   services: ["facebook"],
 };

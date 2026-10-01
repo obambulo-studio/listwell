@@ -27,7 +27,7 @@ const results = await runChecks(business, undefined, {
 - Website HTML is fetched once per run and shared across checks.
 - Plain `fetch` is used first. Cloudflare Browser Rendering (Workers binding, then REST `/content`) is only used when the page looks like a thin SPA.
 - Listing checks call Google Places when a Place ID and API key exist. They fall back to website and pasted listing HTML only when Places is unavailable.
-- `website-performance` uses CrUX then PageSpeed when a Google API key exists, otherwise a synthetic Browser Rendering LCP. It is marked `queued` so the Next Worker can finish it in the background.
+- `website-performance` uses CrUX for the page URL, then the site origin, then PageSpeed when a Google API key exists, otherwise a synthetic Browser Rendering LCP. It is marked `queued` so the Next Worker can finish it in the background.
 
 ## Next Worker routes
 

@@ -1,5 +1,6 @@
 import { noWebsiteResult } from "../context";
 import type { CheckContext } from "../context";
+import { searchSocial } from "../lookups/social";
 import { checkResult } from "../schemas";
 import type { CheckResult } from "../types";
 
@@ -32,10 +33,36 @@ export const checkInstagramProfile = (
     presenceResult(ctx.business.instagramUsername, "Instagram profile")
   );
 
-export const checkTikTokProfile = (ctx: CheckContext): Promise<CheckResult> =>
-  Promise.resolve(
-    presenceResult(ctx.business.tiktokUsername, "TikTok profile")
+const TIKTOK_MATCH_SCORE = 0.7;
+
+export const checkTikTokProfile = async (
+  ctx: CheckContext
+): Promise<CheckResult> => {
+  if (ctx.business.tiktokUsername) {
+    return checkResult(true);
+  }
+  const canSearch = Boolean(
+    ctx.env.googleApiKey && ctx.env.googleProgrammableSearchEngineId
   );
+  if (!canSearch) {
+    return checkResult(null, "No TikTok profile linked to this audit");
+  }
+  try {
+    const hits = await searchSocial("tiktok", ctx.business.name, (query) =>
+      ctx.googleSearch(query)
+    );
+    const [hit] = hits;
+    if (!hit || hit.score < TIKTOK_MATCH_SCORE) {
+      return checkResult(false, "No TikTok profile found in search");
+    }
+    return checkResult(true, hit.url);
+  } catch (error) {
+    return checkResult(
+      null,
+      error instanceof Error ? error.message : "TikTok search failed"
+    );
+  }
+};
 
 export const checkLinkedInProfile = (ctx: CheckContext): Promise<CheckResult> =>
   Promise.resolve(presenceResult(ctx.business.linkedinUrl, "LinkedIn profile"));

@@ -315,7 +315,7 @@ All 32 check IDs in `content/checks` run in the Next.js Worker.
 - If Places is unavailable, listing facts come from website schema.org and visible name-address-phone (NAP).
 - Listing facts also come from HTML of listing URLs the user pasted.
 - If fetch of a listing URL fails and Places is unavailable, that check is inconclusive.
-- `website-performance` uses Chrome User Experience Report (CrUX) then PageSpeed when `GOOGLE_API_KEY` is present.
+- `website-performance` uses Chrome User Experience Report (CrUX) for the page URL, then the site origin, then PageSpeed when `GOOGLE_API_KEY` is present.
 - If that key is absent, it uses a synthetic Browser Rendering Largest Contentful Paint (LCP).
 
 Presence checks for Facebook, Instagram, TikTok, LinkedIn, YouTube, and food delivery test stored fields. Programmable Search can also find social profiles when configured.

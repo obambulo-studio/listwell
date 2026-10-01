@@ -415,6 +415,22 @@ describe("google listing checks", () => {
   });
 });
 
+const fetchOriginCrux: typeof fetch = (_input, init) => {
+  const body = typeof init?.body === "string" ? init.body : "";
+  if (body.includes('"origin"')) {
+    return Promise.resolve(
+      Response.json({
+        record: {
+          metrics: {
+            largest_contentful_paint: { percentiles: { p75: 2100 } },
+          },
+        },
+      })
+    );
+  }
+  return Promise.resolve(Response.json({}));
+};
+
 describe("website performance", () => {
   it("prefers CrUX LCP when a Google API key is present", async () => {
     const fetchImpl = mockFetch({
@@ -458,6 +474,16 @@ describe("website performance", () => {
     expect(result.value).toBeNull();
     expect(result.label).toContain("Browser Rendering");
     expect(result.label).not.toContain("API key");
+  });
+
+  it("uses origin CrUX when the exact URL has no LCP", async () => {
+    const result = await runCheck("website-performance", cafe, {
+      env: { googleApiKey: "test-key" },
+      fetchImpl: fetchOriginCrux,
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("site origin");
+    expect(result.label).toContain("2100ms");
   });
 });
 
@@ -653,5 +679,122 @@ describe("social profile checks", () => {
     });
     expect(result.value).toBeFalsy();
     expect(result.label).toContain("Instagram 120 days ago (0)");
+  });
+
+  it("reads a YouTube banner and recent post from public page data", async () => {
+    const youtube = `<!doctype html><html><head><title>Haddon Institute - YouTube</title></head><body>Log in
+      <script>ytInitialData</script>
+      "avatar":{"thumbnails":[{"url":"https://cdn.example/logo.png","width":90}
+      "imageBannerViewModel":{"image":{"sources":[{"url":"https://cdn.example/banner.jpg","width":1060}
+      "publishedTimeText":{"simpleText":"2 days ago"}
+    </body></html>`;
+    const banner = await runCheck(
+      "social-profile-banner",
+      {
+        ...socialBusiness,
+        facebookUsername: null,
+        instagramUsername: null,
+        youtubeUrl: "https://www.youtube.com/@haddoninstitute",
+      },
+      { fetchImpl: mockFetch({ "youtube.com": youtube }) }
+    );
+    expect(banner.value).toBeTruthy();
+    expect(banner.label).toContain("YouTube");
+    const freshness = await runCheck(
+      "social-profile-freshness",
+      {
+        ...socialBusiness,
+        facebookUsername: null,
+        instagramUsername: null,
+        youtubeUrl: "https://www.youtube.com/@haddoninstitute",
+      },
+      { fetchImpl: mockFetch({ "youtube.com": youtube }) }
+    );
+    expect(freshness.value).toBeTruthy();
+    expect(freshness.label).toContain("YouTube");
+    expect(freshness.label).toContain("(100)");
+  });
+
+  it("reads a Facebook cover from the page plugin without treating a login link as a wall", async () => {
+    const result = await runCheck(
+      "social-profile-banner",
+      { ...socialBusiness, instagramUsername: null },
+      {
+        fetchImpl: mockFetch({
+          "facebook.com":
+            "<!doctype html><html><head><title>Haddon Institute</title></head><body>Log in to see more. Public page for visitors.</body></html>",
+          "plugins/page.php":
+            '<html><script>{"has_cover":true}</script><img src="https://scontent.example/logo.png" /></html>',
+        }),
+      }
+    );
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("Facebook");
+  });
+
+  it("does not invent an Instagram banner from a profile photo", async () => {
+    const result = await runCheck(
+      "social-profile-banner",
+      {
+        ...socialBusiness,
+        facebookUsername: null,
+        instagramUsername: "haddoninstitute",
+      },
+      {
+        fetchImpl: mockFetch({
+          "instagram.com": `<!doctype html><html><head>
+            <title>Haddon Institute</title>
+            <meta property="og:type" content="profile" />
+            <meta property="og:image" content="https://cdn.example/logo.png" />
+          </head><body>Log in</body></html>`,
+        }),
+      }
+    );
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("Cover image could not be read");
+  });
+});
+
+describe("TikTok profile", () => {
+  it("stays inconclusive when no profile is stored and search is not configured", async () => {
+    const result = await runCheck("tiktok-profile", cafe, { env: {} });
+    expect(result.value).toBeNull();
+    expect(result.label).toContain("No TikTok profile");
+  });
+
+  it("passes when Google search finds a TikTok profile", async () => {
+    const result = await runCheck("tiktok-profile", cafe, {
+      env: {
+        googleApiKey: "test-key",
+        googleProgrammableSearchEngineId: "cx",
+      },
+      fetchImpl: mockFetch({
+        "customsearch.googleapis.com": Response.json({
+          items: [
+            {
+              link: "https://www.tiktok.com/@seoulbistro",
+              snippet: "Seoul Bistro on TikTok",
+              title: "Seoul Bistro | TikTok",
+            },
+          ],
+        }),
+      }),
+    });
+    expect(result.value).toBeTruthy();
+    expect(result.label).toContain("tiktok.com/@seoulbistro");
+  });
+
+  it("fails when Google search finds no TikTok profile", async () => {
+    const result = await runCheck("tiktok-profile", cafe, {
+      env: {
+        googleApiKey: "test-key",
+        googleProgrammableSearchEngineId: "cx",
+      },
+      fetchImpl: mockFetch({
+        "customsearch.googleapis.com": Response.json({ items: [] }),
+      }),
+    });
+    expect(result.value).toBeFalsy();
+    expect(result.label).toContain("No TikTok profile found");
   });
 });
