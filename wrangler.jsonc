@@ -75,15 +75,15 @@
       "deleted_classes": ["DOQueueHandler"],
     },
   ],
-  "vars": {
+"vars": {
     "CONVEX_DEPLOYMENT": "prod:fine-elephant-894",
     "NEXT_PUBLIC_CONVEX_SITE_URL": "https://fine-elephant-894.ap-southeast-2.convex.site",
     "NEXT_PUBLIC_CONVEX_URL": "https://fine-elephant-894.ap-southeast-2.convex.cloud",
     "NEXT_PUBLIC_SITE_URL": "https://listwell.dev",
-    "POLAR_SERVER": "sandbox",
+    "POLAR_SERVER": "production",
     "SITE_URL": "https://listwell.dev",
     "USESEND_BASE_URL": "https://send.obambulo.studio",
-    "USESEND_FROM": "Listwell <no-reply@t.listwell.dev>",
+    "USESEND_FROM": "Listwell <no-reply@t.listwell.dev>"
   },
   // Required for Workers Builds `npx wrangler preview` on non-main branches.
   // Workers Builds env + `--keep-vars` override Convex and secrets for preview.
