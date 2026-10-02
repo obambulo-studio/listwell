@@ -1,4 +1,4 @@
-/** In-app chat audit flow (localStorage session restore targets this path). */
+/** In-app chat audit flow. */
 export const LISTWELL_CHAT_PATH = "/chat" as const;
 
 export const listwellChatHref = (businessName?: string): string => {

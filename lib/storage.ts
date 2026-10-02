@@ -104,7 +104,7 @@ export const hasPendingBusinessName = (): boolean => {
   );
 };
 
-/** True when a saved chat should open on `/chat`, not the marketing home. */
+/** True when a saved chat has progress worth restoring on `/chat`. */
 export const isRestorableChatSession = (
   snapshot: Pick<ChatSessionSnapshot, "phase" | "messages">
 ): boolean =>

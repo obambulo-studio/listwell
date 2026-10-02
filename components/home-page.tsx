@@ -37,12 +37,7 @@ import {
   REPORT_YEARLY_VALUE_NOTE,
 } from "@/lib/polar";
 import { ONCE_RESCAN_WINDOW_DAYS } from "@/lib/scan-config";
-import {
-  clearChatSession,
-  isRestorableChatSession,
-  LISTWELL_PENDING_BUSINESS_KEY,
-  loadChatSession,
-} from "@/lib/storage";
+import { clearChatSession, LISTWELL_PENDING_BUSINESS_KEY } from "@/lib/storage";
 
 const homepageCheckGridGroups = getHomepageCheckGridGroups();
 
@@ -582,16 +577,9 @@ export const HomeLanding = ({
   );
 };
 
-/** Marketing home: start a check by navigating to `/chat` (session restore redirects there too). */
+/** Marketing home: start a check by navigating to `/chat`. */
 export const HomeRoute = () => {
-  const { push, replace } = useRouter();
-
-  useEffect(() => {
-    const stored = loadChatSession();
-    if (stored && isRestorableChatSession(stored)) {
-      replace(listwellChatHref());
-    }
-  }, [replace]);
+  const { push } = useRouter();
 
   return (
     <HomeLanding

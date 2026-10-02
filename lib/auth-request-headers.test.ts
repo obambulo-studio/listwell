@@ -1,0 +1,61 @@
+import { RequestCookiesAdapter } from "next/dist/server/web/spec-extension/adapters/request-cookies";
+import { RequestCookies } from "next/dist/server/web/spec-extension/cookies";
+import type { cookies, headers } from "next/headers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { authRequestHeaders } from "./auth-request-headers";
+
+const headersMock = vi.fn<typeof headers>();
+const cookiesMock = vi.fn<typeof cookies>();
+
+type CookieJar = Awaited<ReturnType<typeof cookies>>;
+
+const createCookieJar = (
+  entries: { name: string; value: string }[]
+): CookieJar => {
+  const requestHeaders = new Headers();
+  if (entries.length > 0) {
+    requestHeaders.set(
+      "cookie",
+      entries.map(({ name, value }) => `${name}=${value}`).join("; ")
+    );
+  }
+  return RequestCookiesAdapter.seal(new RequestCookies(requestHeaders));
+};
+
+vi.mock(import("next/headers"), () => ({
+  cookies: cookiesMock,
+  headers: headersMock,
+}));
+
+describe(authRequestHeaders, () => {
+  beforeEach(() => {
+    headersMock.mockReset();
+    cookiesMock.mockReset();
+    process.env.NEXT_PUBLIC_SITE_URL = "https://listwell.dev";
+  });
+
+  it("merges cookies when the raw Cookie header is missing", async () => {
+    headersMock.mockResolvedValue(new Headers());
+    cookiesMock.mockResolvedValue(
+      createCookieJar([{ name: "better-auth.session_token", value: "abc" }])
+    );
+
+    const merged = await authRequestHeaders();
+
+    expect(merged.get("cookie")).toBe("better-auth.session_token=abc");
+    expect(merged.get("x-better-auth-forwarded-host")).toBe("listwell.dev");
+    expect(merged.get("x-better-auth-forwarded-proto")).toBe("https");
+  });
+
+  it("keeps an existing Cookie header", async () => {
+    headersMock.mockResolvedValue(
+      new Headers({ cookie: "better-auth.session_token=xyz" })
+    );
+    cookiesMock.mockResolvedValue(createCookieJar([]));
+
+    const merged = await authRequestHeaders();
+
+    expect(merged.get("cookie")).toBe("better-auth.session_token=xyz");
+  });
+});
