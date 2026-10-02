@@ -133,3 +133,26 @@ export const fixInstructionsFromBody = (
     steps,
   };
 };
+
+export const fixStepsClipboardText = (body: string): string | null => {
+  const instructions = fixInstructionsFromBody(body);
+  if (!instructions) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  if (instructions.intro) {
+    parts.push(instructions.intro);
+  }
+  for (const [index, step] of instructions.steps.entries()) {
+    const lines = [`${index + 1}. ${step.title}`];
+    if (step.body.length > 0) {
+      lines.push(step.body);
+    }
+    parts.push(lines.join("\n"));
+  }
+  if (parts.length === 0) {
+    return null;
+  }
+  return parts.join("\n\n");
+};

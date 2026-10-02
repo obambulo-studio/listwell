@@ -3,12 +3,15 @@
 import {
   ChevronDownIcon,
   Copy01Icon,
+  CreditCardIcon,
   FileDownloadIcon,
+  PencilEdit02Icon,
   PrinterIcon,
   Share01Icon,
 } from "@hugeicons/core-free-icons";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -19,13 +22,14 @@ import {
   useRef,
   useState,
 } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import useSWR from "swr";
 import { z } from "zod";
 
 import { Button } from "@/components/atoms/button";
 import {
   BusinessNameHeading,
+  BusinessNameRenameDialog,
   MonthlyScansUpgradeDialog,
   ReportActionLabel,
   reportActionClass,
@@ -35,15 +39,15 @@ import { FixGuide } from "@/components/check-body";
 import { Icon } from "@/components/icon";
 import { ListingReviewSection } from "@/components/listing-review-section";
 import { PrimaryButton, QuietButton } from "@/components/listwell/actions";
-import {
-  CheckStatusMark,
-  checkStatusText,
-} from "@/components/listwell/report-ui";
+import { CheckStatusMark } from "@/components/listwell/report-ui";
+import { EditListingsDialog } from "@/components/new-audit-form";
 import {
   PeerComparisonSection,
   NextFixSection,
 } from "@/components/peer-comparison-section";
 import GlideMenu from "@/components/primitives/glide-menu";
+import { ReportJobs, ReportSegmentNav } from "@/components/report-jobs";
+import type { ReportSegment } from "@/components/report-jobs";
 import { ReportShareDialog } from "@/components/report-share-dialog";
 import { ResearchSections } from "@/components/research-sections";
 import { SearchPhrasesSection } from "@/components/search-phrases-section";
@@ -56,21 +60,19 @@ import {
   visibilityCounts,
 } from "@/lib/chat-onboarding";
 import type { CheckStatus } from "@/lib/chat-onboarding";
+import { jobForCheck } from "@/lib/check-jobs";
 import { pointsFor } from "@/lib/checks/types";
 import type { CheckDefinition } from "@/lib/checks/types";
 import {
   entitlementCheckoutRetryPath,
+  ownerCanRescan,
+  reportCanManagePlan,
   reportResearchChrome,
   reportShowsFixSteps,
   reportShowsPurchasePrices,
 } from "@/lib/entitlements-access";
-import {
-  FIX_DIFFICULTY_LABEL,
-  FIX_SEVERITY_LABEL,
-  formatFixDuration,
-  planNextActions,
-} from "@/lib/fix-plan";
-import type { PlannedFix, PlannedFixGroup } from "@/lib/fix-plan";
+import { planNextActions } from "@/lib/fix-plan";
+import type { PlannedFixGroup } from "@/lib/fix-plan";
 import {
   listingReviewHasFixPrompt,
   listingReviewResultSchema,
@@ -79,6 +81,7 @@ import type {
   ListingReviewContent,
   ListingReviewResult,
 } from "@/lib/listing-review";
+import { fixStepsClipboardText } from "@/lib/markdown";
 import type { PeerAuditJob } from "@/lib/peers";
 import {
   fetchEntitlement,
@@ -99,13 +102,14 @@ import {
 import {
   buildReportPdf,
   downloadReportPdf,
-  reportPdfEditionSchema,
   reportPdfFilename,
 } from "@/lib/report-pdf";
+import { reportPdfPayload } from "@/lib/report-pdf-payload";
 import { canManageReportShareFromAccess } from "@/lib/report-share-access";
 import { CONTINUED_REPORT_COPY } from "@/lib/research-report";
 import type { ResearchView } from "@/lib/research-view";
 import {
+  apiErrorSchema,
   auditJobPollSchema,
   businessSchema,
   checkResultSchema,
@@ -126,6 +130,7 @@ import {
   completedCheckSchema,
 } from "@/lib/summaries";
 import type { AuditSummaryResult, CompletedCheck } from "@/lib/summaries";
+import { cn } from "@/lib/utils";
 
 const ResearchHistory = dynamic(
   async () => {
@@ -211,11 +216,6 @@ const completedStatus = (
   return null;
 };
 
-const titleForCheck = (
-  checks: { id: string; title: string }[],
-  id: string
-): string => checks.find((check) => check.id === id)?.title ?? id;
-
 const formatScanDate = (iso: string): string => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
@@ -236,16 +236,6 @@ const formatScanDelta = (delta: number | null): string => {
     return "No change";
   }
   return `${delta > 0 ? "+" : ""}${delta}%`;
-};
-
-const aiCopyLabel = (copied: boolean, busy: boolean): string => {
-  if (copied) {
-    return "Copied";
-  }
-  if (busy) {
-    return "Preparing…";
-  }
-  return "Copy for AI";
 };
 
 const fetchListingReviewContent = async (
@@ -284,8 +274,6 @@ const buildExportAiInstructionsMarkdown = async (input: {
     visibilityScore: scorePercent(input.counts),
   });
 };
-
-const CITATION_PREVIEW = 2;
 
 const ReportSystemNotice = ({ children }: { children: ReactNode }) => (
   <output className="listwell-notice">{children}</output>
@@ -372,51 +360,6 @@ const ReportPurchasePendingNotice = ({
   );
 };
 
-const CitationLinks = ({
-  checkIds,
-  checks,
-  onSelect,
-}: {
-  checkIds: string[];
-  checks: { id: string; title: string }[];
-  onSelect: (id: string) => void;
-}) => {
-  const named = checkIds.slice(0, CITATION_PREVIEW);
-  const extra = checkIds.length - named.length;
-  return (
-    <span className="listwell-chips">
-      {named.map((checkId) => (
-        <button
-          key={checkId}
-          className="listwell-chip"
-          type="button"
-          onClick={() => onSelect(checkId)}
-        >
-          {titleForCheck(checks, checkId)}
-        </button>
-      ))}
-      {extra > 0 ? (
-        <span className="listwell-panel__fine">+{extra} more</span>
-      ) : null}
-    </span>
-  );
-};
-
-const ReportSource = ({
-  checkIds,
-  checks,
-  onSelect,
-}: {
-  checkIds: string[];
-  checks: { id: string; title: string }[];
-  onSelect: (id: string) => void;
-}) => (
-  <div className="flex flex-wrap items-center gap-1.5">
-    <span className="listwell-panel__fine">From</span>
-    <CitationLinks checkIds={checkIds} checks={checks} onSelect={onSelect} />
-  </div>
-);
-
 const detailLabel = (item: LiveCheck): string | undefined => {
   if (item.status === "queued" || item.status === "pending") {
     return undefined;
@@ -462,20 +405,6 @@ const groupVisibleByChannel = (
 
 const needsWork = (item: LiveCheck): boolean =>
   item.status === "fail" || item.status === "error";
-
-const recommendedCheckId = (
-  summary: AuditSummaryResult | null,
-  liveChecks: LiveCheck[]
-): string | undefined => {
-  const cited = summary?.nextActions[0]?.checkIds[0];
-  if (cited && liveChecks.some((item) => item.definition.id === cited)) {
-    return cited;
-  }
-  return (
-    liveChecks.find((item) => item.status === "fail" || item.status === "error")
-      ?.definition.id ?? liveChecks[0]?.definition.id
-  );
-};
 
 interface UnlockFormState {
   busy: "verify" | "resend" | null;
@@ -647,388 +576,6 @@ const UnlockCodeForm = ({
   );
 };
 
-const ReportOverviewSection = ({
-  summary,
-  className,
-}: {
-  summary: AuditSummaryResult;
-  className?: string;
-}) => {
-  if (summary.overview.length === 0) {
-    return null;
-  }
-  return (
-    <section
-      className={["listwell-panel", className].filter(Boolean).join(" ")}
-      aria-labelledby="report-overview"
-    >
-      <PanelHead id="report-overview" title="What the checks found" />
-      {summary.overview.map((claim) => (
-        <div key={claim.text} className="listwell-panel__body">
-          <p className="listwell-panel__text">{claim.text}</p>
-        </div>
-      ))}
-    </section>
-  );
-};
-
-const nextActionKey = (action: PlannedFix["action"]): string =>
-  `${action.priority}-${action.checkIds.join("-")}`;
-
-const firstFixPlanBandId = (groups: PlannedFixGroup[]): string | null => {
-  const [firstGroup] = groups;
-  const [firstBand] = firstGroup?.bands ?? [];
-  if (!(firstGroup && firstBand)) {
-    return null;
-  }
-  return `next-${firstGroup.difficulty}-${firstBand.severity}`;
-};
-
-interface ReportNextActionsUiState {
-  aiCopied: boolean;
-  aiCopyBusy: boolean;
-  openBandIds: Set<string>;
-  openDifficultyIds: Set<PlannedFixGroup["difficulty"]>;
-  openKey: string | null;
-}
-
-type ReportNextActionsUiAction =
-  | { type: "toggle-key"; key: string }
-  | { type: "ai-copy-start" }
-  | { type: "ai-copy-done" }
-  | { type: "ai-copy-fail" }
-  | { type: "ai-copy-reset" }
-  | { type: "toggle-difficulty"; difficulty: PlannedFixGroup["difficulty"] }
-  | { type: "toggle-band"; bandId: string };
-
-const initialReportNextActionsUiState = (
-  groups: PlannedFixGroup[]
-): ReportNextActionsUiState => {
-  const [first] = groups;
-  const firstBandId = firstFixPlanBandId(groups);
-  return {
-    aiCopied: false,
-    aiCopyBusy: false,
-    openBandIds: firstBandId ? new Set([firstBandId]) : new Set(),
-    openDifficultyIds: first ? new Set([first.difficulty]) : new Set(),
-    openKey: null,
-  };
-};
-
-const reportNextActionsUiReducer = (
-  state: ReportNextActionsUiState,
-  action: ReportNextActionsUiAction
-): ReportNextActionsUiState => {
-  switch (action.type) {
-    case "toggle-key": {
-      return {
-        ...state,
-        openKey: state.openKey === action.key ? null : action.key,
-      };
-    }
-    case "ai-copy-start": {
-      return { ...state, aiCopyBusy: true };
-    }
-    case "ai-copy-done": {
-      return { ...state, aiCopied: true, aiCopyBusy: false };
-    }
-    case "ai-copy-fail": {
-      return { ...state, aiCopied: false, aiCopyBusy: false };
-    }
-    case "ai-copy-reset": {
-      return { ...state, aiCopied: false };
-    }
-    case "toggle-difficulty": {
-      const next = new Set(state.openDifficultyIds);
-      if (next.has(action.difficulty)) {
-        next.delete(action.difficulty);
-      } else {
-        next.add(action.difficulty);
-      }
-      return { ...state, openDifficultyIds: next };
-    }
-    case "toggle-band": {
-      const next = new Set(state.openBandIds);
-      if (next.has(action.bandId)) {
-        next.delete(action.bandId);
-      } else {
-        next.add(action.bandId);
-      }
-      return { ...state, openBandIds: next };
-    }
-    default: {
-      return state;
-    }
-  }
-};
-
-const PanelGroupToggle = ({
-  controls,
-  expanded,
-  onToggle,
-  sub,
-  children,
-}: {
-  controls: string;
-  expanded: boolean;
-  onToggle: () => void;
-  sub?: boolean;
-  children: ReactNode;
-}) => (
-  <div
-    className={[
-      "listwell-panel__group m-0",
-      sub ? "listwell-panel__group--sub" : null,
-    ]
-      .filter(Boolean)
-      .join(" ")}
-  >
-    <button
-      type="button"
-      className="listwell-panel__group-button"
-      aria-expanded={expanded}
-      aria-controls={controls}
-      onClick={onToggle}
-    >
-      <span className="listwell-panel__group-button-labels">{children}</span>
-      <ChevronIcon />
-    </button>
-  </div>
-);
-
-const NextActionRow = ({
-  item,
-  openKey,
-  citationChecks,
-  definitions,
-  onOpen,
-  onSelectCheck,
-}: {
-  item: PlannedFix;
-  openKey: string | null;
-  citationChecks: { id: string; title: string }[];
-  definitions: CheckDefinition[];
-  onOpen: (key: string) => void;
-  onSelectCheck: (id: string) => void;
-}) => {
-  const key = nextActionKey(item.action);
-  const open = openKey === key;
-  const panelId = `next-${key}`;
-  const guides = item.action.checkIds.flatMap((checkId) => {
-    const definition = definitions.find((entry) => entry.id === checkId);
-    return definition ? [definition] : [];
-  });
-  return (
-    <li>
-      <button
-        type="button"
-        className="listwell-panel__row listwell-panel__row--top"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => onOpen(key)}
-      >
-        <span className="listwell-step" aria-hidden>
-          {item.rank}
-        </span>
-        <span className="listwell-panel__row-main">
-          <span className="listwell-panel__row-title">{item.action.text}</span>
-          {item.minutes === null ? null : (
-            <span className="listwell-panel__row-meta">
-              {formatFixDuration(item.minutes)}
-            </span>
-          )}
-        </span>
-        <ChevronIcon />
-      </button>
-      <div className="listwell-action__rest">
-        <ReportSource
-          checkIds={item.action.checkIds}
-          checks={citationChecks}
-          onSelect={onSelectCheck}
-        />
-        <Disclosure id={panelId} open={open}>
-          <div className="listwell-fix-stack">
-            {guides.map((definition) => (
-              <div key={definition.id}>
-                {guides.length > 1 ? (
-                  <p className="listwell-panel__row-title">
-                    {definition.title}
-                  </p>
-                ) : null}
-                <FixGuide body={definition.body} />
-              </div>
-            ))}
-          </div>
-        </Disclosure>
-      </div>
-    </li>
-  );
-};
-
-const ReportNextActionsSection = ({
-  businessId,
-  businessName,
-  counts,
-  summary,
-  groups,
-  citationChecks,
-  definitions,
-  onSelectCheck,
-}: {
-  businessId: string;
-  businessName: string;
-  counts: { pass: number; fail: number; error: number };
-  summary: AuditSummaryResult;
-  groups: PlannedFixGroup[];
-  citationChecks: { id: string; title: string }[];
-  definitions: CheckDefinition[];
-  onSelectCheck: (id: string) => void;
-}) => {
-  const [ui, dispatchUi] = useReducer(
-    reportNextActionsUiReducer,
-    groups,
-    initialReportNextActionsUiState
-  );
-  const { aiCopied, aiCopyBusy, openBandIds, openDifficultyIds, openKey } = ui;
-  const toggle = (key: string) => {
-    dispatchUi({ key, type: "toggle-key" });
-  };
-  const toggleDifficulty = (difficulty: PlannedFixGroup["difficulty"]) => {
-    dispatchUi({ difficulty, type: "toggle-difficulty" });
-  };
-  const toggleBand = (bandId: string) => {
-    dispatchUi({ bandId, type: "toggle-band" });
-  };
-
-  const copyAllAiInstructions = async () => {
-    if (aiCopyBusy) {
-      return;
-    }
-    dispatchUi({ type: "ai-copy-start" });
-    try {
-      const markdown = await buildExportAiInstructionsMarkdown({
-        businessId,
-        businessName,
-        counts,
-        definitions,
-        fixPlan: groups,
-        includeListingReview: true,
-        overview: summary.overview,
-        showFixSteps: true,
-      });
-      await navigator.clipboard.writeText(markdown);
-      dispatchUi({ type: "ai-copy-done" });
-      window.setTimeout(() => {
-        dispatchUi({ type: "ai-copy-reset" });
-      }, 2000);
-    } catch {
-      dispatchUi({ type: "ai-copy-fail" });
-    }
-  };
-
-  if (groups.length > 0) {
-    return (
-      <section className="listwell-panel" aria-labelledby="report-next">
-        <PanelHead id="report-next" title="What to do next">
-          <QuietButton
-            className="gap-2"
-            size="sm"
-            type="button"
-            disabled={aiCopyBusy}
-            onClick={() => {
-              void copyAllAiInstructions();
-            }}
-          >
-            <Icon icon={Copy01Icon} size={14} />
-            {aiCopyLabel(aiCopied, aiCopyBusy)}
-          </QuietButton>
-        </PanelHead>
-        {groups.map((group, groupIndex) => {
-          let count = 0;
-          for (const band of group.bands) {
-            count += band.actions.length;
-          }
-          const tierOpen = openDifficultyIds.has(group.difficulty);
-          const tierPanelId = `next-tier-${group.difficulty}`;
-          return (
-            <div key={group.difficulty} className="listwell-next-group">
-              <PanelGroupToggle
-                controls={tierPanelId}
-                expanded={tierOpen}
-                onToggle={() => {
-                  toggleDifficulty(group.difficulty);
-                }}
-              >
-                <span>{FIX_DIFFICULTY_LABEL[group.difficulty]}</span>
-                <span className="listwell-panel__mono">
-                  {groupIndex === 0 ? "Start here" : count}
-                </span>
-              </PanelGroupToggle>
-              <Disclosure id={tierPanelId} open={tierOpen}>
-                <div>
-                  {group.bands.map((band) => {
-                    const bandId = `next-${group.difficulty}-${band.severity}`;
-                    const bandPanelId = `${bandId}-rows`;
-                    const bandOpen = openBandIds.has(bandId);
-                    return (
-                      <div key={band.severity}>
-                        <PanelGroupToggle
-                          controls={bandPanelId}
-                          expanded={bandOpen}
-                          sub
-                          onToggle={() => {
-                            toggleBand(bandId);
-                          }}
-                        >
-                          <span id={bandId}>
-                            {FIX_SEVERITY_LABEL[band.severity]}
-                          </span>
-                          <span className="listwell-panel__mono">
-                            {band.actions.length}
-                          </span>
-                        </PanelGroupToggle>
-                        <Disclosure id={bandPanelId} open={bandOpen}>
-                          <ol
-                            className="listwell-panel__rows"
-                            aria-labelledby={bandId}
-                          >
-                            {band.actions.map((item) => (
-                              <NextActionRow
-                                key={nextActionKey(item.action)}
-                                item={item}
-                                openKey={openKey}
-                                citationChecks={citationChecks}
-                                definitions={definitions}
-                                onOpen={toggle}
-                                onSelectCheck={onSelectCheck}
-                              />
-                            ))}
-                          </ol>
-                        </Disclosure>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Disclosure>
-            </div>
-          );
-        })}
-      </section>
-    );
-  }
-  if (summary.overview.length > 0) {
-    return (
-      <section className="listwell-panel" aria-labelledby="report-next">
-        <PanelHead id="report-next" title="What to do next" />
-        <div className="listwell-panel__body">
-          <p className="listwell-panel__note">No failed checks to act on.</p>
-        </div>
-      </section>
-    );
-  }
-  return null;
-};
-
 const PaywallPanel = ({
   children,
   foot,
@@ -1146,27 +693,11 @@ const ReportPriceActions = ({
 
 const ReportAccessSection = ({
   access,
-  businessId,
-  businessName,
   checkoutReturned,
-  counts,
-  summary,
-  fixPlan,
-  citationChecks,
-  definitions,
-  onSelectCheck,
   onUnlocked,
 }: {
   access: EntitlementState;
-  businessId: string;
-  businessName: string;
   checkoutReturned: boolean;
-  counts: { pass: number; fail: number; error: number };
-  summary: AuditSummaryResult;
-  fixPlan: PlannedFixGroup[];
-  citationChecks: { id: string; title: string }[];
-  definitions: CheckDefinition[];
-  onSelectCheck: (id: string) => void;
   onUnlocked: () => void;
 }) => {
   const showFixSteps = reportShowsFixSteps(access);
@@ -1182,99 +713,99 @@ const ReportAccessSection = ({
     );
   }
   if (showFixSteps) {
-    return (
-      <ReportNextActionsSection
-        businessId={businessId}
-        businessName={businessName}
-        counts={counts}
-        summary={summary}
-        groups={fixPlan}
-        citationChecks={citationChecks}
-        definitions={definitions}
-        onSelectCheck={onSelectCheck}
-      />
-    );
+    return null;
   }
   return <ReportPaywallSection access={access} />;
 };
 
-const OnceRescanSection = ({
-  access,
-  businessId,
-}: {
-  access: EntitlementState;
-  businessId: string;
-}) => {
+const requestReportRescan = async (businessId: string): Promise<void> => {
+  const response = await fetch(`/api/businesses/${businessId}/rescan`, {
+    method: "POST",
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) {
+    const parsed = apiErrorSchema.safeParse(payload);
+    throw new Error(parsed.success ? parsed.data.error : "Rescan failed");
+  }
+};
+
+const useReportRescan = (
+  businessId: string
+): {
+  busy: boolean;
+  error: string | null;
+  start: () => void;
+} => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (
-    access.kind !== "report_once" ||
-    !access.unlocked ||
-    access.sessionRequired ||
-    !access.onceRescan?.available
-  ) {
+  const start = () => {
+    void (async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        await requestReportRescan(businessId);
+        window.location.reload();
+      } catch (rescanError) {
+        setError(
+          rescanError instanceof Error ? rescanError.message : "Rescan failed"
+        );
+        setBusy(false);
+      }
+    })();
+  };
+
+  return { busy, error, start };
+};
+
+const ReportRescanButton = ({
+  busy,
+  onRescan,
+}: {
+  busy: boolean;
+  onRescan: () => void;
+}) => (
+  <button
+    type="button"
+    className="listwell-panel__action shrink-0"
+    disabled={busy}
+    onClick={onRescan}
+  >
+    {busy ? "Rescanning…" : "Rescan"}
+  </button>
+);
+
+const ReportRescanError = ({ error }: { error: string | null }) =>
+  error ? (
+    <p className="listwell-panel__error px-4 pb-1" role="alert">
+      {error}
+    </p>
+  ) : null;
+
+/**
+ * One-off reports are created by a check batch, so they often have no scan
+ * rows. Rescan still has to render whenever the owner is allowed to run one.
+ */
+const ReportRescanControl = ({
+  access,
+  businessId,
+  isOwner,
+}: {
+  access: EntitlementState;
+  businessId: string;
+  isOwner: boolean;
+}) => {
+  const { busy, error, start } = useReportRescan(businessId);
+  if (!ownerCanRescan({ access, isOwner })) {
     return null;
   }
-
   return (
-    <section className="listwell-panel" aria-labelledby="report-rescan">
-      <PanelHead id="report-rescan" title="Re-scan report" />
-      <div className="listwell-panel__body">
-        <p className="listwell-panel__note">
-          Run the checks again after you fix listings. You have{" "}
-          {access.onceRescan.remaining} free re-scan
-          {access.onceRescan.remaining === 1 ? "" : "s"} within 30 days of
-          purchase.
-        </p>
+    <div className="listwell-report__lead-block">
+      <div className="listwell-panel__group listwell-panel__group--end m-0">
+        <ReportRescanButton busy={busy} onRescan={start} />
       </div>
-      <div className="listwell-panel__foot">
-        <PrimaryButton
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            void (async () => {
-              setBusy(true);
-              setError(null);
-              try {
-                const response = await fetch(
-                  `/api/businesses/${businessId}/rescan`,
-                  { method: "POST" }
-                );
-                const payload: unknown = await response.json();
-                if (!response.ok) {
-                  const message =
-                    typeof payload === "object" &&
-                    payload !== null &&
-                    "error" in payload &&
-                    typeof payload.error === "string"
-                      ? payload.error
-                      : "Re-scan failed";
-                  setError(message);
-                  setBusy(false);
-                  return;
-                }
-                window.location.reload();
-              } catch (rescanError) {
-                setError(
-                  rescanError instanceof Error
-                    ? rescanError.message
-                    : "Re-scan failed"
-                );
-                setBusy(false);
-              }
-            })();
-          }}
-        >
-          {busy ? "Re-scanning…" : "Re-scan now"}
-        </PrimaryButton>
-        {error ? (
-          <p className="listwell-panel__error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </section>
+      <ReportRescanError error={error} />
+    </div>
   );
 };
 
@@ -1287,13 +818,32 @@ const scanDeltaClass = (delta: number | null): string => {
     : "listwell-pill listwell-pill--red";
 };
 
-const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
+const ScanHistorySection = ({
+  access,
+  businessId,
+  isOwner,
+  scans,
+}: {
+  access: EntitlementState;
+  businessId: string;
+  isOwner: boolean;
+  scans: ScanSummary[];
+}) => {
+  const { busy, error, start } = useReportRescan(businessId);
+  const showRescan = ownerCanRescan({ access, isOwner });
+
   if (scans.length === 0) {
     return null;
   }
   return (
-    <section className="listwell-panel" aria-labelledby="report-scans">
-      <PanelHead id="report-scans" title="Scan history" />
+    <div className="listwell-report__lead-block">
+      <h2 className="listwell-panel__group m-0" id="report-scans">
+        <span>Scan history</span>
+        {showRescan ? (
+          <ReportRescanButton busy={busy} onRescan={start} />
+        ) : null}
+      </h2>
+      <ReportRescanError error={error} />
       <table className="listwell-panel__table">
         <caption className="vbg-visually-hidden">
           Monthly visibility scores over time.
@@ -1334,63 +884,130 @@ const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
           })}
         </tbody>
       </table>
-    </section>
+    </div>
+  );
+};
+
+const FIX_COPY_RESET_MS = 2000;
+
+const CopyFixStepsButton = ({
+  className,
+  text,
+}: {
+  className?: string;
+  text: string;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== null) {
+        window.clearTimeout(resetTimer.current);
+      }
+    },
+    []
+  );
+
+  const copySteps = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      if (resetTimer.current !== null) {
+        window.clearTimeout(resetTimer.current);
+      }
+      resetTimer.current = window.setTimeout(() => {
+        setCopied(false);
+        resetTimer.current = null;
+      }, FIX_COPY_RESET_MS);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        "listwell-panel__action listwell-fix-copy print:hidden",
+        className
+      )}
+      aria-label={copied ? "Copied fix steps" : "Copy fix steps"}
+      onClick={(event) => {
+        void copySteps(event);
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 };
 
 const CheckRow = ({
   item,
   expanded,
-  businessCategory,
   showFixSteps,
   onToggle,
 }: {
   item: LiveCheck;
   expanded: boolean;
-  businessCategory: Business["category"];
   showFixSteps: boolean;
   onToggle: (id: string) => void;
 }) => {
   const { id } = item.definition;
   const detail = detailLabel(item);
-  const points = pointsFor(item.definition, businessCategory);
+  const copyText = showFixSteps
+    ? fixStepsClipboardText(item.definition.body)
+    : null;
   return (
     <li id={`check-${id}`}>
-      <button
-        type="button"
-        className="listwell-panel__row"
-        aria-expanded={expanded}
-        aria-controls={`check-${id}-detail`}
-        onClick={() => onToggle(id)}
+      <div
+        className={cn(
+          "listwell-check-row",
+          copyText && "listwell-check-row--copy"
+        )}
       >
-        <CheckStatusMark status={item.status} />
-        <span className="listwell-panel__row-main">
-          <span className="listwell-panel__row-title">
-            {item.definition.title}
-          </span>
-          {detail && !expanded ? (
-            <span className="listwell-panel__row-meta line-clamp-1">
-              {detail}
+        <button
+          type="button"
+          className="listwell-panel__row"
+          aria-expanded={expanded}
+          aria-controls={`check-${id}-detail`}
+          onClick={() => onToggle(id)}
+        >
+          <CheckStatusMark status={item.status} />
+          <span className="listwell-panel__row-main">
+            <span className="listwell-panel__row-title">
+              {
+                jobForCheck(item.definition.id, item.definition.title)
+                  .plainTitle
+              }
             </span>
-          ) : null}
-        </span>
-        <span className="listwell-panel__mono">
-          {points} {points === 1 ? "pt" : "pts"}
-        </span>
-        <ChevronIcon />
-      </button>
+            {detail && !expanded ? (
+              <span className="listwell-panel__row-meta line-clamp-1">
+                {detail}
+              </span>
+            ) : null}
+          </span>
+          <ChevronIcon />
+        </button>
+        {copyText ? (
+          <CopyFixStepsButton
+            className="listwell-check-row__copy"
+            text={copyText}
+          />
+        ) : null}
+      </div>
       <Disclosure id={`check-${id}-detail`} open={expanded}>
         <div className="listwell-panel__detail">
-          <p className="listwell-panel__row-meta">
-            {item.definition.channelCategory}
-            {" · "}
-            {points} {points === 1 ? "point" : "points"}
-            {" · "}
-            {checkStatusText(item.status)}
-            {detail ? ` · ${detail}` : ""}
-          </p>
           {showFixSteps ? (
-            <FixGuide body={item.definition.body} />
+            <>
+              <FixGuide body={item.definition.body} />
+              {copyText ? <CopyFixStepsButton text={copyText} /> : null}
+            </>
           ) : (
             <p className="listwell-panel__note">
               Unlock the full report to see fix steps.
@@ -1407,7 +1024,6 @@ const ChecksLedgerSection = ({
   checksCaption,
   filter,
   expandedId,
-  businessCategory,
   showFixSteps,
   onFilterChange,
   onToggleCheck,
@@ -1416,7 +1032,6 @@ const ChecksLedgerSection = ({
   checksCaption: string;
   filter: "failures" | "all";
   expandedId: string | null | undefined;
-  businessCategory: Business["category"];
   showFixSteps: boolean;
   onFilterChange: (filter: "failures" | "all") => void;
   onToggleCheck: (id: string) => void;
@@ -1452,17 +1067,13 @@ const ChecksLedgerSection = ({
     ) : null}
     {groupedChecks.map((group) => (
       <div key={group.category}>
-        <h3 className="listwell-panel__group m-0">
-          <span>{group.category}</span>
-          <span className="listwell-panel__mono">{group.items.length}</span>
-        </h3>
+        <h3 className="listwell-panel__group m-0">{group.category}</h3>
         <ul className="listwell-panel__rows">
           {group.items.map((item) => (
             <CheckRow
               key={item.definition.id}
               item={item}
               expanded={item.definition.id === expandedId}
-              businessCategory={businessCategory}
               showFixSteps={showFixSteps}
               onToggle={onToggleCheck}
             />
@@ -1478,21 +1089,47 @@ const ChecksLedgerSection = ({
   </section>
 );
 
+const listingRowLabel = (
+  profile: ReturnType<typeof businessToProfiles>[number]
+): { meta: string; title: string } => {
+  if (profile.type !== "google-maps") {
+    return {
+      meta: [CHANNEL_CONFIG[profile.type].name, profile.subtitle]
+        .filter(Boolean)
+        .join(" · "),
+      title: profile.title,
+    };
+  }
+  const address = profile.subtitle?.trim() ?? "";
+  if (address.length > 0) {
+    return { meta: CHANNEL_CONFIG["google-maps"].name, title: address };
+  }
+  return { meta: "", title: CHANNEL_CONFIG["google-maps"].name };
+};
+
 const ListingsSection = ({
-  businessId,
+  listingsEditorOpen,
+  onEditListings,
   profiles,
   showEditLink,
 }: {
-  businessId: string;
+  listingsEditorOpen: boolean;
+  onEditListings: () => void;
   profiles: ReturnType<typeof businessToProfiles>;
   showEditLink: boolean;
 }) => (
   <section className="listwell-panel" aria-labelledby="report-listings">
     <PanelHead id="report-listings" title="Listings on this audit">
       {showEditLink ? (
-        <Link className="listwell-panel__action" href={`/${businessId}/edit`}>
+        <button
+          type="button"
+          className="listwell-panel__action"
+          aria-expanded={listingsEditorOpen}
+          aria-haspopup="dialog"
+          onClick={onEditListings}
+        >
           Edit listings
-        </Link>
+        </button>
       ) : null}
     </PanelHead>
     {profiles.length === 0 ? (
@@ -1503,16 +1140,15 @@ const ListingsSection = ({
       <ul className="listwell-panel__rows">
         {profiles.map((profile) => {
           const href = profileViewHref(profile);
+          const label = listingRowLabel(profile);
           const content = (
             <span className="listwell-panel__row-main">
               <span className="listwell-panel__row-title break-all">
-                {profile.title}
+                {label.title}
               </span>
-              <span className="listwell-panel__row-meta">
-                {[CHANNEL_CONFIG[profile.type].name, profile.subtitle]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
+              {label.meta.length > 0 ? (
+                <span className="listwell-panel__row-meta">{label.meta}</span>
+              ) : null}
             </span>
           );
           return (
@@ -1788,9 +1424,12 @@ const ReportTopNotices = ({
 interface ReportUiState {
   checkoutError: string | null;
   filter: "failures" | "all";
+  listingsEditorOpen: boolean;
+  listingsFormSession: number;
   monthlyUpgradeOpen: boolean;
   pickedId: string | null | undefined;
   redirecting: CheckoutPlan | null;
+  segment: ReportSegment;
   shareOpen: boolean;
 }
 
@@ -1801,15 +1440,41 @@ type ReportUiAction =
   | { type: "set-monthly-upgrade-open"; open: boolean }
   | { type: "set-picked-id"; id: string | null }
   | { type: "set-filter"; filter: "failures" | "all" }
-  | { type: "set-share-open"; open: boolean };
+  | { type: "set-share-open"; open: boolean }
+  | { type: "set-segment"; segment: ReportSegment }
+  | { type: "open-listings-editor" }
+  | { type: "set-listings-editor-open"; open: boolean };
 
 const initialReportUiState: ReportUiState = {
   checkoutError: null,
   filter: "failures",
+  listingsEditorOpen: false,
+  listingsFormSession: 0,
   monthlyUpgradeOpen: false,
   pickedId: undefined,
   redirecting: null,
+  segment: "jobs",
   shareOpen: false,
+};
+
+const reportUiInitialState = (openEditor: boolean): ReportUiState => ({
+  ...initialReportUiState,
+  listingsEditorOpen: openEditor,
+  segment: openEditor ? "listing" : initialReportUiState.segment,
+});
+
+const clearListingsEditorQuery = (): void => {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("listings")) {
+    return;
+  }
+  params.delete("listings");
+  const query = params.toString();
+  const next =
+    query.length > 0
+      ? `${window.location.pathname}?${query}`
+      : window.location.pathname;
+  window.history.replaceState(window.history.state, "", next);
 };
 
 const reportUiReducer = (
@@ -1835,56 +1500,28 @@ const reportUiReducer = (
     case "set-share-open": {
       return { ...state, shareOpen: action.open };
     }
+    case "set-segment": {
+      return { ...state, segment: action.segment };
+    }
     case "set-monthly-upgrade-open": {
       return { ...state, monthlyUpgradeOpen: action.open };
+    }
+    case "open-listings-editor": {
+      return {
+        ...state,
+        listingsEditorOpen: true,
+        listingsFormSession: state.listingsFormSession + 1,
+        segment: "listing",
+      };
+    }
+    case "set-listings-editor-open": {
+      return { ...state, listingsEditorOpen: action.open };
     }
     default: {
       return state;
     }
   }
 };
-
-const reportPdfPayload = ({
-  businessName,
-  counts,
-  fixPlan,
-  liveChecks,
-  overview,
-  showFixSteps,
-  visibilityScore,
-}: {
-  businessName: string;
-  counts: { pass: number; fail: number; error: number };
-  fixPlan: PlannedFixGroup[];
-  liveChecks: LiveCheck[];
-  overview: AuditSummaryResult["overview"];
-  showFixSteps: boolean;
-  visibilityScore: number;
-}) => ({
-  businessName,
-  checks: liveChecks.map((item) => ({
-    category: item.definition.channelCategory,
-    detail: detailLabel(item),
-    status: checkStatusText(item.status),
-    title: item.definition.title,
-  })),
-  edition: reportPdfEditionSchema.parse(showFixSteps ? "final" : "preview"),
-  generatedAt: new Date().toISOString(),
-  needsWork: counts.fail,
-  nextActionSections: showFixSteps
-    ? fixPlan.flatMap((group) =>
-        group.bands.map((band) => ({
-          actions: band.actions.map((item) => item.action.text),
-          title: `${FIX_DIFFICULTY_LABEL[group.difficulty]}, ${FIX_SEVERITY_LABEL[band.severity].toLowerCase()}`,
-        }))
-      )
-    : [],
-  nextActions: [],
-  overview: overview.map((claim) => claim.text),
-  passing: counts.pass,
-  score: visibilityScore,
-  skipped: counts.error,
-});
 
 const shareMenuIconClass = "listwell-account-menu__icon";
 
@@ -2031,9 +1668,14 @@ const ReportHeaderShareMenu = ({
   const savePdf = () => {
     const payload = reportPdfPayload({
       businessName,
+      checks: liveChecks.map((item) => ({
+        category: item.definition.channelCategory,
+        label: item.result?.label,
+        status: item.status,
+        title: item.definition.title,
+      })),
       counts,
       fixPlan,
-      liveChecks,
       overview,
       showFixSteps,
       visibilityScore,
@@ -2204,6 +1846,140 @@ const ReportHeaderShareMenu = ({
   );
 };
 
+const ReportHeaderEditMenu = ({
+  canManagePlan,
+  onRename,
+}: {
+  canManagePlan: boolean;
+  onRename: () => void;
+}) => {
+  const menuId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  const close = useCallback((restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) {
+      triggerRef.current?.focus();
+    }
+  }, []);
+  const onDismissMenu = useEffectEvent((restoreFocus = false) => {
+    close(restoreFocus);
+  });
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      const { target } = event;
+      if (target instanceof Node && rootRef.current?.contains(target)) {
+        return;
+      }
+      onDismissMenu();
+    };
+
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      onDismissMenu(true);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const items = shareMenuItems(menuRef.current);
+    items[0]?.focus();
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="listwell-panel__share-menu print:hidden">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="listwell-panel__action"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => {
+          setOpen((current) => !current);
+        }}
+      >
+        <Icon icon={PencilEdit02Icon} size={14} />
+        Edit
+        <Icon icon={ChevronDownIcon} size={12} aria-hidden />
+      </button>
+      {open ? (
+        <div
+          ref={menuRef}
+          id={menuId}
+          role="menu"
+          tabIndex={-1}
+          aria-label="Edit report"
+          className="listwell-account-menu"
+          onKeyDown={(event) => {
+            handleShareMenuKeyDown(event, menuRef.current);
+          }}
+        >
+          <GlideMenu className="listwell-account-menu__list">
+            <button
+              type="button"
+              role="menuitem"
+              data-menu-row
+              className="listwell-account-menu__item"
+              onClick={() => {
+                close();
+                onRename();
+              }}
+            >
+              <Icon
+                className={shareMenuIconClass}
+                icon={PencilEdit02Icon}
+                size={15}
+              />
+              Rename
+            </button>
+            {canManagePlan ? (
+              // react-doctor-disable-next-line react-doctor/nextjs-no-a-element -- billing portal is a route handler, not a page
+              <a // eslint-disable-line nextjs/no-html-link-for-pages -- billing portal is a route handler, not a page
+                href="/api/account/billing"
+                role="menuitem"
+                data-menu-row
+                className="listwell-account-menu__item"
+                onClick={() => {
+                  close();
+                  window.location.assign("/api/account/billing");
+                }}
+              >
+                <Icon
+                  className={shareMenuIconClass}
+                  icon={CreditCardIcon}
+                  size={15}
+                />
+                Manage billing
+              </a>
+            ) : null}
+          </GlideMenu>
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const ReportHeader = ({
   access,
   businessId,
@@ -2217,6 +1993,8 @@ const ReportHeader = ({
   prices,
   showFixSteps,
   visibilityScore,
+  scans,
+  upsell,
   onRename,
   onShare,
 }: {
@@ -2232,202 +2010,122 @@ const ReportHeader = ({
   prices?: ReactNode;
   showFixSteps: boolean;
   visibilityScore: number;
+  scans: ScanSummary[];
+  upsell: ReactNode;
   onRename: (name: string) => void;
   onShare: () => void;
-}) => (
-  <header className="listwell-panel" aria-labelledby="report-title">
-    <div className="listwell-panel__head">
-      <p className="listwell-panel__title">
-        {isOwner ? "Visibility report" : "Shared report"}
-      </p>
-      <div className="listwell-panel__actions">
-        <ReportHeaderShareMenu
-          businessId={businessId}
-          businessName={businessName}
-          canManageShare={canManageShare}
-          counts={counts}
-          fixPlan={fixPlan}
-          liveChecks={liveChecks}
-          overview={overview}
-          showFixSteps={showFixSteps}
-          visibilityScore={visibilityScore}
-          onShare={onShare}
-        />
+}) => {
+  const [renameOpen, setRenameOpen] = useState(false);
+  const canManagePlan = reportCanManagePlan(access, isOwner);
+
+  return (
+    <header className="listwell-panel" aria-labelledby="report-title">
+      <div className="listwell-panel__head">
+        <p className="listwell-panel__title">
+          {isOwner ? "Visibility report" : "Shared report"}
+        </p>
+        <div className="listwell-panel__actions">
+          {isOwner ? (
+            <ReportHeaderEditMenu
+              canManagePlan={canManagePlan}
+              onRename={() => {
+                setRenameOpen(true);
+              }}
+            />
+          ) : null}
+          <ReportHeaderShareMenu
+            businessId={businessId}
+            businessName={businessName}
+            canManageShare={canManageShare}
+            counts={counts}
+            fixPlan={fixPlan}
+            liveChecks={liveChecks}
+            overview={overview}
+            showFixSteps={showFixSteps}
+            visibilityScore={visibilityScore}
+            onShare={onShare}
+          />
+        </div>
       </div>
-    </div>
-    <div className="listwell-panel__body">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <BusinessNameHeading
+      <div className="listwell-panel__body">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <BusinessNameHeading
+            businessId={businessId}
+            canRename={false}
+            name={businessName}
+            showRenameButton={false}
+            onRenamed={onRename}
+          />
+          {isOwner && access.kind === "report_monthly" ? (
+            <span className="listwell-pill listwell-pill--green">
+              Monthly scans active
+            </span>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="text-ink m-0 text-3xl font-semibold tracking-tight">
+            {visibilityScore}%
+            <span className="text-ink-2 text-lg font-normal"> in place</span>
+          </p>
+          <ReportAllocation
+            stats={{
+              ...counts,
+              total: counts.pass + counts.fail + counts.error,
+            }}
+          />
+          {prices}
+        </div>
+      </div>
+      {scans.length === 0 ? (
+        <ReportRescanControl
+          access={access}
           businessId={businessId}
-          canRename={isOwner}
+          isOwner={isOwner}
+        />
+      ) : (
+        <ScanHistorySection
+          access={access}
+          businessId={businessId}
+          isOwner={isOwner}
+          scans={scans}
+        />
+      )}
+      {upsell}
+      {isOwner ? (
+        <BusinessNameRenameDialog
+          key={
+            renameOpen
+              ? `${businessId}-rename-open`
+              : `${businessId}-rename-closed`
+          }
+          businessId={businessId}
           name={businessName}
+          open={renameOpen}
+          onOpenChange={setRenameOpen}
           onRenamed={onRename}
         />
-        {isOwner && access.kind === "report_monthly" ? (
-          <span className="listwell-pill listwell-pill--green">
-            Monthly scans active
-          </span>
-        ) : null}
-      </div>
-      <div className="flex flex-col gap-2">
-        <p className="text-ink m-0 text-3xl font-semibold tracking-tight">
-          {visibilityScore}%
-          <span className="text-ink-2 text-lg font-normal"> visibility</span>
-        </p>
-        <ReportAllocation
-          stats={{
-            ...counts,
-            total: counts.pass + counts.fail + counts.error,
-          }}
-        />
-        {prices}
-      </div>
-    </div>
-  </header>
-);
+      ) : null}
+    </header>
+  );
+};
 
-const ContinuedReportSections = ({
+const ContinuedReportsUpsellSection = ({
   access,
-  businessId,
-  businessName,
-  canManageCompetitors,
-  checkoutError,
   isOwner,
-  onCheckout,
-  peerAuditOverride,
-  phrases,
-  redirecting,
-  research,
-  researchVisible,
-  showFixSteps,
-  subjectChecks,
 }: {
   access: EntitlementState;
-  businessId: string;
-  businessName: string;
-  canManageCompetitors: boolean;
-  checkoutError: string | null;
   isOwner: boolean;
-  onCheckout: (plan: CheckoutPlan) => void;
-  peerAuditOverride?: PeerAuditJob;
-  phrases: Business["searchPhrases"];
-  redirecting: CheckoutPlan | null;
-  research: ResearchView | null;
-  researchVisible: boolean;
-  showFixSteps: boolean;
-  subjectChecks: {
-    id: string;
-    label?: string;
-    queued?: boolean;
-    title: string;
-    value: boolean | null;
-  }[];
 }) => {
-  const chrome = reportResearchChrome({
-    isOwner,
-    researchVisible,
-    showFixSteps,
-  });
+  if (!(isOwner && access.kind === "report_once" && access.unlocked)) {
+    return null;
+  }
   return (
-    <>
-      {isOwner && access.kind === "report_once" && access.unlocked ? (
-        <section className="listwell-panel" aria-labelledby="continued-reports">
-          <div className="listwell-panel__head">
-            <h2 className="listwell-panel__title" id="continued-reports">
-              Continued reports
-            </h2>
-          </div>
-          <div className="listwell-panel__body">
-            <p className="listwell-panel__note">{CONTINUED_REPORT_COPY}</p>
-            {checkoutError ? (
-              <p className="listwell-panel__error" role="alert">
-                {checkoutError}
-              </p>
-            ) : null}
-          </div>
-          {!access.sessionRequired &&
-          (access.monthlyAvailable || access.yearlyAvailable) ? (
-            <div className="listwell-panel__foot">
-              <fieldset className="m-0 flex w-full min-w-0 flex-col gap-2 border-0 p-0 sm:flex-row sm:flex-wrap">
-                <legend className="vbg-visually-hidden">
-                  Continued report prices
-                </legend>
-                {access.yearlyAvailable ? (
-                  <PrimaryButton
-                    type="button"
-                    className={reportActionClass}
-                    disabled={redirecting !== null}
-                    onClick={() =>
-                      onCheckout(checkoutPlanSchema.parse("yearly"))
-                    }
-                  >
-                    <ReportActionLabel
-                      title={
-                        redirecting === "yearly" ? "Redirecting…" : "Best value"
-                      }
-                      caption={
-                        redirecting === "yearly"
-                          ? undefined
-                          : `${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`
-                      }
-                    />
-                  </PrimaryButton>
-                ) : null}
-                {access.monthlyAvailable ? (
-                  <Button
-                    type="button"
-                    variant={access.yearlyAvailable ? "secondary" : "primary"}
-                    className={reportActionClass}
-                    disabled={redirecting !== null}
-                    onClick={() =>
-                      onCheckout(checkoutPlanSchema.parse("monthly"))
-                    }
-                  >
-                    <ReportActionLabel
-                      title={
-                        redirecting === "monthly"
-                          ? "Redirecting…"
-                          : "Monthly scans"
-                      }
-                      caption={
-                        redirecting === "monthly"
-                          ? undefined
-                          : REPORT_MONTHLY_PRICE
-                      }
-                    />
-                  </Button>
-                ) : null}
-              </fieldset>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {chrome.phrasesEditor ? (
-        <SearchPhrasesSection businessId={businessId} phrases={phrases} />
-      ) : null}
-
-      {canManageCompetitors ? (
-        <NextFixSection
-          businessId={businessId}
-          peerAuditOverride={peerAuditOverride}
-          subjectChecks={subjectChecks}
-        />
-      ) : null}
-
-      <PeerComparisonSection
-        businessId={businessId}
-        businessName={businessName}
-        canManageCompetitors={canManageCompetitors}
-        peerAuditOverride={peerAuditOverride}
-        subjectChecks={subjectChecks}
-      />
-
-      {chrome.research ? <ResearchSections view={research} /> : null}
-      {chrome.research && research ? (
-        <ResearchHistory businessName={businessName} view={research} />
-      ) : null}
-    </>
+    <div className="listwell-panel__body">
+      <h2 className="listwell-panel__title" id="continued-reports">
+        Continued reports
+      </h2>
+      <p className="listwell-panel__note">{CONTINUED_REPORT_COPY}</p>
+    </div>
   );
 };
 
@@ -2435,46 +2133,36 @@ const ReportClientMain = ({
   access,
   business,
   businessName,
-  checkoutError,
   checkoutReturned,
   dispatch,
   filter,
-  fixPlan,
   isOwner,
+  listingsEditorOpen,
   listingReviewOverride,
   liveChecks,
-  onCheckout,
   peerAuditOverride,
   pickedId,
-  redirecting,
   research,
   researchVisible,
-  scanHistory,
-  scanHistoryOverride,
+  segment,
   showFixSteps,
-  summary,
 }: {
   access: EntitlementState;
   business: Business;
   businessName: string;
-  checkoutError: string | null;
   checkoutReturned: boolean;
   dispatch: (action: ReportUiAction) => void;
   filter: ReportUiState["filter"];
-  fixPlan: PlannedFixGroup[];
   isOwner: boolean;
+  listingsEditorOpen: boolean;
   listingReviewOverride?: ListingReviewResult;
   liveChecks: LiveCheck[];
-  onCheckout: (plan: CheckoutPlan) => void;
   peerAuditOverride?: PeerAuditJob;
   pickedId: ReportUiState["pickedId"];
-  redirecting: CheckoutPlan | null;
   research: ResearchView | null;
   researchVisible: boolean;
-  scanHistory: ScanSummary[];
-  scanHistoryOverride?: ScanSummary[];
+  segment: ReportSegment;
   showFixSteps: boolean;
-  summary: AuditSummaryResult;
 }) => {
   const subjectChecks = liveChecks.map((item) => ({
     id: item.definition.id,
@@ -2483,12 +2171,7 @@ const ReportClientMain = ({
     title: item.definition.title,
     value: item.result?.value ?? null,
   }));
-  const expandedId =
-    pickedId === undefined ? recommendedCheckId(summary, liveChecks) : pickedId;
-  const citationChecks = liveChecks.map((item) => ({
-    id: item.definition.id,
-    title: item.definition.title,
-  }));
+  const expandedId = pickedId ?? null;
   const visible = liveChecks.filter(
     (item) => filter === "all" || needsWork(item)
   );
@@ -2503,103 +2186,120 @@ const ReportClientMain = ({
     dispatch({ id: expandedId === id ? null : id, type: "set-picked-id" });
   };
 
-  const revealCheck = (id: string) => {
-    const target = liveChecks.find((item) => item.definition.id === id);
-    if (target && !needsWork(target)) {
-      dispatch({ filter: "all", type: "set-filter" });
-    }
-    dispatch({ id, type: "set-picked-id" });
-    window.requestAnimationFrame(() => {
-      document
-        .querySelector(`#check-${CSS.escape(id)}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  };
+  const chrome = reportResearchChrome({
+    isOwner,
+    researchVisible,
+    showFixSteps,
+  });
+  const canManageCompetitors =
+    isOwner && access.unlocked && !access.sessionRequired;
+
+  const openJobs = liveChecks.flatMap((item) =>
+    needsWork(item) ? [item.definition] : []
+  );
 
   return (
-    <div className="listwell-report__main">
-      {isOwner ? (
-        <ReportAccessSection
-          access={access}
-          businessId={business.id}
-          businessName={businessName}
-          checkoutReturned={checkoutReturned}
-          counts={visibilityCounts(liveChecks)}
-          summary={summary}
-          fixPlan={fixPlan}
-          citationChecks={citationChecks}
-          definitions={liveChecks.map((item) => item.definition)}
-          onSelectCheck={revealCheck}
-          onUnlocked={() => {
-            window.location.replace(`/${business.id}`);
-          }}
+    <>
+      <div className="listwell-report__body">
+        <ReportSegmentNav
+          segment={segment}
+          showResearch={chrome.research}
+          onChange={(next) => dispatch({ segment: next, type: "set-segment" })}
         />
-      ) : null}
 
-      <ListingReviewSection
-        businessId={business.id}
-        businessName={businessName}
-        showContent={showFixSteps}
-        listingReviewOverride={listingReviewOverride}
-      />
+        <div className="listwell-report__segment" hidden={segment !== "jobs"}>
+          {isOwner ? (
+            <ReportAccessSection
+              access={access}
+              checkoutReturned={checkoutReturned}
+              onUnlocked={() => {
+                window.location.replace(`/${business.id}`);
+              }}
+            />
+          ) : null}
+          <ReportJobs
+            category={business.category}
+            checks={openJobs}
+            showSteps={showFixSteps}
+          />
+        </div>
 
-      {isOwner ? (
-        <OnceRescanSection access={access} businessId={business.id} />
-      ) : null}
+        <div
+          className="listwell-report__segment"
+          hidden={segment !== "listing"}
+        >
+          <ListingsSection
+            listingsEditorOpen={listingsEditorOpen}
+            profiles={profiles}
+            showEditLink={isOwner}
+            onEditListings={() => dispatch({ type: "open-listings-editor" })}
+          />
+          <ListingReviewSection
+            businessId={business.id}
+            businessName={businessName}
+            showContent={showFixSteps}
+            listingReviewOverride={listingReviewOverride}
+          />
+        </div>
 
-      {shouldShowScanHistory({
-        access,
-        isOwner,
-        scanCount: scanHistory.length,
-        scanHistoryOverride,
-        showFixSteps,
-      }) ? (
-        <ScanHistorySection scans={scanHistory} />
-      ) : null}
+        <div className="listwell-report__segment" hidden={segment !== "checks"}>
+          <ChecksLedgerSection
+            groupedChecks={groupedChecks}
+            checksCaption={checksCaption}
+            filter={filter}
+            expandedId={expandedId}
+            showFixSteps={showFixSteps}
+            onFilterChange={(next) =>
+              dispatch({ filter: next, type: "set-filter" })
+            }
+            onToggleCheck={toggleCheck}
+          />
+        </div>
 
-      <ContinuedReportSections
-        access={access}
-        businessId={business.id}
-        businessName={businessName}
-        canManageCompetitors={
-          isOwner && access.unlocked && !access.sessionRequired
-        }
-        checkoutError={checkoutError}
-        isOwner={isOwner}
-        redirecting={redirecting}
-        onCheckout={onCheckout}
-        peerAuditOverride={peerAuditOverride}
-        phrases={business.searchPhrases}
-        research={research}
-        researchVisible={researchVisible}
-        showFixSteps={showFixSteps}
-        subjectChecks={subjectChecks}
-      />
+        <div className="listwell-report__segment" hidden={segment !== "nearby"}>
+          {canManageCompetitors ? (
+            <NextFixSection
+              businessId={business.id}
+              peerAuditOverride={peerAuditOverride}
+              subjectChecks={subjectChecks}
+            />
+          ) : null}
+          <PeerComparisonSection
+            businessId={business.id}
+            businessName={businessName}
+            canManageCompetitors={canManageCompetitors}
+            peerAuditOverride={peerAuditOverride}
+            subjectChecks={subjectChecks}
+          />
+        </div>
 
-      <ChecksLedgerSection
-        groupedChecks={groupedChecks}
-        checksCaption={checksCaption}
-        filter={filter}
-        expandedId={expandedId}
-        businessCategory={business.category}
-        showFixSteps={showFixSteps}
-        onFilterChange={(next) =>
-          dispatch({ filter: next, type: "set-filter" })
-        }
-        onToggleCheck={toggleCheck}
-      />
+        {chrome.research ? (
+          <div
+            className="listwell-report__segment"
+            hidden={segment !== "research"}
+          >
+            {chrome.phrasesEditor ? (
+              <SearchPhrasesSection
+                businessId={business.id}
+                phrases={business.searchPhrases}
+              />
+            ) : null}
+            <div className="listwell-report__research">
+              <ResearchSections view={research} />
+            </div>
+            {research ? (
+              <ResearchHistory businessName={businessName} view={research} />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
-      <ListingsSection
-        businessId={business.id}
-        profiles={profiles}
-        showEditLink={isOwner}
-      />
       <footer aria-hidden="true" className="listwell-report__print-footer">
         <p className="listwell-panel__fine">
           {showFixSteps ? "Full report" : "Preview"} · Listwell · listwell.dev
         </p>
       </footer>
-    </div>
+    </>
   );
 };
 
@@ -2622,6 +2322,7 @@ export const ReportClient = ({
   scanHistoryOverride,
   research = null,
   researchVisible = false,
+  openListingsEditor = false,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
@@ -2645,6 +2346,7 @@ export const ReportClient = ({
   /** Stored research for a continued report. Null when it could not be loaded. */
   research?: ResearchView | null;
   researchVisible?: boolean;
+  openListingsEditor?: boolean;
 }) => {
   const business = useMemo(
     () => businessSchema.parse(initialBusiness),
@@ -2671,15 +2373,27 @@ export const ReportClient = ({
       serverAccess,
       variant,
     });
-  const [ui, dispatch] = useReducer(reportUiReducer, initialReportUiState);
+  const { refresh } = useRouter();
+  const [ui, dispatch] = useReducer(
+    reportUiReducer,
+    openListingsEditor && variant === "owner",
+    reportUiInitialState
+  );
   const {
     checkoutError,
     filter,
+    listingsEditorOpen,
+    listingsFormSession,
     monthlyUpgradeOpen,
     pickedId,
     redirecting,
+    segment,
     shareOpen,
   } = ui;
+  const closeListingsEditor = () => {
+    dispatch({ open: false, type: "set-listings-editor-open" });
+    clearListingsEditorQuery();
+  };
   const isOwner = variant === "owner";
   const canManageShare = canManageReportShareFromAccess({
     isOwnerView: isOwner,
@@ -2746,17 +2460,41 @@ export const ReportClient = ({
         />
       ) : null}
       {isOwner ? (
-        <MonthlyScansUpgradeDialog
-          busy={redirecting === monthlyPlan}
-          error={monthlyUpgradeOpen ? checkoutError : null}
-          open={monthlyUpgradeOpen}
-          onConfirm={() => {
-            void confirmMonthlyCheckout();
-          }}
-          onOpenChange={(open) => {
-            dispatch({ open, type: "set-monthly-upgrade-open" });
-          }}
-        />
+        <>
+          <MonthlyScansUpgradeDialog
+            busy={redirecting === monthlyPlan}
+            error={monthlyUpgradeOpen ? checkoutError : null}
+            open={monthlyUpgradeOpen}
+            onConfirm={() => {
+              void confirmMonthlyCheckout();
+            }}
+            onOpenChange={(open) => {
+              dispatch({ open, type: "set-monthly-upgrade-open" });
+            }}
+          />
+          <EditListingsDialog
+            businessName={businessName}
+            categoryId={business.category}
+            categoryLabel={business.categoryLabel}
+            existingId={business.id}
+            formKey={listingsFormSession}
+            initialAddress={
+              business.locations.find((location) => location.address)
+                ?.address ?? undefined
+            }
+            initialProfiles={businessToProfiles(business)}
+            open={listingsEditorOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeListingsEditor();
+              }
+            }}
+            onSaved={async () => {
+              await refresh();
+              closeListingsEditor();
+            }}
+          />
+        </>
       ) : null}
       <div className="listwell-report__layout">
         <div className="listwell-report__notices">
@@ -2772,12 +2510,7 @@ export const ReportClient = ({
           />
         </div>
 
-        <ReportOverviewSection
-          className="listwell-report__overview"
-          summary={summary}
-        />
-
-        <aside className="listwell-report__summary">
+        <div className="listwell-report__lead">
           <ReportHeader
             access={access}
             businessId={business.id}
@@ -2806,34 +2539,44 @@ export const ReportClient = ({
             }
             showFixSteps={showFixSteps}
             visibilityScore={visibilityScore}
+            scans={
+              shouldShowScanHistory({
+                access,
+                isOwner,
+                scanCount: scanHistory.length,
+                scanHistoryOverride,
+                showFixSteps,
+              })
+                ? scanHistory
+                : []
+            }
+            upsell={
+              <ContinuedReportsUpsellSection
+                access={access}
+                isOwner={isOwner}
+              />
+            }
             onShare={() => dispatch({ open: true, type: "set-share-open" })}
           />
-        </aside>
+        </div>
 
         <ReportClientMain
           access={access}
           business={business}
           businessName={businessName}
-          checkoutError={checkoutError}
           checkoutReturned={checkoutReturned}
           dispatch={dispatch}
           filter={filter}
-          fixPlan={fixPlan}
           isOwner={isOwner}
+          listingsEditorOpen={listingsEditorOpen}
           listingReviewOverride={listingReviewOverride}
           liveChecks={liveChecks}
-          onCheckout={(plan) => {
-            void startCheckout(plan);
-          }}
           peerAuditOverride={peerAuditOverride}
           pickedId={pickedId}
-          redirecting={redirecting}
           research={research}
           researchVisible={researchVisible}
-          scanHistory={scanHistory}
-          scanHistoryOverride={scanHistoryOverride}
+          segment={segment}
           showFixSteps={showFixSteps}
-          summary={summary}
         />
       </div>
     </article>

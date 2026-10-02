@@ -1,9 +1,12 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { ChevronDownIcon } from "@hugeicons/core-free-icons";
+import { Fragment, useId, useState } from "react";
+import type { ReactNode } from "react";
 import useSWR from "swr";
 import { z } from "zod";
 
+import { Icon } from "@/components/icon";
 import { CheckStatusMark } from "@/components/listwell/report-ui";
 import { PlaceSearch } from "@/components/place-search";
 import {
@@ -13,6 +16,7 @@ import {
 } from "@/lib/chat-onboarding";
 import type { PlaceCandidate } from "@/lib/discover";
 import {
+  PEER_LIMIT,
   PEER_ORDER_CAPTION,
   bestNumberIndexes,
   competitorCheckStatus,
@@ -65,6 +69,32 @@ const competitorErrorSchema = z.object({
 
 const metric = (value: number | null | undefined): number | null =>
   typeof value === "number" ? value : null;
+
+const peersForList = (job: PeerAuditJob): PeerColumn[] =>
+  job.peers.slice(0, PEER_LIMIT);
+
+const ChevronIcon = () => (
+  <Icon className="listwell-panel__chevron" icon={ChevronDownIcon} size={15} />
+);
+
+const Disclosure = ({
+  children,
+  id,
+  open,
+}: {
+  children: ReactNode;
+  id: string;
+  open: boolean;
+}) => (
+  <div
+    className="listwell-disclosure"
+    data-open={open ? "true" : "false"}
+    id={id}
+    inert={open ? undefined : true}
+  >
+    <div className="listwell-disclosure__clip">{children}</div>
+  </div>
+);
 
 const countLine = (input: {
   fail: number;
@@ -139,10 +169,11 @@ const NumberCell = ({ text }: { text: string }) => (
 const summaryFor = (
   job: PeerAuditJob,
   subjectChecks: SubjectCheck[]
-): string[] =>
-  whereCompetitorsBeatYou({
+): string[] => {
+  const peers = peersForList(job);
+  return whereCompetitorsBeatYou({
     checks: subjectChecks.map((check) => ({
-      peerValues: job.peers.map((peer) => peer.checks[check.id]?.value ?? null),
+      peerValues: peers.map((peer) => peer.checks[check.id]?.value ?? null),
       subjectValue: check.queued ? null : check.value,
       title: check.title,
     })),
@@ -150,23 +181,24 @@ const summaryFor = (
       {
         higherIsBetter: true,
         kind: "rating",
-        peers: job.peers.map((peer) => metric(peer.rating)),
+        peers: peers.map((peer) => metric(peer.rating)),
         subject: metric(job.subjectFacts?.rating),
       },
       {
         higherIsBetter: true,
         kind: "reviewCount",
-        peers: job.peers.map((peer) => metric(peer.reviewCount)),
+        peers: peers.map((peer) => metric(peer.reviewCount)),
         subject: metric(job.subjectFacts?.reviewCount),
       },
       {
         higherIsBetter: true,
         kind: "photoCount",
-        peers: job.peers.map((peer) => metric(peer.photoCount)),
+        peers: peers.map((peer) => metric(peer.photoCount)),
         subject: metric(job.subjectFacts?.photoCount),
       },
     ],
   });
+};
 
 const PeerActions = ({
   onHide,
@@ -226,24 +258,47 @@ const PeerBeatList = ({ lines }: { lines: string[] }) =>
     </div>
   ) : null;
 
-const PeerTableHead = ({
+interface SubjectStats {
+  fail: number;
+  pass: number;
+  score: number;
+  skipped: number;
+}
+
+const subjectStatsFor = (subjectChecks: SubjectCheck[]): SubjectStats => {
+  const counted = visibilityCounts(
+    subjectChecks.map((check) => ({
+      status: check.queued
+        ? "queued"
+        : statusFromResult({ queued: false, value: check.value }),
+    }))
+  );
+  return {
+    fail: counted.fail,
+    pass: counted.pass,
+    score: scorePercent(counted),
+    skipped: counted.error,
+  };
+};
+
+const PeerCompareHead = ({
   canManage,
-  job,
   onHide,
   onPin,
   onUnpin,
+  peer,
   saving,
   subjectName,
   subjectStats,
 }: {
   canManage: boolean;
-  job: PeerAuditJob;
   onHide: (placeId: string) => void;
   onPin: (placeId: string) => void;
   onUnpin: (placeId: string) => void;
+  peer: PeerColumn;
   saving: boolean;
   subjectName: string;
-  subjectStats: { fail: number; pass: number; score: number; skipped: number };
+  subjectStats: SubjectStats;
 }) => (
   <thead>
     <tr>
@@ -253,46 +308,45 @@ const PeerTableHead = ({
       <th scope="col" className="align-bottom">
         <ScoreHeading name={subjectName} stats={subjectStats} />
       </th>
-      {job.peers.map((peer) => (
-        <th key={peer.placeId} scope="col" className="align-bottom">
-          <ScoreHeading
-            name={peer.name}
-            reason={competitorReason(peer.source, peer.mapPackPhrase)}
-            stats={peer}
+      <th scope="col" className="align-bottom">
+        <ScoreHeading
+          name={peer.name}
+          reason={competitorReason(peer.source, peer.mapPackPhrase)}
+          stats={peer}
+        />
+        {canManage ? (
+          <PeerActions
+            peer={peer}
+            saving={saving}
+            onHide={onHide}
+            onPin={onPin}
+            onUnpin={onUnpin}
           />
-          {canManage ? (
-            <PeerActions
-              peer={peer}
-              saving={saving}
-              onHide={onHide}
-              onPin={onPin}
-              onUnpin={onUnpin}
-            />
-          ) : null}
-        </th>
-      ))}
+        ) : null}
+      </th>
     </tr>
   </thead>
 );
 
-const PeerFactRows = ({ job }: { job: PeerAuditJob }) => {
-  const ratingValues = [
-    metric(job.subjectFacts?.rating),
-    ...job.peers.map((peer) => metric(peer.rating)),
-  ];
+const PeerFactRows = ({
+  job,
+  peer,
+}: {
+  job: PeerAuditJob;
+  peer: PeerColumn;
+}) => {
+  const ratingValues = [metric(job.subjectFacts?.rating), metric(peer.rating)];
   const reviewValues = [
     metric(job.subjectFacts?.reviewCount),
-    ...job.peers.map((peer) => metric(peer.reviewCount)),
+    metric(peer.reviewCount),
   ];
   const photoValues = [
     metric(job.subjectFacts?.photoCount),
-    ...job.peers.map((peer) => metric(peer.photoCount)),
+    metric(peer.photoCount),
   ];
-  const distanceValues = job.peers.map((peer) => metric(peer.distanceMetres));
   const bestRating = new Set(bestNumberIndexes(ratingValues, true));
   const bestReviews = new Set(bestNumberIndexes(reviewValues, true));
   const bestPhotos = new Set(bestNumberIndexes(photoValues, true));
-  const bestDistance = new Set(bestNumberIndexes(distanceValues, false));
 
   return (
     <>
@@ -305,16 +359,11 @@ const PeerFactRows = ({ job }: { job: PeerAuditJob }) => {
             text={formatRatingCell(ratingValues[0] ?? null, bestRating.has(0))}
           />
         </td>
-        {job.peers.map((peer, index) => (
-          <td key={peer.placeId}>
-            <NumberCell
-              text={formatRatingCell(
-                metric(peer.rating),
-                bestRating.has(index + 1)
-              )}
-            />
-          </td>
-        ))}
+        <td>
+          <NumberCell
+            text={formatRatingCell(ratingValues[1] ?? null, bestRating.has(1))}
+          />
+        </td>
       </tr>
       <tr>
         <th scope="row" className="text-ink min-w-40 font-medium">
@@ -330,18 +379,16 @@ const PeerFactRows = ({ job }: { job: PeerAuditJob }) => {
             )}
           />
         </td>
-        {job.peers.map((peer, index) => (
-          <td key={peer.placeId}>
-            <NumberCell
-              text={formatCountCell(
-                metric(peer.reviewCount),
-                bestReviews.has(index + 1),
-                "review",
-                "reviews"
-              )}
-            />
-          </td>
-        ))}
+        <td>
+          <NumberCell
+            text={formatCountCell(
+              reviewValues[1] ?? null,
+              bestReviews.has(1),
+              "review",
+              "reviews"
+            )}
+          />
+        </td>
       </tr>
       <tr>
         <th scope="row" className="text-ink min-w-40 font-medium">
@@ -357,43 +404,34 @@ const PeerFactRows = ({ job }: { job: PeerAuditJob }) => {
             )}
           />
         </td>
-        {job.peers.map((peer, index) => (
-          <td key={peer.placeId}>
-            <NumberCell
-              text={formatCountCell(
-                metric(peer.photoCount),
-                bestPhotos.has(index + 1),
-                "photo",
-                "photos"
-              )}
-            />
-          </td>
-        ))}
+        <td>
+          <NumberCell
+            text={formatCountCell(
+              photoValues[1] ?? null,
+              bestPhotos.has(1),
+              "photo",
+              "photos"
+            )}
+          />
+        </td>
       </tr>
       <tr>
         <th scope="row" className="text-ink min-w-40 font-medium">
           Category
         </th>
         <td>{job.subjectFacts?.primaryCategory ?? "Unknown"}</td>
-        {job.peers.map((peer) => (
-          <td key={peer.placeId}>{peer.primaryCategory ?? "Unknown"}</td>
-        ))}
+        <td>{peer.primaryCategory ?? "Unknown"}</td>
       </tr>
       <tr>
         <th scope="row" className="text-ink min-w-40 font-medium">
           Distance
         </th>
         <td>This business</td>
-        {job.peers.map((peer, index) => (
-          <td key={peer.placeId}>
-            <NumberCell
-              text={formatDistanceCell(
-                metric(peer.distanceMetres),
-                bestDistance.has(index)
-              )}
-            />
-          </td>
-        ))}
+        <td>
+          <NumberCell
+            text={formatDistanceCell(metric(peer.distanceMetres), false)}
+          />
+        </td>
       </tr>
     </>
   );
@@ -408,16 +446,22 @@ interface PeerTableCheck {
   title: string;
 }
 
-const PeerPhraseRows = ({ job }: { job: PeerAuditJob }) => (
+const PeerPhraseRows = ({
+  job,
+  peer,
+}: {
+  job: PeerAuditJob;
+  peer: PeerColumn;
+}) => (
   <>
     {(job.phraseRows ?? []).map((phrase) => {
       const cellValues = [
         phrase.subjectCells ?? null,
-        ...job.peers.map((peer) => peer.phraseCells?.[phrase.id] ?? null),
+        peer.phraseCells?.[phrase.id] ?? null,
       ];
       const positionValues = [
         phrase.subjectPosition ?? null,
-        ...job.peers.map((peer) => peer.phrasePosition?.[phrase.id] ?? null),
+        peer.phrasePosition?.[phrase.id] ?? null,
       ];
       const bestCells = new Set(bestNumberIndexes(cellValues, true));
       const bestPosition = new Set(bestNumberIndexes(positionValues, false));
@@ -437,18 +481,16 @@ const PeerPhraseRows = ({ job }: { job: PeerAuditJob }) => (
                 )}
               />
             </td>
-            {job.peers.map((peer, index) => (
-              <td key={peer.placeId}>
-                <NumberCell
-                  text={formatCountCell(
-                    peer.phraseCells?.[phrase.id] ?? null,
-                    bestCells.has(index + 1),
-                    "cell",
-                    "cells"
-                  )}
-                />
-              </td>
-            ))}
+            <td>
+              <NumberCell
+                text={formatCountCell(
+                  cellValues[1] ?? null,
+                  bestCells.has(1),
+                  "cell",
+                  "cells"
+                )}
+              />
+            </td>
           </tr>
           <tr>
             <th scope="row" className="text-ink min-w-40 font-medium">
@@ -462,16 +504,14 @@ const PeerPhraseRows = ({ job }: { job: PeerAuditJob }) => (
                 )}
               />
             </td>
-            {job.peers.map((peer, index) => (
-              <td key={peer.placeId}>
-                <NumberCell
-                  text={formatPositionCell(
-                    peer.phrasePosition?.[phrase.id] ?? null,
-                    bestPosition.has(index + 1)
-                  )}
-                />
-              </td>
-            ))}
+            <td>
+              <NumberCell
+                text={formatPositionCell(
+                  positionValues[1] ?? null,
+                  bestPosition.has(1)
+                )}
+              />
+            </td>
           </tr>
         </Fragment>
       );
@@ -480,10 +520,10 @@ const PeerPhraseRows = ({ job }: { job: PeerAuditJob }) => (
 );
 
 const PeerCheckRows = ({
-  job,
+  peer,
   rows,
 }: {
-  job: PeerAuditJob;
+  peer: PeerColumn;
   rows: PeerTableCheck[];
 }) => (
   <>
@@ -499,21 +539,83 @@ const PeerCheckRows = ({
             waiting={row.subjectWaiting}
           />
         </td>
-        {job.peers.map((peer, index) => (
-          <td key={peer.placeId}>
-            <CheckCell
-              fromSearch={peer.checks[row.id]?.fromSearch === true}
-              label={peer.checks[row.id]?.label}
-              value={row.peerValues[index] ?? null}
-            />
-          </td>
-        ))}
+        <td>
+          <CheckCell
+            fromSearch={peer.checks[row.id]?.fromSearch === true}
+            label={peer.checks[row.id]?.label}
+            value={row.peerValues[0] ?? null}
+          />
+        </td>
       </tr>
     ))}
   </>
 );
 
-const PeerTable = ({
+const rowsForPeer = (
+  subjectChecks: SubjectCheck[],
+  peer: PeerColumn
+): PeerTableCheck[] =>
+  orderPeerCheckRows(
+    subjectChecks.map((check) => ({
+      id: check.id,
+      label: check.label,
+      peerValues: [peer.checks[check.id]?.value ?? null],
+      subjectValue: check.queued ? null : check.value,
+      subjectWaiting: Boolean(check.queued),
+      title: check.title,
+    }))
+  );
+
+const PeerCompare = ({
+  canManage,
+  job,
+  onHide,
+  onPin,
+  onUnpin,
+  peer,
+  saving,
+  subjectChecks,
+  subjectName,
+  subjectStats,
+}: {
+  canManage: boolean;
+  job: PeerAuditJob;
+  onHide: (placeId: string) => void;
+  onPin: (placeId: string) => void;
+  onUnpin: (placeId: string) => void;
+  peer: PeerColumn;
+  saving: boolean;
+  subjectChecks: SubjectCheck[];
+  subjectName: string;
+  subjectStats: SubjectStats;
+}) => (
+  <div className="listwell-panel__detail listwell-panel__detail--compare">
+    <div className="overflow-x-auto">
+      <table className="listwell-panel__table">
+        <caption className="sr-only">
+          {`How ${peer.name} compares with ${subjectName}`}
+        </caption>
+        <PeerCompareHead
+          canManage={canManage}
+          peer={peer}
+          saving={saving}
+          subjectName={subjectName}
+          subjectStats={subjectStats}
+          onHide={onHide}
+          onPin={onPin}
+          onUnpin={onUnpin}
+        />
+        <tbody>
+          <PeerFactRows job={job} peer={peer} />
+          <PeerPhraseRows job={job} peer={peer} />
+          <PeerCheckRows peer={peer} rows={rowsForPeer(subjectChecks, peer)} />
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+const PeerList = ({
   canManage,
   job,
   onHide,
@@ -532,56 +634,56 @@ const PeerTable = ({
   subjectChecks: SubjectCheck[];
   subjectName: string;
 }) => {
-  const rows = orderPeerCheckRows(
-    subjectChecks.map((check) => ({
-      id: check.id,
-      label: check.label,
-      peerValues: job.peers.map((peer) => peer.checks[check.id]?.value ?? null),
-      subjectValue: check.queued ? null : check.value,
-      subjectWaiting: Boolean(check.queued),
-      title: check.title,
-    }))
-  );
-  const counted = visibilityCounts(
-    subjectChecks.map((check) => ({
-      status: check.queued
-        ? "queued"
-        : statusFromResult({ queued: false, value: check.value }),
-    }))
-  );
-  const subjectStats = {
-    fail: counted.fail,
-    pass: counted.pass,
-    score: scorePercent(counted),
-    skipped: counted.error,
-  };
+  const [openPlaceId, setOpenPlaceId] = useState<string | null>(null);
+  const listId = useId();
+  const peers = peersForList(job);
+  const subjectStats = subjectStatsFor(subjectChecks);
   const lines = summaryFor(job, subjectChecks);
+
+  const togglePeer = (placeId: string) => {
+    setOpenPlaceId((current) => (current === placeId ? null : placeId));
+  };
 
   return (
     <>
       <PeerBeatList lines={lines} />
-      <div className="overflow-x-auto">
-        <table
-          className="listwell-panel__table"
-          aria-describedby="peer-comparison-caption"
-        >
-          <PeerTableHead
-            canManage={canManage}
-            job={job}
-            onHide={onHide}
-            onPin={onPin}
-            onUnpin={onUnpin}
-            saving={saving}
-            subjectName={subjectName}
-            subjectStats={subjectStats}
-          />
-          <tbody>
-            <PeerFactRows job={job} />
-            <PeerPhraseRows job={job} />
-            <PeerCheckRows job={job} rows={rows} />
-          </tbody>
-        </table>
-      </div>
+      <ul className="listwell-panel__rows">
+        {peers.map((peer, index) => {
+          const open = openPlaceId === peer.placeId;
+          const panelId = `${listId}-peer-${index}`;
+          return (
+            <li key={peer.placeId}>
+              <button
+                type="button"
+                className="listwell-panel__row"
+                aria-controls={panelId}
+                aria-expanded={open}
+                onClick={() => togglePeer(peer.placeId)}
+              >
+                <span className="listwell-panel__row-main">
+                  <span className="listwell-panel__row-title">{peer.name}</span>
+                </span>
+                <span className="listwell-panel__mono">{`${peer.score}%`}</span>
+                <ChevronIcon />
+              </button>
+              <Disclosure id={panelId} open={open}>
+                <PeerCompare
+                  canManage={canManage}
+                  job={job}
+                  peer={peer}
+                  saving={saving}
+                  subjectChecks={subjectChecks}
+                  subjectName={subjectName}
+                  subjectStats={subjectStats}
+                  onHide={onHide}
+                  onPin={onPin}
+                  onUnpin={onUnpin}
+                />
+              </Disclosure>
+            </li>
+          );
+        })}
+      </ul>
     </>
   );
 };
@@ -742,8 +844,8 @@ export const PeerComparisonSection = ({
           </div>
         ) : null}
       </div>
-      {job && job.peers.length > 0 ? (
-        <PeerTable
+      {job && peersForList(job).length > 0 ? (
+        <PeerList
           canManage={canManage}
           job={job}
           saving={saving}
@@ -774,12 +876,11 @@ export const NextFixSection = ({
   subjectChecks: SubjectCheck[];
 }) => {
   const { job } = usePeerAudit(businessId, peerAuditOverride);
+  const peers = job ? peersForList(job) : [];
   const choice = pickNextFix(
     subjectChecks.map((check) => ({
       id: check.id,
-      peerValues: job
-        ? job.peers.map((peer) => peer.checks[check.id]?.value ?? null)
-        : [],
+      peerValues: peers.map((peer) => peer.checks[check.id]?.value ?? null),
       subjectValue: check.queued ? null : check.value,
       title: check.title,
     }))

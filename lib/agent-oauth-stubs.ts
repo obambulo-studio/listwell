@@ -18,9 +18,7 @@ export const agentOAuthStubJsonResponse = (
     status: 403,
   });
 
-export const agentOAuthStubPost = async (
-  request: Request
-): Promise<NextResponse> => {
-  const origin = new URL(request.url).origin;
+export const agentOAuthStubPost = (request: Request): NextResponse => {
+  const { origin } = new URL(request.url);
   return agentOAuthStubJsonResponse(origin);
 };

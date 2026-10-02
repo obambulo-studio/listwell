@@ -415,9 +415,31 @@ export const hasActiveEntitlement = async (
   return active ?? false;
 };
 
+export const claimPurchaseEmail = async (
+  businessId: string,
+  kind: EntitlementKind
+): Promise<boolean> => {
+  const claimed = await convexMutation(api.entitlements.claimPurchaseEmail, {
+    businessExternalId: businessId,
+    kind,
+  });
+  return z.boolean().parse(claimed);
+};
+
+export const releasePurchaseEmail = async (
+  businessId: string,
+  kind: EntitlementKind
+): Promise<void> => {
+  await convexMutation(api.entitlements.releasePurchaseEmail, {
+    businessExternalId: businessId,
+    kind,
+  });
+};
+
 export const grantEntitlement = async (input: {
   businessId: string;
   kind: EntitlementKind;
+  polarCustomerId?: string;
   polarOrderId?: string;
   polarSubscriptionId?: string;
   purchaserEmail?: string;
@@ -426,6 +448,7 @@ export const grantEntitlement = async (input: {
   const row = await convexMutation(api.entitlements.grant, {
     businessExternalId: input.businessId,
     kind: input.kind,
+    polarCustomerId: input.polarCustomerId,
     polarOrderId: input.polarOrderId,
     polarSubscriptionId: input.polarSubscriptionId,
     purchaserEmail: input.purchaserEmail,
@@ -450,6 +473,15 @@ export const revokeEntitlements = async (input: {
   });
 };
 
+const activeOwnerValueSchema = z.object({
+  kind: entitlementKindSchema.nullable(),
+  ownerEmail: z.string().nullable(),
+  ownerUserId: z.string().nullable(),
+  polarOrderId: z.string().nullable(),
+  purchaserEmail: z.string().nullable(),
+  unlocked: z.boolean(),
+});
+
 export type EntitlementOwnerSnapshot =
   | { backendAvailable: false }
   | {
@@ -458,6 +490,8 @@ export type EntitlementOwnerSnapshot =
       kind: EntitlementKind | null;
       ownerEmail: string | null;
       ownerUserId: string | null;
+      polarOrderId: string | null;
+      purchaserEmail: string | null;
     };
 
 export const getResearchEntitlement = async (
@@ -495,12 +529,14 @@ export const getActiveEntitlementOwner = async (
   if (owner.status === "unavailable") {
     return { backendAvailable: false };
   }
-  const { value } = owner;
+  const value = activeOwnerValueSchema.parse(owner.value);
   return {
     backendAvailable: true,
-    kind: value.kind ? entitlementKindSchema.parse(value.kind) : null,
+    kind: value.kind,
     ownerEmail: value.ownerEmail,
     ownerUserId: value.ownerUserId,
+    polarOrderId: value.polarOrderId,
+    purchaserEmail: value.purchaserEmail,
     unlocked: value.unlocked,
   };
 };

@@ -63,7 +63,7 @@ import type {
   SeoObservationRow,
 } from "./seo-schema";
 
-export const PEER_LIMIT = 4;
+export const PEER_LIMIT = 3;
 export const NEARBY_RADIUS_METERS = 5000;
 export const WIDENED_RADIUS_METERS = 15_000;
 const NEARBY_RESULT_COUNT = 10;

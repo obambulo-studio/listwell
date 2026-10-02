@@ -29,6 +29,7 @@ const searchParamsSchema = z.object({
   checkout_id: z.union([z.string(), z.array(z.string())]).optional(),
   checkout_retry: z.union([z.string(), z.array(z.string())]).optional(),
   checkout_returned: z.union([z.string(), z.array(z.string())]).optional(),
+  listings: z.union([z.string(), z.array(z.string())]).optional(),
   purchase_pending: z.union([z.string(), z.array(z.string())]).optional(),
 });
 
@@ -145,6 +146,7 @@ const ReportPage = async ({
       showKvExpiryNotice={showKvExpiryNotice}
       kvExpiryDays={BUSINESS_KV_TTL_DAYS}
       checkJobId={batch.pending.length > 0 ? batch.jobId : undefined}
+      openListingsEditor={searchFlag(search.listings)}
       research={research}
       researchVisible={researchVisible}
     />

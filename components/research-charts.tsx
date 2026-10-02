@@ -59,7 +59,7 @@ export const ResearchMonthCharts = ({
   const radarIds = radarSeries.map((series) => series.id);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="grid gap-6 2xl:grid-cols-3">
       {bars.length > 0 ? (
         <div>
           <h3 className="text-ink font-medium">Volume and difficulty</h3>

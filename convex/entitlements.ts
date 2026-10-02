@@ -93,6 +93,7 @@ const toEntitlementResponse = (doc: {
   userId?: string;
   kind: "report_once" | "report_monthly";
   status: "active" | "revoked";
+  polarCustomerId?: string;
   polarOrderId?: string;
   polarSubscriptionId?: string;
   nextScanAt?: string;
@@ -104,6 +105,7 @@ const toEntitlementResponse = (doc: {
   id: doc._id,
   kind: doc.kind,
   nextScanAt: doc.nextScanAt ?? null,
+  polarCustomerId: doc.polarCustomerId ?? null,
   polarOrderId: doc.polarOrderId ?? null,
   polarSubscriptionId: doc.polarSubscriptionId ?? null,
   status: doc.status,
@@ -140,6 +142,8 @@ const activeOwnerResponse = v.object({
   kind: v.union(entitlementKindValidator, v.null()),
   ownerEmail: v.union(v.string(), v.null()),
   ownerUserId: v.union(v.string(), v.null()),
+  polarOrderId: v.union(v.string(), v.null()),
+  purchaserEmail: v.union(v.string(), v.null()),
   unlocked: v.boolean(),
 });
 
@@ -160,6 +164,8 @@ export const getActiveOwner = query({
         kind: null,
         ownerEmail: null,
         ownerUserId: null,
+        polarOrderId: null,
+        purchaserEmail: null,
         unlocked: false,
       };
     }
@@ -174,6 +180,8 @@ export const getActiveOwner = query({
       kind: active.kind,
       ownerEmail,
       ownerUserId: active.userId ?? null,
+      polarOrderId: active.polarOrderId ?? null,
+      purchaserEmail: active.purchaserEmail ?? null,
       unlocked: true,
     };
   },
@@ -211,9 +219,19 @@ export const getActiveForBusiness = query({
     if (!chosen) {
       return null;
     }
+    const polarCustomerId =
+      chosen.polarCustomerId ??
+      active.find((row) => row.polarCustomerId)?.polarCustomerId ??
+      null;
+    const purchaserEmail =
+      chosen.purchaserEmail ??
+      active.find((row) => row.purchaserEmail)?.purchaserEmail ??
+      null;
     return {
       kind: chosen.kind,
       nextScanAt: chosen.nextScanAt ?? null,
+      polarCustomerId,
+      purchaserEmail,
       status: chosen.status,
     };
   },
@@ -221,10 +239,44 @@ export const getActiveForBusiness = query({
     v.object({
       kind: entitlementKindValidator,
       nextScanAt: v.union(v.string(), v.null()),
+      polarCustomerId: v.union(v.string(), v.null()),
+      purchaserEmail: v.union(v.string(), v.null()),
       status: entitlementStatusValidator,
     }),
     v.null()
   ),
+});
+
+/** Fills a missing Polar customer id on active entitlements for one business. */
+export const rememberPolarCustomer = mutation({
+  args: {
+    businessExternalId: v.string(),
+    polarCustomerId: v.string(),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .collect();
+    const timestamp = nowIso();
+    await Promise.all(
+      rows.map(async (row) => {
+        if (row.status !== "active" || row.polarCustomerId) {
+          return;
+        }
+        await ctx.db.patch("entitlements", row._id, {
+          polarCustomerId: args.polarCustomerId,
+          updatedAt: timestamp,
+        });
+      })
+    );
+    return null;
+  },
+  returns: v.null(),
 });
 
 const attachGrantOwner = async (
@@ -282,6 +334,7 @@ export const grant = mutation({
   args: {
     businessExternalId: v.string(),
     kind: entitlementKindValidator,
+    polarCustomerId: v.optional(v.string()),
     polarOrderId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
     purchaserEmail: v.optional(v.string()),
@@ -331,9 +384,13 @@ export const grant = mutation({
           args.kind === "report_monthly"
             ? (existing.nextScanAt ?? nextScanAt)
             : undefined,
+        polarCustomerId: args.polarCustomerId ?? existing.polarCustomerId,
         polarOrderId: args.polarOrderId ?? existing.polarOrderId,
         polarSubscriptionId:
           args.polarSubscriptionId ?? existing.polarSubscriptionId,
+        ...(existing.status === "revoked"
+          ? { purchaseEmailSentAt: undefined }
+          : {}),
         purchaserEmail: existing.purchaserEmail ?? purchaseOwner.email,
         status: "active",
         updatedAt: timestamp,
@@ -356,6 +413,7 @@ export const grant = mutation({
       createdAt: timestamp,
       kind: args.kind,
       nextScanAt,
+      polarCustomerId: args.polarCustomerId,
       polarOrderId: args.polarOrderId,
       polarSubscriptionId: args.polarSubscriptionId,
       purchaserEmail: purchaseOwner.email,
@@ -376,6 +434,71 @@ export const grant = mutation({
     return toEntitlementResponse(inserted);
   },
   returns: entitlementResponseValidator,
+});
+
+const findActiveEntitlement = async (
+  ctx: MutationCtx,
+  businessExternalId: string,
+  kind: "report_monthly" | "report_once"
+) => {
+  const rows = await ctx.db
+    .query("entitlements")
+    .withIndex("by_businessExternalId", (q) =>
+      q.eq("businessExternalId", businessExternalId)
+    )
+    .collect();
+  return (
+    rows.find((row) => row.status === "active" && row.kind === kind) ?? null
+  );
+};
+
+/** Marks the purchase email as sent. Returns false when it was already sent. */
+export const claimPurchaseEmail = mutation({
+  args: {
+    businessExternalId: v.string(),
+    kind: entitlementKindValidator,
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const row = await findActiveEntitlement(
+      ctx,
+      args.businessExternalId,
+      args.kind
+    );
+    if (!row || row.purchaseEmailSentAt) {
+      return false;
+    }
+    await ctx.db.patch("entitlements", row._id, {
+      purchaseEmailSentAt: nowIso(),
+    });
+    return true;
+  },
+  returns: v.boolean(),
+});
+
+/** Clears the send claim so a failed receipt can be retried. */
+export const releasePurchaseEmail = mutation({
+  args: {
+    businessExternalId: v.string(),
+    kind: entitlementKindValidator,
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const row = await findActiveEntitlement(
+      ctx,
+      args.businessExternalId,
+      args.kind
+    );
+    if (!row?.purchaseEmailSentAt) {
+      return;
+    }
+    await ctx.db.patch("entitlements", row._id, {
+      purchaseEmailSentAt: undefined,
+    });
+  },
+  returns: v.null(),
 });
 
 export const revoke = mutation({

@@ -68,6 +68,7 @@ export const polarCheckoutSchema = z.object({
   customer: polarCustomerSchema.optional().nullable(),
   customerBillingName: z.string().optional().nullable(),
   customerEmail: z.string().optional().nullable(),
+  customerId: z.string().min(1).nullable().optional(),
   customerName: z.string().optional().nullable(),
   id: z.string(),
   metadata: polarMetadataSchema.optional(),
@@ -149,6 +150,75 @@ const emailSchema = z.string().email();
 export const normalizePolarEmail = (value: string): string | undefined => {
   const parsed = emailSchema.safeParse(value.trim().toLowerCase());
   return parsed.success ? parsed.data : undefined;
+};
+
+const polarCustomerIdSourceSchema = z
+  .object({
+    customer: z
+      .object({
+        id: z.string().optional().nullable(),
+      })
+      .passthrough()
+      .optional()
+      .nullable(),
+    customerId: z.string().optional().nullable(),
+    customer_id: z.string().optional().nullable(),
+  })
+  .passthrough();
+
+/** Polar customer id from a checkout or webhook payload. */
+export const customerIdFromPolarData = (data?: unknown): string | undefined => {
+  const parsed = polarCustomerIdSourceSchema.safeParse(data);
+  if (!parsed.success) {
+    return undefined;
+  }
+  const raw =
+    parsed.data.customer_id ??
+    parsed.data.customerId ??
+    parsed.data.customer?.id;
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const id = raw.trim();
+  return id.length > 0 ? id : undefined;
+};
+
+/** One USD cent per 10,000 micros. Polar cost amounts are cents. */
+const usdMicrosToCostCents = (usdMicros: number): number => usdMicros / 10_000;
+
+export const deliveryCostEvent = (input: {
+  businessExternalId: string;
+  customerId: string | null;
+  deltaUsdMicros: number;
+  kind: string;
+  observationId: string;
+  settledUsdMicros: number;
+}): {
+  customerId: string;
+  externalId: string;
+  metadata: {
+    _cost: { amount: number; currency: "usd" };
+    businessExternalId: string;
+    kind: string;
+  };
+  name: "dataforseo.call";
+} | null => {
+  if (input.deltaUsdMicros <= 0 || !input.customerId) {
+    return null;
+  }
+  return {
+    customerId: input.customerId,
+    externalId: `${input.observationId}:${input.settledUsdMicros}`,
+    metadata: {
+      _cost: {
+        amount: usdMicrosToCostCents(input.deltaUsdMicros),
+        currency: "usd",
+      },
+      businessExternalId: input.businessExternalId,
+      kind: input.kind,
+    },
+    name: "dataforseo.call",
+  };
 };
 
 export const customerEmailFromPolarData = (
@@ -264,6 +334,7 @@ export type PolarEntitlementAction =
       type: "grant";
       businessId: string;
       kind: EntitlementKind;
+      polarCustomerId: string | undefined;
       polarOrderId: string | undefined;
       polarSubscriptionId: string | undefined;
       email: string | undefined;
@@ -295,6 +366,7 @@ export const entitlementActionFromPolarEvent = (
       businessId,
       email,
       kind: entitlementKindFromPolarData(event.data, products),
+      polarCustomerId: customerIdFromPolarData(event.data),
       polarOrderId,
       polarSubscriptionId,
       type: "grant",

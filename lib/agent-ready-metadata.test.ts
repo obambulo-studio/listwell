@@ -33,6 +33,10 @@ describe("agent-ready metadata", () => {
       `${origin}/api/agent/register`
     );
     expect(asMetadata.agent_auth.claim_uri).toBe(`${origin}/api/agent/claim`);
+  });
+
+  it("supports anonymous agent identity", () => {
+    const asMetadata = oauthAuthorizationServerMetadata(origin);
     expect(asMetadata.agent_auth.identity_types_supported).toStrictEqual([
       "anonymous",
     ]);
