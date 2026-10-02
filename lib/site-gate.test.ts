@@ -21,6 +21,7 @@ describe("site gate paths", () => {
       isSiteGateExemptPath("/api/internal/dataforseo/postback")
     ).toBeTruthy();
     expect(isSiteGateExemptPath("/api/site-gate/unlock")).toBeTruthy();
+    expect(isSiteGateExemptPath("/api/agent/register")).toBeTruthy();
     expect(isSiteGateExemptPath("/.well-known/ai-catalog.json")).toBeTruthy();
   });
 

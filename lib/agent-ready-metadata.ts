@@ -25,17 +25,13 @@ const apiCatalogSchema = z.object({
 const oauthAuthorizationServerSchema = z
   .object({
     agent_auth: z.object({
-      identity_assertion: z.object({
-        assertion_types_supported: z.array(z.string()).min(1),
+      anonymous: z.object({
         credential_types_supported: z.array(z.string()).min(1),
       }),
-      identity_types_supported: z.array(z.string()).min(1),
+      claim_uri: z.url(),
+      identity_types_supported: z.array(z.literal("anonymous")).min(1),
       register_uri: z.url(),
       skill: z.url(),
-      verified_email: z.object({
-        claim_uri: z.url(),
-        credential_types_supported: z.array(z.string()).min(1),
-      }),
     }),
     authorization_endpoint: z.url(),
     code_challenge_methods_supported: z.array(z.string()).min(1),
@@ -43,6 +39,7 @@ const oauthAuthorizationServerSchema = z
     issuer: z.url(),
     jwks_uri: z.url(),
     response_types_supported: z.array(z.string()).min(1),
+    revocation_endpoint: z.url(),
     token_endpoint: z.url(),
   })
   .passthrough();
@@ -78,9 +75,11 @@ const LISTWELL_MCP_VERSION = "1.0.0";
 const listwellAuthIssuer = (origin: string): string => origin;
 
 const listwellAuthPaths = (origin: string) => ({
+  agentClaim: `${origin}/api/agent/claim`,
+  agentRegister: `${origin}/api/agent/register`,
+  agentRevoke: `${origin}/api/agent/revoke`,
+  agentToken: `${origin}/api/agent/token`,
   authorizationEndpoint: `${origin}/sign-in`,
-  emailOtpSend: `${origin}/api/auth/email-otp/send-verification-otp`,
-  emailOtpSignIn: `${origin}/api/auth/sign-in/email-otp`,
   jwksUri: `${origin}/.well-known/jwks.json`,
 });
 
@@ -221,25 +220,27 @@ export const oauthAuthorizationServerMetadata = (
   const paths = listwellAuthPaths(origin);
   return oauthAuthorizationServerSchema.parse({
     agent_auth: {
-      identity_assertion: {
-        assertion_types_supported: ["verified_email"],
-        credential_types_supported: ["email_otp"],
+      anonymous: {
+        credential_types_supported: ["access_token"],
       },
-      identity_types_supported: ["identity_assertion"],
-      register_uri: paths.emailOtpSend,
-      skill: `${origin}/.well-known/agent-skills/agent-registration/SKILL.md`,
-      verified_email: {
-        claim_uri: `${origin}/auth.md#verified-email`,
-        credential_types_supported: ["email_otp"],
-      },
+      claim_uri: paths.agentClaim,
+      identity_types_supported: ["anonymous"],
+      register_uri: paths.agentRegister,
+      skill: `${origin}/auth.md`,
     },
     authorization_endpoint: paths.authorizationEndpoint,
     code_challenge_methods_supported: ["S256"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
+    grant_types_supported: [
+      "authorization_code",
+      "refresh_token",
+      "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      "urn:workos:agent-auth:grant-type:claim",
+    ],
     issuer,
     jwks_uri: paths.jwksUri,
     response_types_supported: ["code"],
-    token_endpoint: paths.emailOtpSignIn,
+    revocation_endpoint: paths.agentRevoke,
+    token_endpoint: paths.agentToken,
   });
 };
 
@@ -257,8 +258,8 @@ export const oauthProtectedResourceMetadata = (origin = listwellSiteUrl()) => {
   return oauthProtectedResourceSchema.parse({
     authorization_servers: [issuer],
     bearer_methods_supported: ["header"],
-    resource: `${origin}/api`,
-    scopes_supported: ["businesses:read", "businesses:write", "account:read"],
+    resource: issuer,
+    scopes_supported: ["audit.basic", "audit.full", "account.read"],
   });
 };
 
@@ -283,25 +284,19 @@ export const mcpServerCard = (origin = listwellSiteUrl()) =>
 
 export const agentRegistrationSkill = (origin = listwellSiteUrl()): string =>
   [
-    "# Register a Listwell agent session",
+    "# Agent registration discovery",
     "",
-    "Use this skill when an automated client needs a human-verified Listwell account.",
-    "",
-    "## Flow (verified email)",
-    "",
-    "1. `POST` " +
-      `\`${origin}/api/auth/email-otp/send-verification-otp\`` +
-      ' with JSON `{ "email": "user@example.com", "type": "sign-in" }`.',
-    "2. Collect the one-time code from the user's inbox (out of band).",
-    "3. `POST` " +
-      `\`${origin}/api/auth/sign-in/email-otp\`` +
-      ' with JSON `{ "email": "user@example.com", "otp": "123456" }`.',
-    "4. Store session cookies returned by Better Auth for subsequent `/api/businesses` calls.",
+    "Listwell publishes auth.md and OAuth discovery metadata for scanners and agents.",
+    "Agent registration is not enabled: `POST` register, claim, token, and revoke URLs return `registration_disabled`.",
     "",
     "## Metadata",
     "",
     `- Protected resource: \`${origin}/.well-known/oauth-protected-resource\``,
     `- Authorization server: \`${origin}/.well-known/oauth-authorization-server\``,
     `- Human-readable policy: \`${origin}/auth.md\``,
+    "",
+    "## Humans",
+    "",
+    `People sign in with email OTP at \`${origin}/sign-in\`. That flow is separate from agent registration.`,
     "",
   ].join("\n");

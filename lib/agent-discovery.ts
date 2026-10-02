@@ -58,7 +58,7 @@ Markdown versions of the public pages are available by sending \`Accept: text/ma
 
 ## Sign-in
 
-Humans and agents use verified email OTP. Discovery metadata: \`${origin}/.well-known/oauth-authorization-server\` and \`${origin}/auth.md\`.
+Humans sign in with email OTP at \`${origin}/sign-in\`. Agent discovery: \`${origin}/auth.md\` and \`${origin}/.well-known/oauth-authorization-server\`.
 
 ## Public HTTP API
 
@@ -141,10 +141,10 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
     "## For agents",
     "",
     `- [Markdown pages](${origin}/): send Accept: text/markdown`,
-    `- [auth.md](${origin}/auth.md): sign-in and agent registration`,
+    `- [auth.md](${origin}/auth.md): sign-in and agent discovery`,
     `- [API catalog](${origin}/.well-known/api-catalog): RFC 9727 linkset for /api`,
-    `- [OAuth AS metadata](${origin}/.well-known/oauth-authorization-server): email OTP session discovery`,
-    `- [OAuth protected resource](${origin}/.well-known/oauth-protected-resource): /api resource identifier`,
+    `- [OAuth AS metadata](${origin}/.well-known/oauth-authorization-server): issuer metadata and agent_auth`,
+    `- [OAuth protected resource](${origin}/.well-known/oauth-protected-resource): site resource identifier`,
     `- [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP discovery (HTTP endpoint reserved)`,
     `- [robots.txt](${origin}/robots.txt): crawl rules and Content Signals`,
     `- [Sitemap](${origin}/sitemap.xml): public URLs`,
@@ -160,34 +160,38 @@ export const authMd = (origin = listwellSiteUrl()): string =>
   [
     "# auth.md",
     "",
-    "Audience: people and verified-email agents using Listwell at the origin below.",
+    "Audience: people using the Listwell web app, and agents reading discovery metadata at the origin below.",
     "",
     `Origin: ${origin}`,
     "",
-    "## How to sign in",
+    "## Discovery",
+    "",
+    "1. Fetch protected resource metadata at " +
+      `\`${origin}/.well-known/oauth-protected-resource\`.`,
+    "2. Fetch authorization server metadata at " +
+      `\`${origin}/.well-known/oauth-authorization-server\` (includes \`agent_auth\`).`,
+    "",
+    "The issuer is the site origin. Better Auth on Convex handles human sign-in only; bearer tokens for agents are not issued.",
+    "",
+    "## How humans sign in",
     "",
     `1. Open ${origin}/sign-in`,
     "2. Enter an email address",
     "3. Submit the one-time code sent to that inbox",
     "",
-    "There is no password. Better Auth on Convex issues the email code. Sessions are cookies on the Listwell site.",
+    "There is no password. Sessions are cookies on the Listwell site, not OAuth access tokens.",
     "",
-    "## Verified email {#verified-email}",
+    "## Agent registration",
     "",
-    "Agents register with the verified email OTP flow:",
+    "Listwell publishes an anonymous `agent_auth` profile for discovery. Registration endpoints exist but return `registration_disabled` and do not create accounts, send email, or issue credentials.",
     "",
-    `- Send code: \`POST ${origin}/api/auth/email-otp/send-verification-otp\` with JSON \`email\` and \`type: sign-in\`.`,
-    `- Sign in: \`POST ${origin}/api/auth/sign-in/email-otp\` with JSON \`email\` and \`otp\`.`,
+    `- Register: \`POST ${origin}/api/agent/register\``,
+    `- Claim: \`POST ${origin}/api/agent/claim\``,
+    `- Token: \`POST ${origin}/api/agent/token\``,
+    `- Revoke: \`POST ${origin}/api/agent/revoke\``,
     "",
-    "Machine-readable metadata:",
-    "",
-    `- \`${origin}/.well-known/oauth-authorization-server\` (includes \`agent_auth\`)`,
-    `- \`${origin}/.well-known/oauth-protected-resource\` for \`${origin}/api\``,
-    `- Agent registration skill: \`${origin}/.well-known/agent-skills/agent-registration/SKILL.md\``,
-    "",
-    "## Public API without a session",
-    "",
-    `Rate-limited routes are listed in the [API catalog](${origin}/.well-known/api-catalog). Business data under \`/api/businesses\` requires a session.`,
+    "For listing audits without a session, use the public chat at " +
+      `\`${origin}/chat\` or rate-limited routes in the [API catalog](${origin}/.well-known/api-catalog).`,
     "",
   ].join("\n");
 
@@ -363,7 +367,7 @@ export const ardCatalog = (origin = listwellSiteUrl()) => ({
     },
     {
       description:
-        "Email one-time code sign-in. Listwell does not offer OAuth or agent registration.",
+        "Human email OTP sign-in and OAuth agent discovery metadata (registration disabled).",
       displayName: "Listwell sign-in",
       identifier: "urn:air:listwell.dev:docs:auth",
       representativeQueries: [
