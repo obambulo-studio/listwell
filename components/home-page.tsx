@@ -81,6 +81,76 @@ const continuedDisplayPrice = (billing: BillingPeriod): string =>
     ? REPORT_YEARLY_PRICE.replace("/yr", "")
     : REPORT_MONTHLY_PRICE.replace("/mo per business", "");
 
+const HomeFaq = () => {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    const onToggle = (event: Event) => {
+      const { target } = event;
+      if (!(target instanceof HTMLDetailsElement) || !target.open) {
+        return;
+      }
+      for (const details of list.querySelectorAll("details")) {
+        if (details !== target) {
+          details.open = false;
+        }
+      }
+    };
+
+    list.addEventListener("toggle", onToggle, true);
+    return () => {
+      list.removeEventListener("toggle", onToggle, true);
+    };
+  }, []);
+
+  return (
+    <div className="home-faq">
+      <h2 className="home-section__title">Questions? Answers.</h2>
+      <div className="home-faq__list" ref={listRef}>
+        <details>
+          <summary>What is Listwell?</summary>
+          <p>
+            A visibility check for small businesses and agencies. You type a
+            business name. Listwell finds listings, a website, and social
+            profiles, then shows a basic report.
+          </p>
+        </details>
+        <details>
+          <summary>Is the basic report free?</summary>
+          <p>
+            Yes. The full report with fix steps is {REPORT_ONCE_PRICE} once.
+          </p>
+        </details>
+        <details>
+          <summary>Do I need an account to start?</summary>
+          <p>
+            No. Sign in with an email code when you want the business saved to
+            an account.
+          </p>
+        </details>
+        <details>
+          <summary>How long does a check take?</summary>
+          <p>Usually under 60 seconds.</p>
+        </details>
+        <details>
+          <summary>What happens after a one-off report?</summary>
+          <p>
+            You can re-run it once for free within {ONCE_RESCAN_WINDOW_DAYS}{" "}
+            days. Continued reports are {REPORT_MONTHLY_PRICE}, or{" "}
+            {REPORT_YEARLY_PRICE} ({REPORT_YEARLY_VALUE_NOTE}). Listwell re-runs
+            the check and emails you when the report is ready.
+          </p>
+        </details>
+      </div>
+    </div>
+  );
+};
+
 const HomePricing = ({
   checkCount,
   onStartCheck,
@@ -392,9 +462,7 @@ export const HomeLanding = ({
               Your Google listing is probably wrong.
             </h1>
             <p className="home-hero__subline">
-              Enter your business name and receive a report for free
-              <br />
-              in under a minute.
+              Enter your business name and get a free report in under a minute.
             </p>
           </div>
           <div className="home-split">
@@ -507,47 +575,7 @@ export const HomeLanding = ({
         />
 
         <section className="home-section">
-          <div className="home-faq">
-            <h2 className="home-section__title">Questions? Answers.</h2>
-            <div className="home-faq__list">
-              <details>
-                <summary>What is Listwell?</summary>
-                <p>
-                  A visibility check for small businesses and agencies. You type
-                  a business name. Listwell finds listings, a website, and
-                  social profiles, then shows a basic report.
-                </p>
-              </details>
-              <details>
-                <summary>Is the basic report free?</summary>
-                <p>
-                  Yes. The full report with fix steps is {REPORT_ONCE_PRICE}{" "}
-                  once.
-                </p>
-              </details>
-              <details>
-                <summary>Do I need an account to start?</summary>
-                <p>
-                  No. Sign in with an email code when you want the business
-                  saved to an account.
-                </p>
-              </details>
-              <details>
-                <summary>How long does a check take?</summary>
-                <p>Usually under 60 seconds.</p>
-              </details>
-              <details>
-                <summary>What happens after a one-off report?</summary>
-                <p>
-                  You can re-run it once for free within{" "}
-                  {ONCE_RESCAN_WINDOW_DAYS} days. Continued reports are{" "}
-                  {REPORT_MONTHLY_PRICE}, or {REPORT_YEARLY_PRICE} (
-                  {REPORT_YEARLY_VALUE_NOTE}). Listwell re-runs the check and
-                  emails you when the report is ready.
-                </p>
-              </details>
-            </div>
-          </div>
+          <HomeFaq />
         </section>
       </div>
     </div>

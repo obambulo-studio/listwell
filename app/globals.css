@@ -3507,10 +3507,32 @@ div.listwell-panel__row:hover {
     padding-top: 40px;
   }
 
+  .home-hero__subline {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 1.0625rem;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .home-split {
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
     width: 100%;
-    border-radius: 28px;
+    padding: 4px;
+    border-radius: 20px;
+  }
+
+  .home-split__action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .home-split__aside {
+    padding: 10px 14px 12px;
   }
 
   .home-stage__panel {
@@ -3528,6 +3550,36 @@ div.listwell-panel__row:hover {
 
   .home-section {
     padding-top: 72px;
+  }
+
+  .home-pricing__tier--continued {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px 16px 24px;
+  }
+
+  .home-pricing__continued-intro,
+  .home-pricing__continued-detail,
+  .home-pricing__continued-offer {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .home-pricing__continued-billing {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .home-pricing__continued-detail .home-pricing__cta {
+    flex: none;
+    align-self: stretch;
+    width: 100%;
+    min-height: 48px;
+    margin-top: 4px;
   }
 }
 
