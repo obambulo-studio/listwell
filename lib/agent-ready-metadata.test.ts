@@ -27,7 +27,15 @@ describe("agent-ready metadata", () => {
     const asMetadata = oauthAuthorizationServerMetadata(origin);
     const prm = oauthProtectedResourceMetadata(origin);
     expect(prm.authorization_servers[0]).toBe(asMetadata.issuer);
-    expect(asMetadata.agent_auth.register_uri).toContain("/email-otp/");
+    expect(prm.resource).toBe(origin);
+    expect(asMetadata.agent_auth.skill).toBe(`${origin}/auth.md`);
+    expect(asMetadata.agent_auth.register_uri).toBe(
+      `${origin}/api/agent/register`
+    );
+    expect(asMetadata.agent_auth.claim_uri).toBe(`${origin}/api/agent/claim`);
+    expect(asMetadata.agent_auth.identity_types_supported).toStrictEqual([
+      "anonymous",
+    ]);
   });
 
   it("includes MCP server card transport and tools capability", () => {

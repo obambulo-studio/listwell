@@ -145,10 +145,11 @@ describe("agent discovery", () => {
       );
     });
 
-    it("describes email OTP sign-in and OAuth discovery in auth.md", () => {
+    it("describes human sign-in and agent discovery in auth.md", () => {
       expect(authMd(origin)).toMatch(/^# auth\.md/u);
       expect(authMd(origin)).toContain("oauth-authorization-server");
-      expect(authMd(origin)).toContain("verified-email");
+      expect(authMd(origin)).toContain("registration_disabled");
+      expect(authMd(origin)).toContain("/api/agent/register");
     });
 
     it("introduces the product in llms.txt", () => {

@@ -129,6 +129,9 @@ export const isSiteGateExemptPath = (pathname: string): boolean => {
   if (pathname.startsWith("/api/auth/")) {
     return true;
   }
+  if (pathname.startsWith("/api/agent/")) {
+    return true;
+  }
   if (pathname.startsWith("/share/")) {
     return true;
   }
