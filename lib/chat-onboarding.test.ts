@@ -2,18 +2,98 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBasicReportStats,
+  businessFoundMessage,
   chatDraftSchema,
   draftFromListingCandidate,
+  omitRepeatedPromptAnswers,
+  promptForPhase,
+  repeatsPromptCardAnswer,
   resolveListingLookupNext,
   scorePercent,
+  shouldOfferChatRestart,
   visibilityCounts,
 } from "./chat-onboarding";
+import type { ChatMessage } from "./chat-onboarding";
 import type { PlaceCandidate } from "./discover";
 
 const sampleCandidate = (id: string): PlaceCandidate => ({
   id,
   name: "Joe's Pizza",
   source: "google",
+});
+
+describe(omitRepeatedPromptAnswers, () => {
+  const businessPrompt: ChatMessage = {
+    id: "prompt-name",
+    isPrompt: true,
+    role: "assistant",
+    text: "What is your business called?",
+    userAnswer: "Resurgence Church",
+  };
+
+  it("drops a user bubble that repeats the name already on the prompt card", () => {
+    const messages: ChatMessage[] = [
+      businessPrompt,
+      {
+        id: "looking",
+        role: "assistant",
+        text: "Looking up your business.",
+      },
+      {
+        id: "echo",
+        role: "user",
+        text: "Resurgence Church",
+      },
+      {
+        id: "found",
+        role: "assistant",
+        text: "Found it.",
+      },
+    ];
+
+    expect(repeatsPromptCardAnswer(messages, "Resurgence Church")).toBeTruthy();
+    expect(
+      omitRepeatedPromptAnswers(messages).map((message) => message.text)
+    ).toStrictEqual([
+      "What is your business called?",
+      "Looking up your business.",
+      "Found it.",
+    ]);
+  });
+
+  it("keeps a user reply that is not already on a prompt card", () => {
+    const messages: ChatMessage[] = [
+      businessPrompt,
+      {
+        id: "none",
+        role: "user",
+        text: "None of these",
+      },
+      {
+        id: "listing",
+        role: "user",
+        text: "Resurgence Church Brisbane",
+      },
+    ];
+
+    expect(omitRepeatedPromptAnswers(messages)).toStrictEqual(messages);
+  });
+});
+
+describe(promptForPhase, () => {
+  it("uses three lookup bubbles and does not name Google or Apple", () => {
+    const sequence = [
+      promptForPhase("identifying"),
+      businessFoundMessage(),
+      promptForPhase("auditing"),
+    ];
+    expect(sequence).toStrictEqual([
+      "Looking up your business.",
+      "Found it.",
+      "Running your audit now. This usually takes under two minutes.",
+    ]);
+    expect(sequence.join(" ")).not.toMatch(/google|apple/iu);
+  });
 });
 
 describe(resolveListingLookupNext, () => {
@@ -235,5 +315,61 @@ describe(scorePercent, () => {
 
   it("returns zero when no checks ran to a pass or fail outcome", () => {
     expect(scorePercent({ fail: 0, pass: 0 })).toBe(0);
+  });
+});
+
+describe(shouldOfferChatRestart, () => {
+  const errorMessage: ChatMessage = {
+    id: "error-1",
+    isError: true,
+    role: "assistant",
+    text: "Something went wrong running the audit. Try again.",
+  };
+
+  it("offers a restart when a chat error is on screen", () => {
+    expect(
+      shouldOfferChatRestart({
+        messages: [errorMessage],
+        phase: "website",
+        reportReady: false,
+      })
+    ).toBeTruthy();
+  });
+
+  it("hides the restart once a report is ready", () => {
+    expect(
+      shouldOfferChatRestart({
+        messages: [errorMessage],
+        phase: "report",
+        reportReady: true,
+      })
+    ).toBeFalsy();
+  });
+
+  it("hides the restart while an audit is running", () => {
+    expect(
+      shouldOfferChatRestart({
+        messages: [errorMessage],
+        phase: "auditing",
+        reportReady: false,
+      })
+    ).toBeFalsy();
+  });
+
+  it("stays hidden when the chat has no error", () => {
+    expect(
+      shouldOfferChatRestart({
+        messages: [
+          {
+            id: "prompt-1",
+            isPrompt: true,
+            role: "assistant",
+            text: "What is your business called?",
+          },
+        ],
+        phase: "business_name",
+        reportReady: false,
+      })
+    ).toBeFalsy();
   });
 });

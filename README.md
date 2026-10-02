@@ -14,7 +14,7 @@ Sign-in uses a one-time code by email. There is no password. The `/account` page
 
 Convex stores users, businesses, entitlements, scans, and jobs. Better Auth on Convex handles sessions and email one-time codes.
 
-Cloudflare Workers run the Next.js app through OpenNext. The Worker also runs the audit engine. Convex stores app data. The Worker does not.
+Cloudflare Workers run the Next.js app through vinext. The Worker also runs the audit engine. Convex stores app data. The Worker does not.
 
 Worker bindings:
 
@@ -22,7 +22,7 @@ Worker bindings:
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI for report briefs, or cited check text if AI is off
 
-The project does not use D1 or Drizzle. Discover does not need a D1 database. If you set `SKIP_OPENNEXT_DEV=1`, local `next dev` uses in-memory audit state.
+The project does not use D1 or Drizzle. Discover does not need a D1 database. Outside the Worker, audit state stays in memory.
 
 Scheduled monthly scans use a **Convex cron** (`convex/crons.ts` → `internal.scans.runDue` hourly at `:00` UTC). Convex owns entitlement due dates (`nextScanAt` on active `report_monthly` rows). Each due job calls the Worker at `POST /api/internal/scans/run-one`, which runs Chromium checks and writes Convex `scans` history. Scan execution stays on the Worker because Browser Rendering does not run in Convex. There is no Cloudflare Worker cron for scans (avoid duplicating schedulers).
 
@@ -30,13 +30,13 @@ After a scheduled scan completes, the Worker may send a UseSend email (monthly s
 
 One-off buyers get **one free re-scan within 30 days** of purchase (`lib/scan-config.ts`: `ONCE_RESCAN_FREE_LIMIT`, `ONCE_RESCAN_WINDOW_DAYS`), enforced server-side at `POST /api/businesses/{id}/rescan`.
 
-OpenNext config is `open-next.config.ts`.
+Vite config is `vite.config.ts`. Worker bindings stay in `wrangler.jsonc`.
 
 ## Stack
 
 - Next.js App Router
 - Convex and Better Auth (`@convex-dev/better-auth`)
-- OpenNext on Cloudflare Workers
+- vinext on Cloudflare Workers
 - Bun
 
 - Polar for payments (Merchant of Record)
@@ -67,7 +67,7 @@ npx convex dev
 Keep this process running while you work.
 
 4. Open a second terminal.
-5. Install packages. Then copy shared secrets to Convex. Then start the Next.js app.
+5. Install packages. Then copy shared secrets to Convex. Then start the app.
 
 ```bash
 bun install
@@ -79,15 +79,13 @@ bun dev
 
 Use `bun dev:localhost` if you want `http://localhost:3000` without Portless.
 
-If you do audit work without remote Worker bindings, set `SKIP_OPENNEXT_DEV=1` in `.env.local`.
-
 Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun run convex:deploy` only for production.
 
-`wrangler.jsonc` is the OpenNext Worker config. Local `bun run build` still runs `next build`. In Workers CI (`WORKERS_CI=1`) it runs `opennextjs-cloudflare build`, then `npx wrangler deploy` uploads that Worker. Run `bun run cf:sync-build-env` to set the dashboard commands to `bun run cf:build` and `npx wrangler deploy --keep-vars`.
+`wrangler.jsonc` is the Worker config. `bun run build` runs the vinext production build. Workers Builds runs `bun run cf:build`, then `npx wrangler deploy --config dist/server/wrangler.json --keep-vars`. Run `bun run cf:sync-build-env` after this migration so the dashboard uses those commands.
 
-On the production branch, deploy with `npx opennextjs-cloudflare deploy -- --keep-vars`.
+On the production branch, deploy with `bun run deploy`.
 
-**Preview deployments:** Non-`main` Workers Builds triggers run `npx wrangler preview` after the OpenNext build (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, R2, AI, Browser, Images, and Durable Objects. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
+**Preview deployments:** Non-`main` Workers Builds triggers run `npx wrangler preview --config dist/server/wrangler.json` after the vinext build (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
 
 Run smoke against a preview host:
 
@@ -99,9 +97,9 @@ bun run smoke:discover https://<preview-url-from-workers-builds>
 
 Development:
 
-- `bun dev` - Next.js with Portless
-- `bun dev:localhost` - Next.js on port 3000
-- `bun run build` - Next.js production build locally; OpenNext package in Workers CI
+- `bun dev` - vinext with Portless
+- `bun dev:localhost` - vinext on port 3000
+- `bun run build` - vinext production build
 
 - `bun run convex:dev` - Convex development
 - `bun run convex:sync-env` - copy env from `.env.local` to Convex
@@ -118,9 +116,9 @@ Quality:
 
 Deploy:
 
-- `bun run preview` - OpenNext build and Wrangler preview
-- `bun run deploy` - OpenNext build and Worker deploy
-- `bun run upload` - OpenNext build and Worker version upload
+- `bun run preview` - vinext build and local Wrangler dev
+- `bun run deploy` - vinext build and Worker deploy (`--keep-vars`)
+- `bun run upload` - vinext build and Worker version upload
 - `bun run cf-typegen` - write `cloudflare-env.d.ts` from Wrangler
 - `bun run smoke:discover` - prove Discover → save → checks on a live origin
 
@@ -168,10 +166,6 @@ Payments and email:
 - `USESEND_API_KEY`, `USESEND_FROM` - sign-in codes (Convex) and optional monthly scan emails (Worker; set as Worker secrets via `bun run cf:sync-secrets` / dashboard)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
 
-Local:
-
-- `SKIP_OPENNEXT_DEV` - `1` to skip remote Worker bindings in `next dev`
-
 `USESEND_FROM` must use a domain that UseSend already verified.
 
 Apple Maps keys, Browser Rendering REST, and Polar values are optional for local UI work. Without Polar, checkout does not complete. Without UseSend, sign-in emails do not send.
@@ -204,18 +198,16 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 ## Cloudflare Worker bindings and secrets
 
-`wrangler.jsonc` is the production OpenNext config. It enables Workers logs, traces, smart placement, and Worker caching, and wires R2 incremental cache (`listwell-next-cache`), the OpenNext DO queue, `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
+`wrangler.jsonc` is the production Worker config. It enables Workers logs, traces, smart placement, and Workers Cache, and wires `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
 
-Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so `next build` can inline them without a local `.env`. The same values live in `wrangler.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
+Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so the vinext build can inline them without a local `.env`. The same values live in `wrangler.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
 
-- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, public build variables, and the OpenNext build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
+- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, public build variables, and the vinext build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
 - `bun run cf:sync-env` — pushes runtime secrets from `.env.local`
 
 Bindings:
 
 - `AUDIT_KV` - KV namespace for audit jobs and early-access sign-ups (`site-interest:by-email:*`)
-- `NEXT_INC_CACHE_R2_BUCKET` - OpenNext incremental cache (`listwell-next-cache`)
-- `NEXT_CACHE_DO_QUEUE` - OpenNext ISR revalidation queue
 - `BROWSER` - Cloudflare Browser Rendering
 - `AI` - Workers AI
 - `IMAGES` - Cloudflare Images for Next.js image optimisation
@@ -326,14 +318,14 @@ After you edit `content/checks`, run `bun run catalog` so `lib/checks/catalog.ts
 
 1. Set production env on Convex and on the Worker.
 2. Put the live domain in `SITE_URL` with no trailing slash.
-3. Bind `AUDIT_KV` and `listwell-next-cache` on the same Cloudflare account as the `listwell` Worker.
+3. Bind `AUDIT_KV` on the same Cloudflare account as the `listwell` Worker.
 4. Point Polar webhooks at `https://your-domain/api/webhook/polar`.
 5. Run `bun run convex:deploy`.
 6. Run `bun run deploy`.
 
 The apex Worker on `https://listwell.dev` is production. `https://www.listwell.dev` 301s to the apex with the same path and query through the shared `www-to-apex` Worker (`0b0a8688c79a480c819d1604056d9bdf`). Do not add `www.listwell.dev` as a Listwell custom domain. `wrangler deploy` then fights that Worker and Workers Builds fails.
 
-`wrangler.jsonc` binds only `listwell.dev`. `middleware.ts` still 301s www if a request ever reaches this Worker.
+`wrangler.jsonc` binds only `listwell.dev`. `proxy.ts` still 301s www if a request ever reaches this Worker.
 
 Do not invent D1 ids or Google/Apple keys. This agent cannot bind hostnames (no Wrangler login). Discover does not use D1. Anonymous audits persist in `AUDIT_KV` when Convex is down. Accounts, sign-in, and paid unlock still need Convex.
 

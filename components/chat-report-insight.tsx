@@ -40,7 +40,6 @@ import {
   REPORT_YEARLY_PRICE,
   REPORT_YEARLY_VALUE_NOTE,
   requestCheckoutUrl,
-  unlockPricingNote,
 } from "@/lib/polar";
 import {
   businessSchema,
@@ -361,7 +360,7 @@ const unlockedAccessNote = (access: EntitlementState): string =>
     ? "Monthly scans active."
     : "Full report unlocked.";
 
-const lockedAccessNote = (access: EntitlementState): string => {
+const lockedAccessNote = (access: EntitlementState): string | null => {
   if (!access.backendAvailable) {
     return "Account services are temporarily unavailable.";
   }
@@ -370,16 +369,13 @@ const lockedAccessNote = (access: EntitlementState): string => {
       ? "Fix steps are included in this environment."
       : "Payments are not configured yet.";
   }
-  return (
-    unlockPricingNote(access) ??
-    `Pay ${REPORT_ONCE_PRICE} once to unlock fix steps for this business.`
-  );
+  return null;
 };
 
 const buildAccessNote = (
   access: EntitlementState,
   businessId: string | null
-): string => {
+): string | null => {
   if (!businessId) {
     return "Save this audit to unlock the full report.";
   }
@@ -418,6 +414,9 @@ interface ReportUnlockActionsProps {
 export const reportActionClass =
   "h-auto min-h-12 min-w-0 flex-1 flex-col gap-0.5 whitespace-normal px-3 py-3 text-center text-base leading-snug";
 
+const offerRowClass =
+  "h-auto min-h-11 w-full min-w-0 shrink-0 justify-between gap-3 whitespace-normal px-3 py-2 text-left text-sm leading-snug transition-[transform,background-color,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] active:translate-y-0 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100";
+
 export const ReportActionLabel = ({
   caption,
   title,
@@ -435,6 +434,30 @@ export const ReportActionLabel = ({
   </span>
 );
 
+const OfferChoice = ({
+  detail,
+  price,
+  title,
+}: {
+  detail?: string;
+  price?: string;
+  title: string;
+}) => (
+  <span className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5">
+    <span className="col-start-1 row-start-1">{title}</span>
+    {price ? (
+      <span className="col-start-2 row-start-1 text-right tabular-nums">
+        {price}
+      </span>
+    ) : null}
+    {detail ? (
+      <span className="col-start-2 row-start-2 text-right font-normal">
+        {detail}
+      </span>
+    ) : null}
+  </span>
+);
+
 const ReportUnlockActions = ({
   businessId,
   access,
@@ -445,32 +468,33 @@ const ReportUnlockActions = ({
   onUnlock,
   onPreview,
 }: ReportUnlockActionsProps) => (
-  <div className="flex w-full flex-row flex-wrap gap-2">
+  <fieldset className="m-0 flex w-full min-w-0 flex-col gap-2 border-0 p-0">
+    <legend className="vbg-visually-hidden">Report prices</legend>
     {businessId && !access.unlocked ? (
       <Button
         type="button"
         variant="secondary"
-        className={reportActionClass}
+        className={offerRowClass}
         onClick={onPreview}
       >
-        <ReportActionLabel caption="Free" title="Preview report" />
+        <OfferChoice price="Free" title="Preview report" />
       </Button>
     ) : null}
     <PrimaryButton
       type="button"
       disabled={ctaDisabled}
-      className={reportActionClass}
+      className={offerRowClass}
       onClick={() => {
         onUnlock(checkoutPlanSchema.parse("once"));
       }}
     >
-      <ReportActionLabel
-        caption={
+      <OfferChoice
+        price={
           redirecting === "once" || sessionRequired || access.unlocked
             ? undefined
             : `${REPORT_ONCE_PRICE} once`
         }
-        title={redirecting === "once" ? "Redirecting…" : ctaLabel}
+        title={ctaLabel}
       />
     </PrimaryButton>
     {businessId && !access.unlocked && access.yearlyAvailable ? (
@@ -478,14 +502,18 @@ const ReportUnlockActions = ({
         type="button"
         variant="secondary"
         disabled={ctaDisabled}
-        className={reportActionClass}
+        className={offerRowClass}
         onClick={() => {
           onUnlock(checkoutPlanSchema.parse("yearly"));
         }}
       >
-        {redirecting === "yearly"
-          ? "Redirecting…"
-          : `Best value · ${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
+        <OfferChoice
+          detail={
+            redirecting === "yearly" ? undefined : REPORT_YEARLY_VALUE_NOTE
+          }
+          price={redirecting === "yearly" ? undefined : REPORT_YEARLY_PRICE}
+          title={redirecting === "yearly" ? "Redirecting…" : "Best value"}
+        />
       </Button>
     ) : null}
     {businessId && !access.unlocked && access.monthlyAvailable ? (
@@ -493,17 +521,18 @@ const ReportUnlockActions = ({
         type="button"
         variant="secondary"
         disabled={ctaDisabled}
-        className={reportActionClass}
+        className={offerRowClass}
         onClick={() => {
           onUnlock(checkoutPlanSchema.parse("monthly"));
         }}
       >
-        {redirecting === "monthly"
-          ? "Redirecting…"
-          : `Monthly scans · ${REPORT_MONTHLY_PRICE}`}
+        <OfferChoice
+          price={redirecting === "monthly" ? undefined : REPORT_MONTHLY_PRICE}
+          title={redirecting === "monthly" ? "Redirecting…" : "Monthly scans"}
+        />
       </Button>
     ) : null}
-  </div>
+  </fieldset>
 );
 
 /** Rename dialog for account row menu and other surfaces off the report header. */
@@ -854,9 +883,10 @@ export const ReportSummary = ({
           <Alert variant="destructive">
             <AlertDescription>{checkoutError}</AlertDescription>
           </Alert>
-        ) : (
+        ) : null}
+        {note && !(checkoutError && !monthlyDialogOpen) ? (
           <p className="text-muted-foreground text-sm">{note}</p>
-        )}
+        ) : null}
       </CardFooter>
       {businessId ? (
         <MonthlyScansUpgradeDialog

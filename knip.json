@@ -1,14 +1,16 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignore": [
-    "open-next.config.ts",
-    "worker.ts",
     "components/ui/**",
     "components/reui/**",
     "emails/change-email.tsx",
     "emails/scan-ready-multi.tsx"
   ],
-  "ignoreDependencies": ["@react-email/render", "@react-email/ui"],
+  "ignoreDependencies": [
+    "@react-email/render",
+    "@react-email/ui",
+    "cloudflare"
+  ],
   "exclude": [
     "duplicates",
     "enumMembers",

@@ -9,6 +9,7 @@ import { z } from "zod";
 import { ComposerSubmit } from "@/components/listwell/actions";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
+import { destinationAfterSignIn } from "@/lib/query-params";
 import { getStoredBusinessIds } from "@/lib/storage";
 
 const signInEmailSchema = z.string().email();
@@ -281,7 +282,7 @@ export const SignInForm = ({ returnPath }: { returnPath: string }) => {
   const authServiceDown = Boolean(healthError || health?.convex === "error");
 
   const signedIn = Boolean(session.data?.user.email);
-  const safeReturn = returnPath.startsWith("/") ? returnPath : "/";
+  const safeReturn = destinationAfterSignIn(returnPath);
 
   if (signedIn && !session.isPending) {
     window.location.assign(safeReturn);

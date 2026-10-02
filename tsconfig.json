@@ -29,21 +29,16 @@
       "@listwell/audit-engine": ["./packages/audit-engine/src/index.ts"]
     }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "cloudflare-env.d.ts",
-    ".next/dev/types/**/*.ts"
-  ],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "cloudflare-env.d.ts"],
   "exclude": [
     "node_modules",
+    ".next",
     ".open-next",
+    ".vinext",
     ".wrangler",
+    "dist",
     "packages/audit-engine",
     "components/primitives",
-    "components/atoms",
-    "worker.ts"
+    "components/atoms"
   ]
 }

@@ -4,7 +4,7 @@ Workers-friendly TypeScript modules for Listwell website and local SEO checks.
 
 Check IDs match `content/checks/*.md` so reports stay comparable across runs.
 
-The Next.js OpenNext Worker imports this package and runs checks on the existing report routes. Do not stand up a parallel app.
+The Listwell Worker imports this package and runs checks on the existing report routes. Do not stand up a parallel app.
 
 ```ts
 import { runChecks } from "@listwell/audit-engine";

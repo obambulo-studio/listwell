@@ -11,7 +11,6 @@ import type {
   FetchWebsiteOptions,
   PerformanceData,
 } from "@listwell/audit-engine";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { z } from "zod";
 
 import type { Business } from "./schema";
@@ -61,26 +60,24 @@ export const toBusinessSnapshot = (business: Business): BusinessSnapshot =>
   });
 
 export const getCloudflareEnv = async (): Promise<CloudflareEnv | null> => {
-  if (process.env.SKIP_OPENNEXT_DEV === "1") {
-    return null;
-  }
   try {
-    const context = await getCloudflareContext({ async: true });
-    return context.env;
+    const { env } = await import("cloudflare:workers");
+    return env;
   } catch {
     return null;
   }
 };
 
-export const getExecutionContext =
-  async (): Promise<ExecutionContext | null> => {
-    try {
-      const context = await getCloudflareContext({ async: true });
-      return context.ctx;
-    } catch {
-      return null;
-    }
-  };
+export const getExecutionContext = async (): Promise<{
+  waitUntil: (promise: Promise<unknown>) => void;
+} | null> => {
+  try {
+    const { waitUntil } = await import("cloudflare:workers");
+    return { waitUntil };
+  } catch {
+    return null;
+  }
+};
 
 export interface LookupProviders {
   google: boolean;
@@ -245,9 +242,8 @@ export const getFetchWebsiteOptions =
       getCloudflareEnv(),
       getAuditEngineEnv(),
     ]);
-    // OpenNext dev exposes a BROWSER binding that launches @cloudflare/puppeteer locally
-    // and downloads Chromium (often hangs at "Downloading browser... 100%"). In dev, use
-    // the Browser Rendering REST API from CLOUDFLARE_* env vars instead.
+    // Local dev must not launch @cloudflare/puppeteer (it downloads Chromium and
+    // hangs at "Downloading browser... 100%"). Use the Browser Rendering REST API.
     const browser =
       process.env.NODE_ENV === "development" ? undefined : env?.BROWSER;
     return {

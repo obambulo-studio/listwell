@@ -137,8 +137,10 @@ const listTriggers = () =>
   );
 
 const BUILD_COMMAND = "bun run cf:build";
-const PRODUCTION_DEPLOY_COMMAND = "npx wrangler deploy --keep-vars";
-const PREVIEW_DEPLOY_COMMAND = "npx wrangler preview";
+const PRODUCTION_DEPLOY_COMMAND =
+  "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
+const PREVIEW_DEPLOY_COMMAND =
+  "npx wrangler preview --config dist/server/wrangler.json";
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
@@ -195,5 +197,5 @@ const syncTrigger = async (trigger) => {
 await Promise.all(triggers.map((trigger) => syncTrigger(trigger)));
 
 console.log(
-  `BUN_VERSION=${BUN_VERSION}, Next public vars, and OpenNext build/deploy commands are set on Workers Builds.`
+  `BUN_VERSION=${BUN_VERSION}, Next public vars, and vinext build/deploy commands are set on Workers Builds.`
 );

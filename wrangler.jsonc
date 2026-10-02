@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "vinext/server/fetch-handler",
   "name": "listwell",
   "keep_vars": true,
   "workers_dev": false,
@@ -33,8 +33,12 @@
   "cache": {
     "enabled": true,
   },
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA",
+  },
   "assets": {
-    "directory": ".open-next/assets",
+    "directory": "dist/client",
+    "not_found_handling": "none",
     "binding": "ASSETS",
   },
   "services": [
@@ -48,6 +52,7 @@
   },
   "ai": {
     "binding": "AI",
+    "remote": true,
   },
   "images": {
     "binding": "IMAGES",
@@ -60,24 +65,14 @@
       "id": "06b74ff3aa6e41a9a5ea7a6eb365e711",
     },
   ],
-  "r2_buckets": [
-    {
-      "binding": "NEXT_INC_CACHE_R2_BUCKET",
-      "bucket_name": "listwell-next-cache",
-    },
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "NEXT_CACHE_DO_QUEUE",
-        "class_name": "DOQueueHandler",
-      },
-    ],
-  },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["DOQueueHandler"],
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["DOQueueHandler"],
     },
   ],
   "vars": {
@@ -108,20 +103,6 @@
         "id": "06b74ff3aa6e41a9a5ea7a6eb365e711",
       },
     ],
-    "r2_buckets": [
-      {
-        "binding": "NEXT_INC_CACHE_R2_BUCKET",
-        "bucket_name": "listwell-next-cache",
-      },
-    ],
-    "durable_objects": {
-      "bindings": [
-        {
-          "name": "NEXT_CACHE_DO_QUEUE",
-          "class_name": "DOQueueHandler",
-        },
-      ],
-    },
     "observability": {
       "enabled": true,
       "logs": {

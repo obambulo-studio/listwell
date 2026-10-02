@@ -700,21 +700,6 @@ a:focus-visible .animated-underline::after {
   }
 }
 
-/* pixel-grid loader — brighten plateau, staggered per cell */
-@keyframes pixel-on {
-  0%,
-  100% {
-    opacity: 0.15;
-  }
-  18%,
-  42% {
-    opacity: 1;
-  }
-  62% {
-    opacity: 0.15;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

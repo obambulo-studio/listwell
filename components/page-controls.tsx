@@ -6,6 +6,7 @@ import {
   CreditCardIcon,
   Login01Icon,
   Logout01Icon,
+  RefreshIcon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
@@ -113,7 +114,7 @@ const AccountMenuContent = ({
   name: string | null;
   signedIn: boolean;
   authAvailable: boolean;
-  signInHref: "/sign-in" | { pathname: "/sign-in"; query: { return: string } };
+  signInHref: { pathname: "/sign-in"; query: { return: string } };
   onClose: (restoreFocus?: boolean) => void;
   onLogout: () => void;
 }) => (
@@ -210,7 +211,6 @@ export const AccountControl = ({
   onLogout,
 }: { onLogout?: () => void } = {}) => {
   const { refresh } = useRouter();
-  const pathname = usePathname();
   const menuId = useId();
 
   useLayoutEffect(() => {
@@ -222,10 +222,10 @@ export const AccountControl = ({
   const session = authClient.useSession();
   const [open, setOpen] = useState(false);
   const authAvailable = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-  const signInHref =
-    pathname === "/sign-in"
-      ? "/sign-in"
-      : { pathname: "/sign-in" as const, query: { return: pathname } };
+  const signInHref = {
+    pathname: "/sign-in" as const,
+    query: { return: "/account" },
+  };
 
   const close = useCallback((restoreFocus = false) => {
     setOpen(false);
@@ -384,6 +384,51 @@ export const AccountControl = ({
           />
         </div>
       ) : null}
+    </div>
+  );
+};
+
+export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
+  const { push } = useRouter();
+  const pathname = usePathname();
+
+  const handleReset = useCallback(() => {
+    if (onReset) {
+      onReset();
+      return;
+    }
+    resetHomeBusinessForm();
+    if (pathname !== "/") {
+      push("/");
+    }
+  }, [onReset, pathname, push]);
+
+  return (
+    <div
+      className="listwell-page-controls listwell-page-controls--dock"
+      role="toolbar"
+      aria-label="Page controls"
+    >
+      <button
+        type="button"
+        className="listwell-page-controls__btn"
+        onClick={handleReset}
+        aria-label="Reset chat"
+        aria-describedby="page-controls-reset-desc"
+      >
+        <Icon icon={RefreshIcon} size={18} />
+        <span
+          id="page-controls-reset-desc"
+          className="listwell-page-controls__popover-sr"
+        >
+          Reset chat. Clears conversation and starts over.
+        </span>
+        <span className="listwell-page-controls__popover" aria-hidden="true">
+          <span className="listwell-page-controls__popover-label">
+            Reset chat
+          </span>
+        </span>
+      </button>
     </div>
   );
 };

@@ -16,13 +16,18 @@ import useSWR from "swr";
 
 import { Button } from "@/components/atoms/button";
 import { ReportSummary } from "@/components/chat-report-insight";
-import { ComposerSubmit, QuietButton } from "@/components/listwell/actions";
+import {
+  ComposerSubmit,
+  FormActions,
+  PrimaryButton,
+  QuietButton,
+} from "@/components/listwell/actions";
 import {
   LISTWELL_LOGOUT_EVENT,
   LISTWELL_RESET_EVENT,
+  resetHomeBusinessForm,
 } from "@/components/page-controls";
 import ApprovalCard from "@/components/primitives/approval-card";
-import LoadingState from "@/components/primitives/loading-state";
 import TaskRows from "@/components/primitives/task-rows";
 import type {
   TaskDetail,
@@ -42,6 +47,7 @@ import {
   buildBasicReportStats,
   categoryFromInputAsync,
   commonCategoryLabels,
+  createErrorMessage,
   createMessage,
   createPromptMessage,
   draftFromListingCandidate,
@@ -50,12 +56,17 @@ import {
   pickListingCandidateByOptionIndex,
   isPromptInputPhase,
   isTextInputPhase,
+  businessFoundMessage,
   listingLookupSkipMessage,
   listingLookupTooManyMessage,
+  lookupSkipIsChatError,
   listingQuestion,
+  omitRepeatedPromptAnswers,
   promptForPhase,
+  repeatsPromptCardAnswer,
   requestChatInterpret,
   resolveListingLookupNext,
+  shouldOfferChatRestart,
 } from "@/lib/chat-onboarding";
 import type {
   BasicReportStats,
@@ -119,6 +130,7 @@ const INITIAL_DRAFT: ChatDraft = {
 };
 
 const TYPING_MIN_MS = 380;
+const CHAT_FAILURE_MESSAGE = "Something went wrong. Try again.";
 
 const STARTER_PROMPT: ChatMessage = {
   id: "starter-business-name",
@@ -350,7 +362,7 @@ const buildInitialAuditTasks = (
   return [
     {
       amount: "Maps + web",
-      details: [{ label: "Searching Google and Apple Maps", meta: "running" }],
+      details: [],
       key: "discover",
       label: "Find listings and profiles",
       status: "running",
@@ -753,6 +765,28 @@ const PromptCard = ({
   );
 };
 
+const ChatRestart = ({
+  onTryAgain,
+  show,
+}: {
+  onTryAgain: () => void;
+  show: boolean;
+}) => {
+  if (!show) {
+    return null;
+  }
+
+  return (
+    <div className="listwell-chat__stage">
+      <FormActions>
+        <PrimaryButton type="button" onClick={onTryAgain}>
+          Try again
+        </PrimaryButton>
+      </FormActions>
+    </div>
+  );
+};
+
 const ListwellChatLayout = ({
   activePromptId,
   attachInput,
@@ -764,6 +798,7 @@ const ListwellChatLayout = ({
   handleListingSubmit,
   handleSend,
   onBusinessNameChange,
+  onTryAgain,
   isStarter,
   isTyping,
   messages,
@@ -773,6 +808,7 @@ const ListwellChatLayout = ({
   restored,
   push,
   scrollRef,
+  showTryAgain,
 }: {
   activePromptId: string | null;
   attachInput: boolean;
@@ -784,6 +820,7 @@ const ListwellChatLayout = ({
   handleListingSubmit: (answers: Record<number, number[]>) => void;
   handleSend: (text: string) => void;
   onBusinessNameChange: (name: string) => void;
+  onTryAgain: () => void;
   isStarter: boolean;
   isTyping: boolean;
   messages: ChatMessage[];
@@ -793,6 +830,7 @@ const ListwellChatLayout = ({
   restored: boolean;
   push: ReturnType<typeof useRouter>["push"];
   scrollRef: RefObject<HTMLDivElement | null>;
+  showTryAgain: boolean;
 }) => (
   <div
     id="listwell-chat-root"
@@ -805,7 +843,7 @@ const ListwellChatLayout = ({
         className={`listwell-chat${isStarter ? "" : " listwell-chat--thread"}`}
       >
         <div className="listwell-chat__thread">
-          {messages.map((message, index) => {
+          {omitRepeatedPromptAnswers(messages).map((message, index) => {
             if (message.isPrompt) {
               const isFirstPrompt = index === 0 && message.isPrompt;
               const isActivePrompt =
@@ -838,15 +876,8 @@ const ListwellChatLayout = ({
             );
           })}
 
-          {isTyping ? <TypingIndicator /> : null}
-
-          {phase === "identifying" ? (
-            <div className="listwell-chat__stage listwell-chat__stage--attached">
-              <LoadingState label="Identifying" variant="Drive" />
-              <p className="listwell-chat__hint">
-                {promptForPhase("identifying")}
-              </p>
-            </div>
+          {isTyping || (phase === "identifying" && !showTryAgain) ? (
+            <TypingIndicator />
           ) : null}
 
           {phase === "listing" && candidates.length > 0 ? (
@@ -869,9 +900,6 @@ const ListwellChatLayout = ({
           {(phase === "auditing" || phase === "report") &&
           auditTasks.length > 0 ? (
             <div className="listwell-chat__stage">
-              {phase === "auditing" ? (
-                <LoadingState label="Auditing" variant="Drive" />
-              ) : null}
               <TaskRows
                 rows={auditTasks}
                 variant="List"
@@ -911,6 +939,8 @@ const ListwellChatLayout = ({
               />
             </div>
           ) : null}
+
+          <ChatRestart onTryAgain={onTryAgain} show={showTryAgain} />
         </div>
       </div>
     </div>
@@ -931,7 +961,7 @@ const ListwellChatLayout = ({
 const startAudit = async ({
   nextDraft,
   advance,
-  pushMessage,
+  pushError,
   runAudit,
   setPhase,
   showTypingThen,
@@ -940,7 +970,7 @@ const startAudit = async ({
 }: {
   nextDraft: ChatDraft;
   advance: (next: ChatPhase, assistantText?: string) => void;
-  pushMessage: (role: ChatMessage["role"], text: string) => void;
+  pushError: (text: string) => void;
   runAudit: (draft: ChatDraft) => Promise<void>;
   setPhase: (phase: ChatPhase) => void;
   showTypingThen: (work: () => void | Promise<void>) => Promise<void>;
@@ -954,7 +984,7 @@ const startAudit = async ({
     await runAudit(nextDraft);
     advance("report");
   } catch {
-    pushMessage("assistant", errorMessage);
+    pushError(errorMessage);
     setPhase(errorPhase);
   }
 };
@@ -1185,6 +1215,13 @@ const useListwellChat = () => {
   const pushMessage = useCallback(
     (role: ChatMessage["role"], text: string) => {
       setMessages((current) => [...current, createMessage(role, text)]);
+    },
+    [setMessages]
+  );
+
+  const pushErrorMessage = useCallback(
+    (text: string) => {
+      setMessages((current) => [...current, createErrorMessage(text)]);
     },
     [setMessages]
   );
@@ -1481,16 +1518,26 @@ const useListwellChat = () => {
 
   const continueAfterListingPick = useCallback(
     async (candidate: PlaceCandidate) => {
-      pushMessage("user", candidate.name);
+      setMessages((current) => {
+        if (repeatsPromptCardAnswer(current, candidate.name)) {
+          return current;
+        }
+        return [...current, createMessage("user", candidate.name)];
+      });
       const nextDraft = draftFromListingCandidate(draft, candidate);
       setDraft(nextDraft);
+      // "Found it." is shown before the audit or the website prompt.
+      // react-doctor-disable-next-line react-doctor/async-defer-await
+      await showTypingThen(() => {
+        pushMessage("assistant", businessFoundMessage());
+      });
       if (nextDraft.websiteUrl) {
         await startAudit({
           advance,
           errorMessage: "Something went wrong running the audit. Try again.",
           errorPhase: "website",
           nextDraft,
-          pushMessage,
+          pushError: pushErrorMessage,
           runAudit,
           setPhase,
           showTypingThen,
@@ -1501,7 +1548,17 @@ const useListwellChat = () => {
         advance("website", promptForPhase("website"));
       });
     },
-    [advance, draft, pushMessage, runAudit, setDraft, setPhase, showTypingThen]
+    [
+      advance,
+      draft,
+      pushErrorMessage,
+      pushMessage,
+      runAudit,
+      setDraft,
+      setMessages,
+      setPhase,
+      showTypingThen,
+    ]
   );
 
   const continueWebsitePhaseFromDraft = useCallback(
@@ -1518,13 +1575,13 @@ const useListwellChat = () => {
           "Something went wrong running the audit. Try again with a website URL or listing link.",
         errorPhase: "website",
         nextDraft,
-        pushMessage,
+        pushError: pushErrorMessage,
         runAudit,
         setPhase,
         showTypingThen,
       });
     },
-    [advance, pushMessage, runAudit, setPhase, showTypingThen]
+    [advance, pushErrorMessage, runAudit, setPhase, showTypingThen]
   );
 
   const finishListingLookup = useCallback(
@@ -1556,7 +1613,12 @@ const useListwellChat = () => {
           if (next.reason === "too_many") {
             pushMessage("assistant", listingLookupTooManyMessage());
           } else if (lookup.kind === "skipped") {
-            pushMessage("assistant", listingLookupSkipMessage(lookup.reason));
+            const text = listingLookupSkipMessage(lookup.reason);
+            if (lookupSkipIsChatError(lookup.reason)) {
+              pushErrorMessage(text);
+            } else {
+              pushMessage("assistant", text);
+            }
           }
           advance("website", promptForPhase("website"));
           break;
@@ -1570,14 +1632,16 @@ const useListwellChat = () => {
       advance,
       continueAfterListingPick,
       draft.businessName,
+      pushErrorMessage,
       pushMessage,
       setCandidates,
       showTypingThen,
     ]
   );
 
-  const handlePromptSend = useCallback(
+  const sendChatTurn = useCallback(
     async (text: string) => {
+      setIsTyping(true);
       const interpret = isPromptInputPhase(phase)
         ? await requestChatInterpret({ draft, phase, text })
         : null;
@@ -1602,7 +1666,7 @@ const useListwellChat = () => {
           nextDraft.location
         );
         await showTypingThen(() => {
-          setPhase("identifying");
+          advance("identifying", promptForPhase("identifying"));
         });
         await finishListingLookup(await lookupPromise, "with_location");
         return;
@@ -1617,6 +1681,7 @@ const useListwellChat = () => {
 
       const normalized = normalizeChatInput(phase, text);
       if (!normalized) {
+        setIsTyping(false);
         return;
       }
 
@@ -1637,7 +1702,7 @@ const useListwellChat = () => {
           errorMessage: "Something went wrong running the audit. Try again.",
           errorPhase: "website",
           nextDraft,
-          pushMessage,
+          pushError: pushErrorMessage,
           runAudit,
           setPhase,
           showTypingThen,
@@ -1663,7 +1728,7 @@ const useListwellChat = () => {
           ""
         );
         await showTypingThen(() => {
-          setPhase("identifying");
+          advance("identifying", promptForPhase("identifying"));
         });
         await finishListingLookup(await lookupPromise, "name_only");
         return;
@@ -1677,7 +1742,7 @@ const useListwellChat = () => {
           value
         );
         await showTypingThen(() => {
-          setPhase("identifying");
+          advance("identifying", promptForPhase("identifying"));
         });
         await finishListingLookup(await lookupPromise, "with_location");
         return;
@@ -1696,44 +1761,70 @@ const useListwellChat = () => {
       draft,
       finishListingLookup,
       phase,
-      pushMessage,
+      pushErrorMessage,
       runAudit,
       setDraft,
+      setIsTyping,
       setPhase,
       showTypingThen,
     ]
   );
 
+  const handlePromptSend = useCallback(
+    async (text: string) => {
+      try {
+        await sendChatTurn(text);
+      } catch {
+        setIsTyping(false);
+        pushErrorMessage(CHAT_FAILURE_MESSAGE);
+      }
+    },
+    [pushErrorMessage, sendChatTurn, setIsTyping]
+  );
+
   const handleListingSubmit = useCallback(
     (answers: Record<number, number[]>) => {
       const submitListing = async () => {
-        const pickedIndex = answers[0]?.[0];
-        const { options } = listingQuestion(candidates);
-        if (
-          pickedIndex === undefined ||
-          options[pickedIndex] === "None of these"
-        ) {
-          pushMessage("user", "None of these");
-          await showTypingThen(() => {
-            advance("website", promptForPhase("website"));
-          });
-          return;
+        try {
+          const pickedIndex = answers[0]?.[0];
+          const { options } = listingQuestion(candidates);
+          if (
+            pickedIndex === undefined ||
+            options[pickedIndex] === "None of these"
+          ) {
+            pushMessage("user", "None of these");
+            await showTypingThen(() => {
+              advance("website", promptForPhase("website"));
+            });
+            return;
+          }
+          const candidate = pickListingCandidateByOptionIndex(
+            candidates,
+            pickedIndex
+          );
+          if (!candidate) {
+            await showTypingThen(() => {
+              advance("website", promptForPhase("website"));
+            });
+            return;
+          }
+          await continueAfterListingPick(candidate);
+        } catch {
+          setIsTyping(false);
+          pushErrorMessage(CHAT_FAILURE_MESSAGE);
         }
-        const candidate = pickListingCandidateByOptionIndex(
-          candidates,
-          pickedIndex
-        );
-        if (!candidate) {
-          await showTypingThen(() => {
-            advance("website", promptForPhase("website"));
-          });
-          return;
-        }
-        await continueAfterListingPick(candidate);
       };
       submitListing();
     },
-    [advance, candidates, continueAfterListingPick, pushMessage, showTypingThen]
+    [
+      advance,
+      candidates,
+      continueAfterListingPick,
+      pushErrorMessage,
+      pushMessage,
+      setIsTyping,
+      showTypingThen,
+    ]
   );
 
   const promptPlaceholder = useMemo(() => {
@@ -1783,6 +1874,12 @@ const useListwellChat = () => {
     [handlePromptSend]
   );
 
+  const showTryAgain = shouldOfferChatRestart({
+    messages,
+    phase,
+    reportReady: reportStats !== null,
+  });
+
   return {
     activePromptId,
     attachInput,
@@ -1799,12 +1896,14 @@ const useListwellChat = () => {
     onBusinessNameChange: (name: string) => {
       dispatch({ name, type: "rename-business" });
     },
+    onTryAgain: resetHomeBusinessForm,
     phase,
     promptPlaceholder,
     push,
     reportStats,
     restored,
     scrollRef,
+    showTryAgain,
   };
 };
 

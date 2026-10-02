@@ -20,38 +20,6 @@ interface KVNamespace {
   delete: (key: string) => Promise<void>;
 }
 
-interface R2Bucket {
-  get: (key: string) => Promise<R2ObjectBody | null>;
-  put: (
-    key: string,
-    value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob | null
-  ) => Promise<R2Object | null>;
-  delete: (key: string) => Promise<void>;
-}
-
-interface R2ObjectBody {
-  body: ReadableStream;
-  text: () => Promise<string>;
-  json: () => Promise<unknown>;
-}
-
-interface R2Object {
-  key: string;
-}
-
-interface DurableObjectId {
-  toString: () => string;
-}
-
-interface DurableObjectStub {
-  fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-}
-
-interface DurableObjectNamespace {
-  get: (id: DurableObjectId) => DurableObjectStub;
-  idFromName: (name: string) => DurableObjectId;
-}
-
 interface Queue<T = unknown> {
   send: (message: T) => Promise<void>;
 }
@@ -94,6 +62,11 @@ interface ImagesBinding {
   ) => Promise<Response>;
 }
 
+declare module "cloudflare:workers" {
+  export const env: CloudflareEnv;
+  export const waitUntil: (promise: Promise<unknown>) => void;
+}
+
 interface CloudflareEnv {
   ASSETS?: Fetcher;
   AUDIT_KV?: KVNamespace;
@@ -115,8 +88,6 @@ interface CloudflareEnv {
   LISTWELL_BROWSER_RENDERING_ACCOUNT_ID?: string;
   LISTWELL_BROWSER_RENDERING_API_TOKEN?: string;
   LISTWELL_PAYMENTS_DISABLED?: string;
-  NEXT_CACHE_DO_QUEUE?: DurableObjectNamespace;
-  NEXT_INC_CACHE_R2_BUCKET?: R2Bucket;
   NEXT_PUBLIC_CONVEX_SITE_URL?: string;
   NEXT_PUBLIC_CONVEX_URL?: string;
   NEXT_PUBLIC_SITE_URL?: string;

@@ -36,3 +36,4 @@ logs
 
 # Turborepo
 .turbo
+.vinext/

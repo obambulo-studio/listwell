@@ -127,6 +127,9 @@ export const categoryTextForPhase = (input: {
   return input.fallbackText;
 };
 
+export const lookupSkipIsChatError = (reason: LookupSkipReason): boolean =>
+  reason === "error" || reason === "timeout" || reason === "unavailable";
+
 export const listingLookupSkipMessage = (reason: LookupSkipReason): string => {
   switch (reason) {
     case "unavailable": {
@@ -207,6 +210,8 @@ export interface ChatMessage {
   id: string;
   role: "assistant" | "user";
   text: string;
+  /** Assistant message shown after a failed audit or chat error. */
+  isError?: boolean;
   /** Onboarding question shown as a prompt card. */
   isPrompt?: boolean;
   /** User reply attached to the prompt card surface. */
@@ -218,12 +223,63 @@ export const createMessage = (
   text: string
 ): ChatMessage => ({ id: crypto.randomUUID(), role, text });
 
+export const createErrorMessage = (text: string): ChatMessage => ({
+  id: crypto.randomUUID(),
+  isError: true,
+  role: "assistant",
+  text,
+});
+
 export const createPromptMessage = (text: string): ChatMessage => ({
   id: crypto.randomUUID(),
   isPrompt: true,
   role: "assistant",
   text,
 });
+
+/** True when this text is already the reply on a prompt card. */
+export const repeatsPromptCardAnswer = (
+  messages: readonly ChatMessage[],
+  text: string
+): boolean => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return messages.some((message) => {
+    const answer = message.userAnswer?.trim();
+    return message.isPrompt === true && answer === trimmed;
+  });
+};
+
+/** Hide a user bubble that repeats a reply already on a prompt card. */
+export const omitRepeatedPromptAnswers = (
+  messages: readonly ChatMessage[]
+): ChatMessage[] =>
+  messages.filter(
+    (message) =>
+      message.role !== "user" ||
+      !repeatsPromptCardAnswer(messages, message.text)
+  );
+
+/** Restart control after a visible failure. Hidden once a report is on screen. */
+export const shouldOfferChatRestart = ({
+  messages,
+  phase,
+  reportReady,
+}: {
+  messages: readonly ChatMessage[];
+  phase: ChatPhase;
+  reportReady: boolean;
+}): boolean => {
+  if (phase === "auditing") {
+    return false;
+  }
+  if (phase === "report" && reportReady) {
+    return false;
+  }
+  return messages.some((message) => message.isError === true);
+};
 
 const TEXT_INPUT_PHASES = new Set<ChatPhase>([
   "business_name",
@@ -372,7 +428,7 @@ export const promptForPhase = (
         : "Where is your business located? Suburb or city is enough.";
     }
     case "identifying": {
-      return "Looking up your business on Google and Apple Maps…";
+      return "Looking up your business.";
     }
     case "listing": {
       return "Pick the listing that matches your business.";
@@ -397,6 +453,9 @@ export const promptForPhase = (
     }
   }
 };
+
+/** Assistant bubble once a listing candidate is resolved. */
+export const businessFoundMessage = (): string => "Found it.";
 
 export const reportIssueStatusSchema = z.enum(["pass", "fail"]);
 export type ReportIssueStatus = z.infer<typeof reportIssueStatusSchema>;
@@ -638,6 +697,7 @@ export const statusFromResult = (result: {
 
 const chatMessageSchema = z.object({
   id: z.string(),
+  isError: z.boolean().optional(),
   isPrompt: z.boolean().optional(),
   role: z.enum(["assistant", "user"]),
   text: z.string(),

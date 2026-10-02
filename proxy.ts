@@ -1,4 +1,3 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -15,13 +14,18 @@ import {
 } from "@/lib/site-gate";
 import { wwwToApexHref } from "@/lib/www-redirect";
 
-const readSitePasswordForMiddleware = async (): Promise<string | undefined> => {
+const readWorkerEnv = async (): Promise<CloudflareEnv | null> => {
   try {
-    const context = await getCloudflareContext({ async: true });
-    return readSitePassword(context.env);
+    const { env } = await import("cloudflare:workers");
+    return env;
   } catch {
-    return readSitePassword(null);
+    return null;
   }
+};
+
+const readSitePasswordForMiddleware = async (): Promise<string | undefined> => {
+  const env = await readWorkerEnv();
+  return readSitePassword(env);
 };
 
 const applySiteGate = async (
@@ -60,9 +64,7 @@ export const config = {
   ],
 };
 
-export const middleware = async (
-  request: NextRequest
-): Promise<NextResponse> => {
+export const proxy = async (request: NextRequest): Promise<NextResponse> => {
   const destination = wwwToApexHref(request.url);
 
   if (destination) {

@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import type { FetchWebsiteOptions } from "./browser";
 import { CHECK_RUNNERS } from "./checks";
 import { createCheckContext } from "./context";
@@ -71,9 +69,13 @@ export const runChecks = async (
     })
   );
 
-  return z
-    .record(checkIdSchema, checkResultSchema)
-    .parse(results) satisfies Partial<Record<CheckId, CheckResult>>;
+  // Zod 4 z.record(enum) requires every check id. This map is only the checks that ran.
+  const parsed: Partial<Record<CheckId, CheckResult>> = {};
+  for (const [key, value] of Object.entries(results)) {
+    const id = checkIdSchema.parse(key);
+    parsed[id] = checkResultSchema.parse(value);
+  }
+  return parsed;
 };
 
 export const splitQueuedChecks = (

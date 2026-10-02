@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { AccountControl } from "@/components/page-controls";
+import { AccountControl, PageControls } from "@/components/page-controls";
 
 export const Shell = ({
   children,
@@ -20,6 +20,7 @@ export const Shell = ({
       </Link>
     ) : null}
     <AccountControl />
+    <PageControls />
     <main
       id="main"
       className={

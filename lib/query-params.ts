@@ -34,13 +34,22 @@ export const firstSearchParam = (
 
 const appPathSchema = z.string().regex(/^\/[A-Za-z0-9._~!$&'()*+,;=:@/-]*$/u);
 
-export const safeAppPath = (
-  value: string | undefined,
-  fallback = "/account"
-): string => {
+export const safeAppPath = (value?: string, fallback = "/account"): string => {
   if (!value?.startsWith("/") || value.startsWith("//")) {
     return fallback;
   }
   const parsed = appPathSchema.safeParse(value);
   return parsed.success ? parsed.data : fallback;
+};
+
+/** Home is the chat, not a signed-in destination. Empty accounts still land on /account. */
+export const destinationAfterSignIn = (returnPath: string): string => {
+  if (
+    returnPath === "/" ||
+    !returnPath.startsWith("/") ||
+    returnPath.startsWith("//")
+  ) {
+    return "/account";
+  }
+  return returnPath;
 };

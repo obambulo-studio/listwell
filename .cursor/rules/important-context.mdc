@@ -6,7 +6,7 @@ alwaysApply: true
 - Product name is Listwell. Do not use Visimate in UI, copy, metadata, package name, titles, or README. Upstream copyright stays in LICENSE only.
 - Listwell is proprietary software owned by Obambulo Studio, not open source.
 - Use `bun` to install node packages.
-- Next.js App Router + OpenNext Cloudflare Workers (wrangler).
+- Next.js App Router on Cloudflare Workers via vinext (wrangler).
 - UI follows docs/DESIGN.md: Geist Sans/Mono, sentence-case, one continuous canvas. No Vercel wordmark or triangle.
 - Use Zod for types and type safety
 - Avoid premature optimization and remember KISS
