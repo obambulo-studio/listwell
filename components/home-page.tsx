@@ -29,7 +29,7 @@ import {
   HOMEPAGE_CHECK_COUNT,
 } from "@/lib/home-checks-display";
 import type { HomepageCheckGridIcon } from "@/lib/home-checks-display";
-import { listwellChatHref } from "@/lib/listwell-routes";
+import { listwellChatHref, SAMPLE_REPORT_PATH } from "@/lib/listwell-routes";
 import {
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
@@ -535,7 +535,11 @@ export const HomeLanding = ({
           </div>
           <p className="home-stage__caption">
             Type a business name. Listwell looks up the listing and runs a free
-            check.
+            check.{" "}
+            <Link className="home-stage__sample-link" href={SAMPLE_REPORT_PATH}>
+              See a sample report
+            </Link>
+            .
           </p>
         </section>
 

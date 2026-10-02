@@ -1235,6 +1235,7 @@ const useReportLiveData = ({
   initialSummary,
   scanHistoryOverride,
   serverAccess,
+  staticPreview = false,
   variant,
 }: {
   business: Business;
@@ -1244,6 +1245,7 @@ const useReportLiveData = ({
   initialSummary: AuditSummaryResult;
   scanHistoryOverride?: ScanSummary[];
   serverAccess: EntitlementState;
+  staticPreview?: boolean;
   variant: "owner" | "shared";
 }) => {
   const parsedInitialResults = useMemo(
@@ -1256,7 +1258,9 @@ const useReportLiveData = ({
   );
 
   const { data: clientAccess } = useSWR(
-    variant === "owner" ? (["entitlement", business.id] as const) : null,
+    variant === "owner" && !staticPreview
+      ? (["entitlement", business.id] as const)
+      : null,
     ([, id]) => fetchEntitlement(id),
     { revalidateOnFocus: false }
   );
@@ -1308,7 +1312,7 @@ const useReportLiveData = ({
   );
 
   const { data: refinedSummary } = useSWR(
-    completedChecks.length > 0
+    !staticPreview && completedChecks.length > 0
       ? (["summary", business.id, completedChecks] as const)
       : null,
     fetchRefinedSummary,
@@ -1982,6 +1986,7 @@ const ReportHeaderEditMenu = ({
 
 const ReportHeader = ({
   access,
+  allowOwnerActions,
   businessId,
   businessName,
   canManageShare,
@@ -1999,6 +2004,7 @@ const ReportHeader = ({
   onShare,
 }: {
   access: EntitlementState;
+  allowOwnerActions: boolean;
   businessId: string;
   businessName: string;
   canManageShare: boolean;
@@ -2025,7 +2031,7 @@ const ReportHeader = ({
           {isOwner ? "Visibility report" : "Shared report"}
         </p>
         <div className="listwell-panel__actions">
-          {isOwner ? (
+          {isOwner && allowOwnerActions ? (
             <ReportHeaderEditMenu
               canManagePlan={canManagePlan}
               onRename={() => {
@@ -2091,7 +2097,7 @@ const ReportHeader = ({
         />
       )}
       {upsell}
-      {isOwner ? (
+      {isOwner && allowOwnerActions ? (
         <BusinessNameRenameDialog
           key={
             renameOpen
@@ -2145,6 +2151,7 @@ const ReportClientMain = ({
   research,
   researchVisible,
   segment,
+  showEditLink,
   showFixSteps,
 }: {
   access: EntitlementState;
@@ -2162,6 +2169,7 @@ const ReportClientMain = ({
   research: ResearchView | null;
   researchVisible: boolean;
   segment: ReportSegment;
+  showEditLink: boolean;
   showFixSteps: boolean;
 }) => {
   const subjectChecks = liveChecks.map((item) => ({
@@ -2231,7 +2239,7 @@ const ReportClientMain = ({
           <ListingsSection
             listingsEditorOpen={listingsEditorOpen}
             profiles={profiles}
-            showEditLink={isOwner}
+            showEditLink={showEditLink}
             onEditListings={() => dispatch({ type: "open-listings-editor" })}
           />
           <ListingReviewSection
@@ -2303,6 +2311,42 @@ const ReportClientMain = ({
   );
 };
 
+const ReportLeadPrices = ({
+  access,
+  checkoutError,
+  onCheckout,
+  redirecting,
+  showPrices,
+  staticPreview,
+}: {
+  access: EntitlementState;
+  checkoutError: string | null;
+  onCheckout: (plan: CheckoutPlan) => void;
+  redirecting: CheckoutPlan | null;
+  showPrices: boolean;
+  staticPreview: boolean;
+}) => {
+  if (showPrices) {
+    return (
+      <ReportPriceActions
+        access={access}
+        checkoutError={checkoutError}
+        redirecting={redirecting}
+        onCheckout={onCheckout}
+      />
+    );
+  }
+  if (staticPreview) {
+    return (
+      <p className="listwell-panel__note m-0">
+        Unlock the full report with fix steps after you{" "}
+        <Link href="/chat">check your business</Link>.
+      </p>
+    );
+  }
+  return null;
+};
+
 export const ReportClient = ({
   initialBusiness,
   checks,
@@ -2323,6 +2367,7 @@ export const ReportClient = ({
   research = null,
   researchVisible = false,
   openListingsEditor = false,
+  staticPreview = false,
 }: {
   initialBusiness: Business;
   checks: CheckDefinition[];
@@ -2347,6 +2392,8 @@ export const ReportClient = ({
   research?: ResearchView | null;
   researchVisible?: boolean;
   openListingsEditor?: boolean;
+  /** Public sample report — fixture data only, no account or checkout APIs. */
+  staticPreview?: boolean;
 }) => {
   const business = useMemo(
     () => businessSchema.parse(initialBusiness),
@@ -2371,6 +2418,7 @@ export const ReportClient = ({
       initialSummary,
       scanHistoryOverride,
       serverAccess,
+      staticPreview,
       variant,
     });
   const { refresh } = useRouter();
@@ -2395,15 +2443,18 @@ export const ReportClient = ({
     clearListingsEditorQuery();
   };
   const isOwner = variant === "owner";
-  const canManageShare = canManageReportShareFromAccess({
-    isOwnerView: isOwner,
-    sessionRequired: access.sessionRequired,
-    unlocked: access.unlocked,
-  });
+  const isMutableOwner = isOwner && !staticPreview;
+  const canManageShare =
+    isMutableOwner &&
+    canManageReportShareFromAccess({
+      isOwnerView: isOwner,
+      sessionRequired: access.sessionRequired,
+      unlocked: access.unlocked,
+    });
   const counts = visibilityCounts(liveChecks);
   const visibilityScore = scorePercent(counts);
   const showPrices =
-    isOwner && !purchasePending && reportShowsPurchasePrices(access);
+    isMutableOwner && !purchasePending && reportShowsPurchasePrices(access);
   const fixPlan = useMemo(
     () =>
       planNextActions({
@@ -2459,7 +2510,7 @@ export const ReportClient = ({
           onClose={() => dispatch({ open: false, type: "set-share-open" })}
         />
       ) : null}
-      {isOwner ? (
+      {isMutableOwner ? (
         <>
           <MonthlyScansUpgradeDialog
             busy={redirecting === monthlyPlan}
@@ -2513,6 +2564,7 @@ export const ReportClient = ({
         <div className="listwell-report__lead">
           <ReportHeader
             access={access}
+            allowOwnerActions={isMutableOwner}
             businessId={business.id}
             businessName={businessName}
             canManageShare={canManageShare}
@@ -2526,16 +2578,16 @@ export const ReportClient = ({
             liveChecks={liveChecks}
             overview={summary.overview}
             prices={
-              showPrices ? (
-                <ReportPriceActions
-                  access={access}
-                  checkoutError={checkoutError}
-                  redirecting={redirecting}
-                  onCheckout={(plan) => {
-                    void startCheckout(plan);
-                  }}
-                />
-              ) : null
+              <ReportLeadPrices
+                access={access}
+                checkoutError={checkoutError}
+                redirecting={redirecting}
+                showPrices={showPrices}
+                staticPreview={staticPreview}
+                onCheckout={(plan) => {
+                  void startCheckout(plan);
+                }}
+              />
             }
             showFixSteps={showFixSteps}
             visibilityScore={visibilityScore}
@@ -2576,6 +2628,7 @@ export const ReportClient = ({
           research={research}
           researchVisible={researchVisible}
           segment={segment}
+          showEditLink={isMutableOwner}
           showFixSteps={showFixSteps}
         />
       </div>

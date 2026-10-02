@@ -38,6 +38,11 @@ export const sitemapEntries = () => {
       url: `${origin}/chat`,
     },
     {
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+      url: `${origin}/example`,
+    },
+    {
       changeFrequency: "weekly" as const,
       priority: 0.8,
       url: `${origin}/discover`,
