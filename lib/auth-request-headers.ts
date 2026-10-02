@@ -9,11 +9,11 @@ const cookieMapFromHeader = (serialized: string): Map<string, string> => {
     if (!part) {
       continue;
     }
-    const separator = part.indexOf("=");
-    if (separator <= 0) {
+    const [name, ...valueParts] = part.split("=");
+    if (!name || valueParts.length === 0) {
       continue;
     }
-    map.set(part.slice(0, separator), part.slice(separator + 1));
+    map.set(name, valueParts.join("="));
   }
   return map;
 };

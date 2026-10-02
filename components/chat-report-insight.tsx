@@ -1,7 +1,7 @@
 "use client";
 
 import { MultiplicationSignIcon, Tick02Icon } from "@hugeicons/core-free-icons";
-import { useId, useReducer, useState } from "react";
+import { useId, useReducer, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/atoms/button";
@@ -191,6 +191,7 @@ export const BusinessNameHeading = ({
   heading = "h1",
   name,
   onRenamed,
+  showRenameButton = true,
   titleClassName = "listwell-panel__question",
   titleId = "report-title",
 }: {
@@ -199,6 +200,8 @@ export const BusinessNameHeading = ({
   heading?: "h1" | "p";
   name: string;
   onRenamed: (name: string) => void;
+  /** Chat keeps the button beside the name. The report header uses a dialog. */
+  showRenameButton?: boolean;
   titleClassName?: string;
   titleId?: string;
 }) => {
@@ -250,7 +253,7 @@ export const BusinessNameHeading = ({
         >
           {name}
         </TitleTag>
-        {canRename && !editing ? (
+        {canRename && showRenameButton && !editing ? (
           <button
             type="button"
             className="listwell-panel__action listwell-name-rename"
@@ -535,7 +538,7 @@ const ReportUnlockActions = ({
   </fieldset>
 );
 
-/** Rename dialog for account row menu and other surfaces off the report header. */
+/** Rename dialog for the report Edit menu and the account row menu. */
 export const BusinessNameRenameDialog = ({
   businessId,
   name,
@@ -550,6 +553,7 @@ export const BusinessNameRenameDialog = ({
   onRenamed: (name: string) => void;
 }) => {
   const inputId = useId();
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   // react-doctor-disable-next-line react-doctor/no-derived-useState
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
@@ -591,7 +595,10 @@ export const BusinessNameRenameDialog = ({
         }
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent
+        className="max-w-md"
+        initialFocus={() => nameInputRef.current}
+      >
         <DialogHeader>
           <DialogTitle>Rename business</DialogTitle>
           <DialogDescription>
@@ -603,6 +610,7 @@ export const BusinessNameRenameDialog = ({
             Business name
           </label>
           <Input
+            ref={nameInputRef}
             id={inputId}
             value={draft}
             autoCapitalize="none"

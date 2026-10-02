@@ -72,7 +72,7 @@ const jsonResponse = (places: GooglePlace[]): Response =>
   Response.json({ places });
 
 describe(choosePeerPlaces, () => {
-  it("drops the subject and other place types, keeps popularity order, and caps at 4", () => {
+  it("drops the subject and other place types, keeps popularity order, and caps at 3", () => {
     const selected = choosePeerPlaces({
       closePlaces: [
         place("a", "cafe", "Alpha"),
@@ -94,7 +94,7 @@ describe(choosePeerPlaces, () => {
       radiusMeters: selected.radiusMeters,
       source: selected.source,
     }).toStrictEqual({
-      ids: ["a", "c", "d", "e"],
+      ids: ["a", "c", "d"],
       radiusMeters: NEARBY_RADIUS_METERS,
       source: "nearby",
     });
@@ -118,7 +118,7 @@ describe(choosePeerPlaces, () => {
       radiusMeters: selected.radiusMeters,
       source: selected.source,
     }).toStrictEqual({
-      names: ["Only", "Bravo", "Alpha", "Charlie"],
+      names: ["Only", "Bravo", "Alpha"],
       radiusMeters: WIDENED_RADIUS_METERS,
       source: "nearby",
     });
@@ -372,7 +372,7 @@ describe(orderPeerCheckRows, () => {
 });
 
 describe(selectCompetitorPlaces, () => {
-  it("puts pinned places first, then nearby, and keeps at most four", () => {
+  it("puts pinned places first, then nearby, and keeps at most three", () => {
     const selected = selectCompetitorPlaces({
       hiddenPlaceIds: [],
       nearbyPlaces: [
@@ -395,7 +395,6 @@ describe(selectCompetitorPlaces, () => {
       { id: "pinned-1", source: "pinned" },
       { id: "pinned-2", source: "pinned" },
       { id: "near-1", source: "nearby" },
-      { id: "near-2", source: "nearby" },
     ]);
   });
 
@@ -435,7 +434,7 @@ describe(selectCompetitorPlaces, () => {
     ]);
   });
 
-  it("fills remaining slots with map-pack leaders, then nearby, and caps at four", () => {
+  it("fills remaining slots with map-pack leaders, then nearby, and caps at three", () => {
     const selected = selectCompetitorPlaces({
       hiddenPlaceIds: ["hidden-pack"],
       mapPackPlaces: [
@@ -469,7 +468,6 @@ describe(selectCompetitorPlaces, () => {
       { id: "pinned-1", phrase: undefined, source: "pinned" },
       { id: "pack-1", phrase: "cafe Newtown", source: "map_pack" },
       { id: "pack-2", phrase: "coffee", source: "map_pack" },
-      { id: "near-1", phrase: undefined, source: "nearby" },
     ]);
   });
 

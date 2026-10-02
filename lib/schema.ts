@@ -121,6 +121,7 @@ export const entitlementRowSchema = z.object({
   id: z.string(),
   kind: entitlementKindSchema,
   nextScanAt: z.string().nullable(),
+  polarCustomerId: z.string().nullable(),
   polarOrderId: z.string().nullable(),
   polarSubscriptionId: z.string().nullable(),
   status: entitlementStatusSchema,

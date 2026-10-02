@@ -33,4 +33,39 @@ describe(sendUseSendEmail, () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("sends base64 attachments", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await sendUseSendEmail(
+      { apiKey: "test-key", from: "Listwell <no-reply@listwell.dev>" },
+      {
+        attachments: [
+          {
+            content: btoa("pdf"),
+            filename: "harbour-cafe-visibility-report.pdf",
+          },
+        ],
+        subject: "Your Listwell report",
+        text: "Your report is ready.",
+        to: "buyer@example.com",
+      }
+    );
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    const body = JSON.parse(String(init?.body)) as {
+      attachments?: { content: string; filename: string }[];
+    };
+    expect(body.attachments).toStrictEqual([
+      {
+        content: btoa("pdf"),
+        filename: "harbour-cafe-visibility-report.pdf",
+      },
+    ]);
+
+    vi.unstubAllGlobals();
+  });
 });

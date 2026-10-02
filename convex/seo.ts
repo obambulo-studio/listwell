@@ -370,9 +370,21 @@ export const updateObservation = mutation({
       status: args.status,
     });
     const updated = await ctx.db.get("seoObservations", id);
-    return updated ? toObservationRow(updated) : null;
+    if (!updated) {
+      return null;
+    }
+    return {
+      previousCostUsdMicros: existing.costUsdMicros,
+      row: toObservationRow(updated),
+    };
   },
-  returns: v.union(observationRowValidator, v.null()),
+  returns: v.union(
+    v.object({
+      previousCostUsdMicros: v.number(),
+      row: observationRowValidator,
+    }),
+    v.null()
+  ),
 });
 
 export const listObservationsForPeriod = query({

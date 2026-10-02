@@ -13,6 +13,13 @@ import {
   ListwellSelect,
 } from "@/components/listwell/select-field";
 import { PlaceSearch } from "@/components/place-search";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -320,6 +327,139 @@ const AddListingForm = ({
   );
 };
 
+interface NewAuditFormBaseProps {
+  businessName: string;
+  categoryId: CategoryId;
+  categoryLabel?: string | null;
+  initialProfiles: DiscoveredProfile[];
+  initialAddress?: string;
+  existingId?: string;
+}
+
+type NewAuditFormProps = NewAuditFormBaseProps &
+  (
+    | {
+        onCancel?: undefined;
+        onSaved?: undefined;
+        presentation?: "page";
+      }
+    | {
+        onCancel: () => void;
+        onSaved?: () => void | Promise<void>;
+        presentation: "dialog";
+      }
+  );
+
+const AuditDetailsFields = ({
+  address,
+  category,
+  name,
+  onAddress,
+  onCategory,
+  onName,
+}: {
+  address: string;
+  category: string;
+  name: string;
+  onAddress: (address: string) => void;
+  onCategory: (category: string) => void;
+  onName: (name: string) => void;
+}) => (
+  <FieldGroup className="gap-4">
+    <Field>
+      <FieldLabel htmlFor="name">Business name</FieldLabel>
+      <Input
+        id="name"
+        value={name}
+        onChange={(event) => onName(event.target.value)}
+      />
+    </Field>
+    <Field>
+      <FieldLabel htmlFor="address">Address</FieldLabel>
+      <Input
+        id="address"
+        value={address}
+        onChange={(event) => onAddress(event.target.value)}
+        autoComplete="street-address"
+      />
+    </Field>
+    <ListwellCategoryField
+      id="category"
+      label="Business category"
+      value={category}
+      onValueChange={onCategory}
+    />
+  </FieldGroup>
+);
+
+const AuditListingsEditor = ({
+  available,
+  channelId,
+  place,
+  profiles,
+  showAdd,
+  value,
+  onCancelAdd,
+  onChannelChange,
+  onPlaceSelect,
+  onRemove,
+  onShowAdd,
+  onSubmitListing,
+  onValueChange,
+}: {
+  available: ChannelId[];
+  channelId: ChannelId | "";
+  place: PlaceCandidate | null;
+  profiles: DiscoveredProfile[];
+  showAdd: boolean;
+  value: string;
+  onCancelAdd: () => void;
+  onChannelChange: (channelId: ChannelId | "") => void;
+  onPlaceSelect: (candidate: PlaceCandidate) => void;
+  onRemove: (profile: DiscoveredProfile) => void;
+  onShowAdd: () => void;
+  onSubmitListing: () => void;
+  onValueChange: (value: string) => void;
+}) => (
+  <section className="listwell-panel" aria-labelledby="audit-listings">
+    <div className="listwell-panel__head">
+      <h2 id="audit-listings" className="listwell-panel__title">
+        Listings
+      </h2>
+      {showAdd || available.length === 0 ? null : (
+        <button
+          type="button"
+          className="listwell-panel__action"
+          onClick={onShowAdd}
+        >
+          Add missing
+        </button>
+      )}
+    </div>
+    <AuditListingsTable profiles={profiles} onRemove={onRemove} />
+    {showAdd ? (
+      <AddListingForm
+        available={available}
+        channelId={channelId}
+        onChannelChange={onChannelChange}
+        onCancel={onCancelAdd}
+        onPlaceSelect={onPlaceSelect}
+        onSubmitListing={onSubmitListing}
+        onValueChange={onValueChange}
+        place={place}
+        value={value}
+      />
+    ) : null}
+    {showAdd || available.length > 0 ? null : (
+      <div className="listwell-panel__foot">
+        <p className="listwell-panel__fine">
+          All available channels have been added
+        </p>
+      </div>
+    )}
+  </section>
+);
+
 export const NewAuditForm = ({
   businessName,
   categoryId,
@@ -327,14 +467,10 @@ export const NewAuditForm = ({
   initialProfiles,
   initialAddress,
   existingId,
-}: {
-  businessName: string;
-  categoryId: CategoryId;
-  categoryLabel?: string | null;
-  initialProfiles: DiscoveredProfile[];
-  initialAddress?: string;
-  existingId?: string;
-}) => {
+  presentation = "page",
+  onCancel,
+  onSaved,
+}: NewAuditFormProps) => {
   const { push } = useRouter();
   const [state, dispatch] = useReducer(auditFormReducer, initialAuditFormState);
   const name = state.nameDraft ?? businessName;
@@ -374,6 +510,10 @@ export const NewAuditForm = ({
       }
       const business = businessSchema.parse(await response.json());
       addBusinessId(business.id);
+      if (presentation === "dialog") {
+        await onSaved?.();
+        return;
+      }
       push(`/${business.id}`);
     } catch (saveError) {
       dispatch({
@@ -425,6 +565,90 @@ export const NewAuditForm = ({
     });
   };
 
+  const detailsFields = (
+    <AuditDetailsFields
+      address={address}
+      category={category}
+      name={name}
+      onAddress={(nextAddress) =>
+        dispatch({ address: nextAddress, type: "address" })
+      }
+      onCategory={(nextCategory) =>
+        dispatch({ category: nextCategory, type: "category" })
+      }
+      onName={(nextName) => dispatch({ name: nextName, type: "name" })}
+    />
+  );
+  const listingsEditor = (
+    <AuditListingsEditor
+      available={available}
+      channelId={state.channelId}
+      place={state.place}
+      profiles={profiles}
+      showAdd={state.showAdd}
+      value={state.value}
+      onCancelAdd={() => dispatch({ showAdd: false, type: "show-add" })}
+      onChannelChange={(channelId) => dispatch({ channelId, type: "channel" })}
+      onPlaceSelect={(candidate) => {
+        dispatch({
+          place: candidate,
+          type: "place",
+          value: candidate.id,
+        });
+      }}
+      onRemove={(profile) => {
+        dispatch({
+          profiles: profiles.filter(
+            (item) =>
+              !(item.type === profile.type && item.title === profile.title)
+          ),
+          type: "profiles",
+        });
+      }}
+      onShowAdd={() => dispatch({ showAdd: true, type: "show-add" })}
+      onSubmitListing={submitListing}
+      onValueChange={(nextValue) =>
+        dispatch({ type: "value", value: nextValue })
+      }
+    />
+  );
+  const saveDisabled = state.saving || !name.trim();
+  const errorNotice = state.error ? (
+    <p className="listwell-notice listwell-notice--error" role="alert">
+      {state.error}
+    </p>
+  ) : null;
+
+  if (presentation === "dialog") {
+    return (
+      <div className="flex flex-col gap-4">
+        {detailsFields}
+        {listingsEditor}
+        {errorNotice}
+        <FormActions className="justify-end pt-0">
+          <QuietButton
+            disabled={state.saving}
+            type="button"
+            onClick={() => {
+              onCancel?.();
+            }}
+          >
+            Cancel
+          </QuietButton>
+          <PrimaryButton
+            type="button"
+            disabled={saveDisabled}
+            onClick={() => {
+              void saveAudit();
+            }}
+          >
+            {state.saving ? "Saving" : "Save"}
+          </PrimaryButton>
+        </FormActions>
+      </div>
+    );
+  }
+
   return (
     <div className="listwell-page">
       <section className="listwell-panel" aria-labelledby="audit-details">
@@ -438,119 +662,70 @@ export const NewAuditForm = ({
             Add any listing we missed and remove any that are not yours. Then
             run the report.
           </p>
-          <FieldGroup className="gap-4">
-            <Field>
-              <FieldLabel htmlFor="name">Business name</FieldLabel>
-              <Input
-                id="name"
-                value={name}
-                onChange={(event) =>
-                  dispatch({ name: event.target.value, type: "name" })
-                }
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="address">Address</FieldLabel>
-              <Input
-                id="address"
-                value={address}
-                onChange={(event) =>
-                  dispatch({ address: event.target.value, type: "address" })
-                }
-                autoComplete="street-address"
-              />
-            </Field>
-            <ListwellCategoryField
-              id="category"
-              label="Business category"
-              value={category}
-              onValueChange={(next) =>
-                dispatch({
-                  category: next,
-                  type: "category",
-                })
-              }
-            />
-          </FieldGroup>
+          {detailsFields}
         </div>
       </section>
-
-      <section className="listwell-panel" aria-labelledby="audit-listings">
-        <div className="listwell-panel__head">
-          <h2 id="audit-listings" className="listwell-panel__title">
-            Listings
-          </h2>
-          {state.showAdd || available.length === 0 ? null : (
-            <button
-              type="button"
-              className="listwell-panel__action"
-              onClick={() => dispatch({ showAdd: true, type: "show-add" })}
-            >
-              Add missing
-            </button>
-          )}
-        </div>
-        <AuditListingsTable
-          profiles={profiles}
-          onRemove={(profile) => {
-            dispatch({
-              profiles: profiles.filter(
-                (item) =>
-                  !(item.type === profile.type && item.title === profile.title)
-              ),
-              type: "profiles",
-            });
-          }}
-        />
-
-        {state.showAdd ? (
-          <AddListingForm
-            available={available}
-            channelId={state.channelId}
-            onChannelChange={(channelId) =>
-              dispatch({ channelId, type: "channel" })
-            }
-            onCancel={() => dispatch({ showAdd: false, type: "show-add" })}
-            onPlaceSelect={(candidate) => {
-              dispatch({
-                place: candidate,
-                type: "place",
-                value: candidate.id,
-              });
-            }}
-            onSubmitListing={submitListing}
-            onValueChange={(nextValue) =>
-              dispatch({ type: "value", value: nextValue })
-            }
-            place={state.place}
-            value={state.value}
-          />
-        ) : null}
-        {!state.showAdd && available.length === 0 ? (
-          <div className="listwell-panel__foot">
-            <p className="listwell-panel__fine">
-              All available channels have been added
-            </p>
-          </div>
-        ) : null}
-      </section>
-
-      {state.error ? (
-        <p className="listwell-notice listwell-notice--error" role="alert">
-          {state.error}
-        </p>
-      ) : null}
-
+      {listingsEditor}
+      {errorNotice}
       <PrimaryButton
         type="button"
         className="w-full"
         onClick={() => {
           void saveAudit();
         }}
-        disabled={state.saving || !name.trim()}
+        disabled={saveDisabled}
       >
         {state.saving ? "Saving" : "Get report"}
       </PrimaryButton>
     </div>
   );
 };
+
+export const EditListingsDialog = ({
+  businessName,
+  categoryId,
+  categoryLabel = null,
+  existingId,
+  formKey,
+  initialAddress,
+  initialProfiles,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  businessName: string;
+  categoryId: CategoryId;
+  categoryLabel?: string | null;
+  existingId: string;
+  formKey: number;
+  initialAddress?: string;
+  initialProfiles: DiscoveredProfile[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void | Promise<void>;
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="flex max-h-[min(40rem,calc(100dvh-2rem))] max-w-lg flex-col overflow-hidden">
+      <DialogHeader className="pr-8">
+        <DialogTitle>Edit listings</DialogTitle>
+        <DialogDescription className="text-foreground leading-relaxed">
+          Add any listing we missed and remove any that are not yours.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="min-h-0 overflow-y-auto">
+        <NewAuditForm
+          key={formKey}
+          businessName={businessName}
+          categoryId={categoryId}
+          categoryLabel={categoryLabel}
+          existingId={existingId}
+          initialAddress={initialAddress}
+          initialProfiles={initialProfiles}
+          presentation="dialog"
+          onCancel={() => onOpenChange(false)}
+          onSaved={onSaved}
+        />
+      </div>
+    </DialogContent>
+  </Dialog>
+);

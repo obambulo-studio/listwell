@@ -34,9 +34,23 @@ export const readUseSendConfig = (env: {
   };
 };
 
+export interface UseSendAttachment {
+  content: string;
+  filename: string;
+}
+
+export const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCodePoint(byte);
+  }
+  return btoa(binary);
+};
+
 export const sendUseSendEmail = async (
   config: UseSendConfig,
   input: {
+    attachments?: readonly UseSendAttachment[];
     html?: string;
     headers?: Record<string, string>;
     listUnsubscribeUrl?: string;
@@ -45,12 +59,23 @@ export const sendUseSendEmail = async (
     to: string;
   }
 ): Promise<boolean> => {
-  const payload: Record<string, string | Record<string, string>> = {
+  const payload: {
+    attachments?: UseSendAttachment[];
+    from: string;
+    headers?: Record<string, string>;
+    html?: string;
+    subject: string;
+    text: string;
+    to: string;
+  } = {
     from: config.from,
     subject: input.subject,
     text: input.text,
     to: input.to,
   };
+  if (input.attachments && input.attachments.length > 0) {
+    payload.attachments = [...input.attachments];
+  }
   if (input.html) {
     payload.html = input.html;
   }

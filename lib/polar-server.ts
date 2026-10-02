@@ -19,7 +19,12 @@ import {
   checkoutCreateFailureLog,
 } from "./checkout-create-error";
 import { CheckoutGrantError } from "./checkout-grant-error";
-import { api, convexAction } from "./convex/server";
+import {
+  api,
+  convexAction,
+  convexMutation,
+  convexQuery,
+} from "./convex/server";
 import {
   findUserIdByEmail,
   getActiveEntitlementOwner,
@@ -27,21 +32,26 @@ import {
   revokeEntitlements,
 } from "./data";
 import {
+  entitlementIsPurchaserBound,
   fixStepsWithoutPayment,
   isPaymentsIntentionallyDisabled,
+  reportSessionRequired,
   sharedViewerEntitlementState,
 } from "./entitlements-access";
 import {
   businessIdFromMetadata,
   checkoutCustomerIp,
   customerEmailFromPolarData,
+  customerIdFromPolarData,
   customerNameFromPolarData,
+  deliveryCostEvent,
   entitlementActionFromPolarEvent,
   entitlementKindFromCheckout,
   parsePolarCustomerPortalUrl,
   polarCheckoutSchema,
 } from "./polar";
 import type { PolarWebhookEvent } from "./polar";
+import { schedulePurchaseReceipt } from "./purchase-email";
 import { startBaselineScan } from "./scans";
 import { checkoutPlanSchema, entitlementStateSchema } from "./schema";
 import type { CheckoutPlan, EntitlementKind, EntitlementState } from "./schema";
@@ -190,10 +200,26 @@ export const getReportAccess = async (
   const kind = backendAvailable ? owner.kind : null;
   const ownerEmail = backendAvailable ? owner.ownerEmail : null;
   const ownerUserId = backendAvailable ? owner.ownerUserId : null;
-  const maskedEmail = ownerEmail ? maskEmail(ownerEmail) : null;
-  const sessionRequired = Boolean(
-    authEnabled && unlocked && ownerUserId && sessionUser?.id !== ownerUserId
-  );
+  const polarOrderId = backendAvailable ? owner.polarOrderId : null;
+  const purchaserEmail = backendAvailable ? owner.purchaserEmail : null;
+  const purchaserBound = entitlementIsPurchaserBound({
+    polarOrderId,
+    purchaserEmail,
+    userId: ownerUserId,
+  });
+  const emailToMask =
+    ownerEmail ??
+    (purchaserEmail !== null && purchaserEmail.length > 0
+      ? purchaserEmail
+      : null);
+  const maskedEmail = emailToMask ? maskEmail(emailToMask) : null;
+  const sessionRequired = reportSessionRequired({
+    authEnabled,
+    ownerUserId,
+    purchaserBound,
+    sessionUserId: sessionUser?.id ?? null,
+    unlocked,
+  });
   const monthlyAvailable = Boolean(config?.productReportMonthly);
   const yearlyAvailable = Boolean(config?.productReportYearly);
   const polarConfigured = Boolean(config);
@@ -212,7 +238,7 @@ export const getReportAccess = async (
       maskedEmail,
       monthlyAvailable: false,
       paymentsEnabled: false,
-      sessionRequired: false,
+      sessionRequired: purchaserBound ? sessionRequired : false,
       unlocked,
       yearlyAvailable: false,
     });
@@ -302,6 +328,7 @@ const sendPostPaymentSignInCode = async (email: string): Promise<void> => {
 const grantPaidAccess = async (input: {
   businessId: string;
   kind: EntitlementKind;
+  polarCustomerId?: string;
   polarOrderId?: string;
   polarSubscriptionId?: string;
   email?: string;
@@ -310,6 +337,7 @@ const grantPaidAccess = async (input: {
   await grantEntitlement({
     businessId: input.businessId,
     kind: input.kind,
+    polarCustomerId: input.polarCustomerId,
     polarOrderId: input.polarOrderId,
     polarSubscriptionId: input.polarSubscriptionId,
     purchaserEmail: input.email,
@@ -317,6 +345,13 @@ const grantPaidAccess = async (input: {
   });
   if (input.kind === "report_monthly") {
     await scheduleMonthlyBaseline(input.businessId);
+  }
+  if (input.email) {
+    await schedulePurchaseReceipt({
+      businessId: input.businessId,
+      email: input.email,
+      kind: input.kind,
+    });
   }
   if (userId && input.email) {
     return { email: input.email, id: userId };
@@ -541,6 +576,7 @@ export const createPolarCheckout = async (input: {
   }
 
   const parsedCheckout = polarCheckoutSchema.safeParse({
+    customerId: created.customerId,
     id: created.id,
     metadata: created.metadata,
     productId: created.productId,
@@ -572,6 +608,21 @@ const polarCustomerListSchema = z.object({
   }),
 });
 
+const polarCustomerIdByEmail = async (
+  config: PolarConfig,
+  email: string
+): Promise<string | null> => {
+  const page = await polarClient(config).customers.list({
+    email,
+    limit: 1,
+  });
+  const listed = polarCustomerListSchema.safeParse(page);
+  if (!listed.success) {
+    throw new Error("Unexpected billing customer list");
+  }
+  return listed.data.result.items[0]?.id ?? null;
+};
+
 export const createPolarCustomerPortalUrl = async (input: {
   email: string;
   returnUrl: string;
@@ -587,15 +638,7 @@ export const createPolarCustomerPortalUrl = async (input: {
     return { status: "missing" };
   }
 
-  const page = await polarClient(config).customers.list({
-    email,
-    limit: 1,
-  });
-  const listed = polarCustomerListSchema.safeParse(page);
-  if (!listed.success) {
-    throw new Error("Unexpected billing customer list");
-  }
-  const customerId = listed.data.result.items[0]?.id;
+  const customerId = await polarCustomerIdByEmail(config, email);
   if (!customerId) {
     return { status: "missing" };
   }
@@ -624,6 +667,7 @@ export const confirmPolarCheckout = async (
   const parsed = polarCheckoutSchema.parse({
     customerBillingName: checkout.customerBillingName,
     customerEmail: checkout.customerEmail,
+    customerId: checkout.customerId,
     customerName: checkout.customerName,
     id: checkout.id,
     metadata: checkout.metadata,
@@ -662,6 +706,7 @@ export const confirmPolarCheckout = async (
       businessId,
       email,
       kind,
+      polarCustomerId: customerIdFromPolarData(parsed),
     });
     return polarCheckoutConfirmSchema.parse({
       businessId,
@@ -683,6 +728,55 @@ export const confirmPolarCheckout = async (
   }
 };
 
+const polarCustomerForBusinessSchema = z.object({
+  polarCustomerId: z.string().nullable(),
+  purchaserEmail: z.string().nullable(),
+});
+
+/** Sends the increased DataForSEO cost for one observation to Polar. */
+export const reportBusinessDeliveryCost = async (input: {
+  businessExternalId: string;
+  deltaUsdMicros: number;
+  kind: string;
+  observationId: string;
+  settledUsdMicros: number;
+}): Promise<void> => {
+  const config = await getPolarConfig();
+  if (!config || input.deltaUsdMicros <= 0) {
+    return;
+  }
+  const row = await convexQuery(api.entitlements.getActiveForBusiness, {
+    businessExternalId: input.businessExternalId,
+  });
+  if (!row) {
+    return;
+  }
+  const billing = polarCustomerForBusinessSchema.parse(row);
+  let customerId = billing.polarCustomerId;
+  if (!customerId && billing.purchaserEmail) {
+    const email = normalizeEmail(billing.purchaserEmail);
+    customerId = email ? await polarCustomerIdByEmail(config, email) : null;
+    if (customerId) {
+      await convexMutation(api.entitlements.rememberPolarCustomer, {
+        businessExternalId: input.businessExternalId,
+        polarCustomerId: customerId,
+      });
+    }
+  }
+  const event = deliveryCostEvent({
+    businessExternalId: input.businessExternalId,
+    customerId,
+    deltaUsdMicros: input.deltaUsdMicros,
+    kind: input.kind,
+    observationId: input.observationId,
+    settledUsdMicros: input.settledUsdMicros,
+  });
+  if (!event) {
+    return;
+  }
+  await polarClient(config).events.ingest({ events: [event] });
+};
+
 export const applyPolarWebhookEvent = async (
   event: PolarWebhookEvent
 ): Promise<void> => {
@@ -699,6 +793,7 @@ export const applyPolarWebhookEvent = async (
       businessId: action.businessId,
       email: action.email,
       kind: action.kind,
+      polarCustomerId: action.polarCustomerId,
       polarOrderId: action.polarOrderId,
       polarSubscriptionId: action.polarSubscriptionId,
     });

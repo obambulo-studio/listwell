@@ -8,6 +8,19 @@ const SkipLine = ({ text }: { text: string }) => (
 const percent = (rate: number | null): string =>
   rate === null ? "Unknown" : `${Math.round(rate * 100)}%`;
 
+const reviewDate = (iso: string | null): string => {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return iso ?? "Unknown";
+  }
+  return date.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  });
+};
+
 const ListingResearch = ({ view }: { view: ResearchView }) => (
   <>
     <section className="listwell-panel" aria-labelledby="map-grid-heading">
@@ -47,7 +60,10 @@ const ListingResearch = ({ view }: { view: ResearchView }) => (
       </div>
     </section>
 
-    <section className="listwell-panel" aria-labelledby="review-gap-heading">
+    <section
+      className="listwell-panel listwell-report__research-wide"
+      aria-labelledby="review-gap-heading"
+    >
       <div className="listwell-panel__head">
         <h2 className="listwell-panel__title" id="review-gap-heading">
           Review gap
@@ -74,7 +90,7 @@ const ListingResearch = ({ view }: { view: ResearchView }) => (
                   </th>
                   <td>{row.reviewCount ?? "Unknown"}</td>
                   <td>{row.rating ?? "Unknown"}</td>
-                  <td>{row.latestReviewAt ?? "Unknown"}</td>
+                  <td>{reviewDate(row.latestReviewAt)}</td>
                   <td>{percent(row.ownerReplyRate)}</td>
                 </tr>
               ))}

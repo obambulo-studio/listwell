@@ -1517,7 +1517,9 @@ button:focus-visible {
 
 .listwell-panel__body + .listwell-panel__body,
 .listwell-panel__rows + .listwell-panel__body,
-.listwell-panel__body + .listwell-panel__rows {
+.listwell-panel__body + .listwell-panel__rows,
+.listwell-panel__body + .listwell-report__lead-block,
+.listwell-report__lead-block + .listwell-panel__body {
   border-top: 1px solid var(--line-soft);
 }
 
@@ -1768,6 +1770,10 @@ div.listwell-panel__row:hover {
   color: var(--ink-2);
 }
 
+.listwell-panel__group--end {
+  justify-content: flex-end;
+}
+
 .listwell-panel__group-button {
   display: flex;
   align-items: baseline;
@@ -1865,6 +1871,24 @@ div.listwell-panel__row:hover {
   flex-shrink: 0;
   color: var(--ink-3);
   transition: transform 300ms var(--ease-out, ease-out);
+}
+
+.listwell-check-row {
+  position: relative;
+}
+
+.listwell-check-row--copy .listwell-panel__row-main {
+  margin-right: 4.75rem;
+}
+
+.listwell-check-row__copy {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 2.5rem;
+  min-width: 4.25rem;
+  justify-content: center;
+  transform: translateY(-50%);
 }
 
 [aria-expanded="true"] > .listwell-panel__chevron {
@@ -2008,6 +2032,10 @@ div.listwell-panel__row:hover {
   flex-direction: column;
   gap: 10px;
   padding: 0 16px 16px 48px;
+}
+
+.listwell-panel__detail--compare {
+  padding: 0 0 8px;
 }
 
 .listwell-disclosure {
@@ -2305,87 +2333,153 @@ div.listwell-panel__row:hover {
   border: 0;
 }
 
-.listwell-report {
-  --listwell-report-sticky-top: 0px;
-}
-
 .listwell-chat-shell__main--page > .listwell-report {
-  --listwell-report-sticky-top: max(
-    72px,
-    calc(52px + env(safe-area-inset-top, 0px))
-  );
-  max-width: min(52rem, 100%);
+  max-width: min(64rem, 100%);
 }
 
-.listwell-report__layout {
+.listwell-report__layout,
+.listwell-report__notices,
+.listwell-report__lead,
+.listwell-report__plan,
+.listwell-report__secondary {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
 }
 
-.listwell-report__notices {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.listwell-report__notices:empty {
+.listwell-report__notices:empty,
+.listwell-report__plan:empty {
   display: none;
 }
 
-.listwell-report__main {
+.listwell-report__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.listwell-report__segments {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listwell-report__segments .listwell-panel__action {
+  justify-content: flex-start;
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  padding: 6px 10px;
+  text-align: left;
+  white-space: normal;
+}
+
+@media (min-width: 768px) {
+  .listwell-report__body {
+    display: grid;
+    grid-template-columns: 11.5rem minmax(0, 1fr);
+    align-items: start;
+    column-gap: 28px;
+    row-gap: 12px;
+  }
+
+  .listwell-report__segments {
+    position: sticky;
+    top: 12px;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .listwell-report__segment {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.listwell-report__segment {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
 }
 
-.listwell-report__summary {
-  min-width: 0;
-  order: -1;
+.listwell-report__segment[hidden] {
+  display: none;
 }
 
-@media (min-width: 768px) {
+.listwell-report__jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listwell-report__job-detail {
+  padding-left: 16px;
+}
+
+.listwell-report__research {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listwell-report .listwell-panel__text,
+.listwell-report .listwell-panel__note,
+.listwell-report .listwell-panel__detail > * {
+  max-width: 72ch;
+}
+
+@media (min-width: 1024px) {
   .listwell-report__layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) min(17.5rem, 100%);
-    grid-template-rows: minmax(0, max-content) auto auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
-    column-gap: 16px;
-    row-gap: 12px;
   }
 
-  .listwell-report__notices {
+  .listwell-report__layout,
+  .listwell-report__lead {
+    gap: 12px 16px;
+  }
+
+  .listwell-report__layout > * {
     grid-column: 1 / -1;
-    order: 0;
   }
 
-  .listwell-report__overview {
+  .listwell-report__plan {
     grid-column: 1;
-    grid-row: 2;
-    align-self: start;
   }
 
-  .listwell-report__summary {
-    order: 0;
+  .listwell-report__secondary {
     grid-column: 2;
-    grid-row: 2 / -1;
-    align-self: start;
-    position: sticky;
-    top: var(--listwell-report-sticky-top);
-    z-index: 1;
   }
 
-  .listwell-report__main {
+  .listwell-report__plan:empty ~ .listwell-report__secondary {
     grid-column: 1;
-    grid-row: 3;
   }
 
-  .listwell-report__layout:not(:has(.listwell-report__overview))
-    .listwell-report__main {
-    grid-row: 2;
+  .listwell-report__plan:empty ~ .listwell-report__ledger {
+    grid-column: 2 / -1;
+  }
+
+  .listwell-report__research > .listwell-report__research-wide {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1536px) {
+  .listwell-report__layout {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .listwell-report__ledger {
+    grid-column: 3;
   }
 }
 
@@ -2434,17 +2528,21 @@ div.listwell-panel__row:hover {
     -webkit-print-color-adjust: exact;
   }
 
-  .listwell-report__layout {
+  .listwell-report__segments {
+    display: none;
+  }
+
+  .listwell-report__layout,
+  .listwell-report__lead,
+  .listwell-report__body,
+  .listwell-report__plan,
+  .listwell-report__secondary,
+  .listwell-report__segment,
+  .listwell-report__segment[hidden],
+  .listwell-report__research {
     display: flex;
     flex-direction: column;
     gap: 20px;
-  }
-
-  .listwell-report__summary {
-    position: static;
-    order: -1;
-    margin-top: 0;
-    padding-top: 0;
   }
 
   .listwell-name-title--editing {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   fixEffortFromBody,
   fixInstructionsFromBody,
+  fixStepsClipboardText,
   mdcToMarkdown,
 } from "./markdown";
 
@@ -70,6 +71,54 @@ Respond to reviews, resolve recurring complaints, and ask satisfied customers to
       fixInstructionsFromBody(
         "## What we're checking\n\nWe look for a listing."
       )
+    ).toBeNull();
+  });
+});
+
+describe(fixStepsClipboardText, () => {
+  it("copies numbered steps as plain text and leaves out the effort line", () => {
+    const markdown = mdcToMarkdown(`
+## How can I fix it?
+
+::fix-step{number="1" title="Visit Google Business Profile"} Go to business.google.com and click Manage now. ::
+
+::fix-step{number="2" title="Claim or create your listing"}
+
+- If your business appears: click Claim this business
+- If not found: click Add your business ::
+
+::time-estimate{minutes="30" difficulty="easy"}::
+`);
+
+    expect(fixStepsClipboardText(markdown)).toBe(
+      [
+        "1. Visit Google Business Profile",
+        "Go to business.google.com and click Manage now.",
+        "",
+        "2. Claim or create your listing",
+        "- If your business appears: click Claim this business",
+        "- If not found: click Add your business",
+      ].join("\n")
+    );
+  });
+
+  it("copies a paragraph instruction when there are no titled steps", () => {
+    expect(
+      fixStepsClipboardText(`
+## How can I fix it?
+
+Respond to reviews, resolve recurring complaints, and ask satisfied customers to share feedback.
+
+*About 480 minutes. Difficulty: medium.*
+`)
+    ).toBe(
+      "Respond to reviews, resolve recurring complaints, and ask satisfied customers to share feedback."
+    );
+  });
+
+  it("returns null when the check has no fix section", () => {
+    expect(
+      fixStepsClipboardText("## What we're checking\n\nWe look for a listing.")
     ).toBeNull();
   });
 });

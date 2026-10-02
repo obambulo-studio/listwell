@@ -22,6 +22,9 @@ describe("site gate paths", () => {
     ).toBeTruthy();
     expect(isSiteGateExemptPath("/api/site-gate/unlock")).toBeTruthy();
     expect(isSiteGateExemptPath("/api/agent/register")).toBeTruthy();
+  });
+
+  it("exempts the agent catalog", () => {
     expect(isSiteGateExemptPath("/.well-known/ai-catalog.json")).toBeTruthy();
   });
 

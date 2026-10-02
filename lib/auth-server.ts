@@ -104,13 +104,11 @@ const getArgsAndOptions = <
   token?: string
 ): ArgsAndOptions<FuncRef, { token?: string }> => [args[0], { token }];
 
-const cachedGetToken = cache(
-  async ({ forceRefresh }: { forceRefresh?: boolean } = {}) => {
-    const requestHeaders = await authRequestHeaders();
-    const tokenHeaders = new Headers(requestHeaders);
-    return fetchConvexAuthToken(siteUrl, tokenHeaders, { forceRefresh });
-  }
-);
+const cachedGetToken = cache(async (forceRefresh = false) => {
+  const requestHeaders = await authRequestHeaders();
+  const tokenHeaders = new Headers(requestHeaders);
+  return fetchConvexAuthToken(siteUrl, tokenHeaders, { forceRefresh });
+});
 
 const isConvexAuthError = (error: unknown): boolean => {
   if (!(error instanceof Error)) {
@@ -137,7 +135,7 @@ const callWithToken = async <
     if (!isConvexAuthError(error)) {
       throw error;
     }
-    const refreshed = await cachedGetToken({ forceRefresh: true });
+    const refreshed = await cachedGetToken(true);
     return fn(refreshed?.token);
   }
 };

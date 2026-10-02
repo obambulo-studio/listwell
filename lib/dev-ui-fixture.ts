@@ -160,6 +160,11 @@ export const uiFixtureUnlockedAccess = (): EntitlementState =>
     backendAvailable: true,
     kind: "report_once",
     monthlyAvailable: true,
+    onceRescan: {
+      available: true,
+      remaining: 1,
+      windowEndsAt: "2026-10-31T00:00:00.000Z",
+    },
     paymentsEnabled: true,
     sessionRequired: false,
     unlocked: true,

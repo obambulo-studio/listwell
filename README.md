@@ -163,12 +163,12 @@ Payments and email:
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar API and webhooks
 - `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, `POLAR_PRODUCT_REPORT_YEARLY` - Polar product IDs (create products in Polar at the amounts in `lib/polar.ts`; IDs are not hardcoded in the app). Yearly checkout is hidden when `POLAR_PRODUCT_REPORT_YEARLY` is unset.
 - `POLAR_SERVER` - `sandbox` or `production`
-- `USESEND_API_KEY`, `USESEND_FROM` - sign-in codes (Convex) and optional monthly scan emails (Worker; set as Worker secrets via `bun run cf:sync-secrets` / dashboard)
+- `USESEND_API_KEY`, `USESEND_FROM` - sign-in codes (Convex) and Worker mail: purchase receipts and optional monthly scan emails (set as Worker secrets via `bun run cf:sync-secrets` / dashboard)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
 
 `USESEND_FROM` must use a domain that UseSend already verified.
 
-Apple Maps keys, Browser Rendering REST, and Polar values are optional for local UI work. Without Polar, checkout does not complete. Without UseSend, sign-in emails do not send.
+Apple Maps keys, Browser Rendering REST, and Polar values are optional for local UI work. Without Polar, checkout does not complete. Without UseSend, sign-in emails and purchase receipts do not send.
 
 ### Convex deployment
 
@@ -279,7 +279,7 @@ Create matching products in the Polar dashboard at those prices, then set `POLAR
 
 Set the Polar webhook to `POST /api/webhook/polar` on your public site URL.
 
-After checkout, Listwell emails a sign-in code so the buyer can open the report.
+After checkout, Listwell emails a sign-in code so the buyer can open the report. It also emails a receipt: a once-off purchase includes the report PDF and a link; a monthly or yearly purchase includes the link only. Renewals do not send another receipt.
 
 ## Create an audit
 

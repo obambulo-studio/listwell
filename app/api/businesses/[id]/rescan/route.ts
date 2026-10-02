@@ -4,10 +4,15 @@ import { z } from "zod";
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { getSessionUser } from "@/lib/auth";
 import {
+  getActiveEntitlementOwner,
   getBusiness,
   getBusinessOwnerId,
   tryConsumeOnceRescan,
 } from "@/lib/data";
+import {
+  entitlementIsPurchaserBound,
+  rescanCallerIsOwner,
+} from "@/lib/entitlements-access";
 import { getReportAccess } from "@/lib/polar-server";
 import { consumeRateLimit } from "@/lib/rate-limit-kv";
 import { runScanForBusiness } from "@/lib/scans";
@@ -44,41 +49,63 @@ export const POST = async (
   if (!access.unlocked || access.sessionRequired) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (access.kind !== "report_once") {
+  if (access.kind !== "report_once" && access.kind !== "report_monthly") {
     return NextResponse.json(
-      { error: "Re-scan is only available for one-off reports" },
+      { error: "Re-scan is not available for this report" },
       { status: 400 }
     );
   }
 
-  const [sessionUser, ownerId] = await Promise.all([
+  const [sessionUser, businessOwnerId, entitlementOwner] = await Promise.all([
     getSessionUser(),
     getBusinessOwnerId(id),
+    getActiveEntitlementOwner(id),
   ]);
-  if (ownerId && sessionUser?.id !== ownerId) {
+  const entitlementOwnerId = entitlementOwner.backendAvailable
+    ? entitlementOwner.ownerUserId
+    : null;
+  const purchaserBound = entitlementOwner.backendAvailable
+    ? entitlementIsPurchaserBound({
+        polarOrderId: entitlementOwner.polarOrderId,
+        purchaserEmail: entitlementOwner.purchaserEmail,
+        userId: entitlementOwner.ownerUserId,
+      })
+    : false;
+  if (
+    !rescanCallerIsOwner({
+      businessOwnerId,
+      entitlementOwnerId,
+      purchaserBound,
+      sessionUserId: sessionUser?.id ?? null,
+    })
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const now = new Date();
-  let consumed: Awaited<ReturnType<typeof tryConsumeOnceRescan>>;
-  try {
-    consumed = await tryConsumeOnceRescan(id, now);
-  } catch (error) {
-    console.error("rescan: entitlement check failed", error);
-    return NextResponse.json(
-      { error: "Could not verify re-scan eligibility" },
-      { status: 503 }
-    );
-  }
-
-  if (!consumed.allowed) {
-    let message = "Re-scan is not available for this report";
-    if (consumed.reason === "window_expired") {
-      message = "The free re-scan window has ended";
-    } else if (consumed.reason === "limit_reached") {
-      message = "You have already used your free re-scan";
+  // Yearly checkouts are stored as report_monthly. Only one-off reports
+  // spend the single free rescan.
+  if (access.kind === "report_once") {
+    const now = new Date();
+    let consumed: Awaited<ReturnType<typeof tryConsumeOnceRescan>>;
+    try {
+      consumed = await tryConsumeOnceRescan(id, now);
+    } catch (error) {
+      console.error("rescan: entitlement check failed", error);
+      return NextResponse.json(
+        { error: "Could not verify re-scan eligibility" },
+        { status: 503 }
+      );
     }
-    return NextResponse.json({ error: message }, { status: 400 });
+
+    if (!consumed.allowed) {
+      let message = "Re-scan is not available for this report";
+      if (consumed.reason === "window_expired") {
+        message = "The free re-scan window has ended";
+      } else if (consumed.reason === "limit_reached") {
+        message = "You have already used your free re-scan";
+      }
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
   }
 
   try {

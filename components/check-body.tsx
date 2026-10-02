@@ -39,9 +39,6 @@ export const FixGuide = ({ body }: { body: string }) => {
           ))}
         </ol>
       ) : null}
-      {instructions.estimate ? (
-        <p className="listwell-panel__fine">{instructions.estimate}</p>
-      ) : null}
     </div>
   );
 };

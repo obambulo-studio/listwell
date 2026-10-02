@@ -5,6 +5,8 @@ import {
   checkoutCustomerIp,
   checkoutReturnPath,
   customerEmailFromPolarData,
+  customerIdFromPolarData,
+  deliveryCostEvent,
   customerNameFromPolarData,
   parsePolarCustomerPortalUrl,
   entitlementActionFromPolarEvent,
@@ -222,6 +224,7 @@ describe(entitlementActionFromPolarEvent, () => {
       businessId: "biz_1",
       email: undefined,
       kind: "report_once",
+      polarCustomerId: undefined,
       polarOrderId: "ord_1",
       polarSubscriptionId: undefined,
       type: "grant",
@@ -242,6 +245,7 @@ describe(entitlementActionFromPolarEvent, () => {
       businessId: "biz_1",
       email: "ada@example.com",
       kind: "report_once",
+      polarCustomerId: undefined,
       polarOrderId: "ord_1",
       polarSubscriptionId: undefined,
       type: "grant",
@@ -271,6 +275,7 @@ describe(entitlementActionFromPolarEvent, () => {
       businessId: "biz_1",
       email: undefined,
       kind: "report_monthly",
+      polarCustomerId: undefined,
       polarOrderId: undefined,
       polarSubscriptionId: "sub_1",
       type: "grant",
@@ -291,6 +296,7 @@ describe(entitlementActionFromPolarEvent, () => {
       businessId: "biz_1",
       email: undefined,
       kind: "report_monthly",
+      polarCustomerId: undefined,
       polarOrderId: "ord_2",
       polarSubscriptionId: undefined,
       type: "grant",
@@ -329,6 +335,22 @@ describe(entitlementActionFromPolarEvent, () => {
     });
   });
 
+  it("keeps the Polar customer id from a paid order", () => {
+    expect(
+      entitlementActionFromPolarEvent(
+        event("order.paid", {
+          customer_id: "cus_1",
+          id: "ord_1",
+          metadata: { businessId: "biz_1" },
+          product_id: "prod_once",
+        })
+      )
+    ).toMatchObject({
+      polarCustomerId: "cus_1",
+      type: "grant",
+    });
+  });
+
   it("ignores unrelated events", () => {
     expect(
       entitlementActionFromPolarEvent(
@@ -337,6 +359,71 @@ describe(entitlementActionFromPolarEvent, () => {
     ).toStrictEqual({
       type: "ignore",
     });
+  });
+});
+
+describe(customerIdFromPolarData, () => {
+  it("reads customer_id, then customerId, then customer.id", () => {
+    expect(customerIdFromPolarData({ customer_id: "cus_webhook" })).toBe(
+      "cus_webhook"
+    );
+    expect(
+      customerIdFromPolarData({
+        customer: { id: "cus_nested" },
+        customerId: "cus_checkout",
+      })
+    ).toBe("cus_checkout");
+    expect(customerIdFromPolarData({ customer: { id: "cus_nested" } })).toBe(
+      "cus_nested"
+    );
+  });
+
+  it("ignores a blank id", () => {
+    expect(customerIdFromPolarData({ customer_id: "  " })).toBeUndefined();
+    expect(customerIdFromPolarData({})).toBeUndefined();
+  });
+});
+
+describe(deliveryCostEvent, () => {
+  it("converts a DataForSEO charge of 12300 micros into 1.23 cents", () => {
+    expect(
+      deliveryCostEvent({
+        businessExternalId: "biz_1",
+        customerId: "cus_1",
+        deltaUsdMicros: 12_300,
+        kind: "organic_serp",
+        observationId: "obs_1",
+        settledUsdMicros: 12_300,
+      })
+    ).toStrictEqual({
+      customerId: "cus_1",
+      externalId: "obs_1:12300",
+      metadata: {
+        _cost: { amount: 1.23, currency: "usd" },
+        businessExternalId: "biz_1",
+        kind: "organic_serp",
+      },
+      name: "dataforseo.call",
+    });
+  });
+
+  it("skips a zero charge and a business with no Polar customer", () => {
+    const base = {
+      businessExternalId: "biz_1",
+      deltaUsdMicros: 0,
+      kind: "organic_serp",
+      observationId: "obs_1",
+      settledUsdMicros: 0,
+    };
+    expect(deliveryCostEvent({ ...base, customerId: "cus_1" })).toBeNull();
+    expect(
+      deliveryCostEvent({
+        ...base,
+        customerId: null,
+        deltaUsdMicros: 12_300,
+        settledUsdMicros: 12_300,
+      })
+    ).toBeNull();
   });
 });
 

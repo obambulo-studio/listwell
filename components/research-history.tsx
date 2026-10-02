@@ -431,7 +431,7 @@ export const ResearchHistory = ({
         {periods.length < 2 ? (
           <p className="listwell-panel__note">No previous month yet.</p>
         ) : null}
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-2 2xl:grid-cols-3">
           <MetricBlock
             format={(value) => `${value}%`}
             label="Listing score"
@@ -509,21 +509,23 @@ export const ResearchHistory = ({
           </section>
         ) : null}
         {gain ? <p className="text-ink text-lg font-medium">{gain}</p> : null}
-        <CompareChart
-          format={formatCount}
-          label="Reviews against competitors"
-          series={reviewSeries}
-        />
-        <CompareChart
-          format={formatCount}
-          label="Map-pack cells against competitors"
-          series={gridSeries}
-        />
-        <CompareChart
-          format={(value) => `${value}%`}
-          label="Listing score against competitors"
-          series={scoreSeries}
-        />
+        <div className="grid gap-6 2xl:grid-cols-3">
+          <CompareChart
+            format={formatCount}
+            label="Reviews against competitors"
+            series={reviewSeries}
+          />
+          <CompareChart
+            format={formatCount}
+            label="Map-pack cells against competitors"
+            series={gridSeries}
+          />
+          <CompareChart
+            format={(value) => `${value}%`}
+            label="Listing score against competitors"
+            series={scoreSeries}
+          />
+        </div>
         <ResearchMonthCharts
           names={radarNames}
           nowMs={LOADED_AT_SECONDS * 1000}

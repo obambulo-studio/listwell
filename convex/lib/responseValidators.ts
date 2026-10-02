@@ -54,6 +54,7 @@ export const entitlementResponseValidator = v.object({
   id: v.string(),
   kind: entitlementKindValidator,
   nextScanAt: v.union(v.string(), v.null()),
+  polarCustomerId: v.union(v.string(), v.null()),
   polarOrderId: v.union(v.string(), v.null()),
   polarSubscriptionId: v.union(v.string(), v.null()),
   status: entitlementStatusValidator,
