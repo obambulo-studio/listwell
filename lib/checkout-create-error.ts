@@ -1,13 +1,16 @@
-import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
-import { HTTPValidationError } from "@polar-sh/sdk/models/errors/httpvalidationerror";
-import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import {
   ConnectionError,
   RequestTimeoutError,
 } from "@polar-sh/sdk/models/errors/httpclienterrors";
+import { HTTPValidationError } from "@polar-sh/sdk/models/errors/httpvalidationerror";
+import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
+import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import { z } from "zod";
 
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import type { CheckoutPlan } from "./schema";
+
+export { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 
 export class CheckoutPlanNotConfiguredError extends Error {
   readonly plan: CheckoutPlan;
@@ -16,14 +19,6 @@ export class CheckoutPlanNotConfiguredError extends Error {
     super(`Checkout plan not configured: ${plan}`);
     this.name = "CheckoutPlanNotConfiguredError";
     this.plan = plan;
-  }
-}
-
-export class CheckoutResponseShapeError extends Error {
-  constructor(cause: z.ZodError) {
-    super("Polar checkout response did not match expected shape");
-    this.name = "CheckoutResponseShapeError";
-    this.cause = cause;
   }
 }
 

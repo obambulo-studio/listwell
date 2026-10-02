@@ -1,5 +1,9 @@
 import { buildResearchView } from "@/lib/research-view";
 import type { ResearchView } from "@/lib/research-view";
+import {
+  UI_FIXTURE_BUSINESS_ID,
+  uiFixtureBusiness,
+} from "@/lib/sample-report-fixture";
 import { businessSchema, entitlementStateSchema } from "@/lib/schema";
 import type { Business, EntitlementState } from "@/lib/schema";
 import {
@@ -8,10 +12,6 @@ import {
   serializeObservationPayload,
 } from "@/lib/seo-schema";
 import type { SeoObservationRow } from "@/lib/seo-schema";
-import {
-  UI_FIXTURE_BUSINESS_ID,
-  uiFixtureBusiness,
-} from "@/lib/sample-report-fixture";
 
 export {
   SAMPLE_REPORT_BUSINESS_ID,
