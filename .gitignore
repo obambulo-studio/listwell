@@ -33,6 +33,7 @@ logs
 .dev.vars
 
 .wrangler
+wrangler.json
 
 # Turborepo
 .turbo
