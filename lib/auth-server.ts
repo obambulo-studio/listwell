@@ -106,10 +106,23 @@ const getArgsAndOptions = <
 
 const cachedGetToken = cache(
   async ({ forceRefresh }: { forceRefresh?: boolean } = {}) => {
-    const mutableHeaders = await authRequestHeaders();
-    return fetchConvexAuthToken(siteUrl, mutableHeaders, { forceRefresh });
+    const requestHeaders = await authRequestHeaders();
+    const tokenHeaders = new Headers(requestHeaders);
+    return fetchConvexAuthToken(siteUrl, tokenHeaders, { forceRefresh });
   }
 );
+
+const isConvexAuthError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("unauthenticated") ||
+    message.includes("not authenticated") ||
+    message.includes("invalid token")
+  );
+};
 
 const callWithToken = async <
   FnType extends "query" | "mutation" | "action",
@@ -118,7 +131,15 @@ const callWithToken = async <
   fn: (token?: string) => Promise<FunctionReturnType<Fn>>
 ): Promise<FunctionReturnType<Fn>> => {
   const token = await cachedGetToken();
-  return fn(token?.token);
+  try {
+    return await fn(token?.token);
+  } catch (error) {
+    if (!isConvexAuthError(error)) {
+      throw error;
+    }
+    const refreshed = await cachedGetToken({ forceRefresh: true });
+    return fn(refreshed?.token);
+  }
 };
 
 export const handler = nextJsHandler(siteUrl);

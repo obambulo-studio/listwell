@@ -249,15 +249,21 @@ export type AuthMe = z.infer<typeof authMeSchema>;
 export const accountPlanSchema = z.enum(["preview", "once", "monthly"]);
 export type AccountPlan = z.infer<typeof accountPlanSchema>;
 
+const accountReportLastScanSchema = z
+  .object({
+    finishedAt: z.string().nullable().optional(),
+    previousScore: z.number().nullable().optional(),
+    score: z.number().nullable().optional(),
+  })
+  .transform((row) => ({
+    finishedAt: row.finishedAt ?? null,
+    previousScore: row.previousScore ?? null,
+    score: row.score ?? null,
+  }));
+
 export const accountReportSchema = z.object({
   id: z.string(),
-  lastScan: z
-    .object({
-      finishedAt: z.string().nullable(),
-      previousScore: z.number().nullable(),
-      score: z.number().nullable(),
-    })
-    .nullable(),
+  lastScan: accountReportLastScanSchema.nullable(),
   name: z.string(),
   nextScanAt: z.string().nullable(),
   owned: z.boolean(),
