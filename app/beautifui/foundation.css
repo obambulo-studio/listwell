@@ -40,10 +40,12 @@
   --stripe: oklch(0.405 0 0 / 0.075);
   --stripe-bg: oklch(0.97 0 0);
 
-  /* accent */
-  --accent: oklch(0.626 0.205 254.947);
-  --accent-ink: oklch(0.556 0.187 255.617);
-  --accent-tint: oklch(0.96 0.019 252.878);
+  /* accent — emailBabyBlue / emailOnAccent from emails/shell.tsx */
+  --accent: #89cff0;
+  --accent-foreground: #1a5276;
+  --accent-ink: color-mix(in srgb, #89cff0 82%, #1a5276);
+  --accent-tint: color-mix(in srgb, #89cff0 24%, #fff);
+  --focus-ring: var(--accent);
 
   /* semantic */
   --green: oklch(0.603 0.155 150.883);
@@ -94,7 +96,7 @@
   --destructive: var(--red);
   --border: var(--line);
   --input: var(--line-strong);
-  --ring: var(--ink);
+  --ring: var(--accent);
   --radius: var(--radius-control);
   --radius-md: var(--radius-control);
   --radius-lg: var(--radius-card);
@@ -119,9 +121,10 @@
   --stripe: oklch(1 0 0 / 0.055);
   --stripe-bg: oklch(0.226 0.004 264.485);
 
-  --accent: oklch(0.68 0.173 253.301);
-  --accent-ink: oklch(0.788 0.113 248.33);
-  --accent-tint: oklch(0.68 0.173 253.301 / 0.16);
+  --accent: #89cff0;
+  --accent-foreground: #1a5276;
+  --accent-ink: color-mix(in srgb, #89cff0 82%, #1a5276);
+  --accent-tint: color-mix(in srgb, #89cff0 22%, transparent);
 
   --green: oklch(0.705 0.154 153.814);
   --green-tint: oklch(0.705 0.154 153.814 / 0.14);
@@ -175,6 +178,7 @@
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-accent-ink: var(--accent-ink);
   --color-accent-tint: var(--accent-tint);
   --color-green: var(--green);

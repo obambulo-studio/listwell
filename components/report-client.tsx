@@ -2,6 +2,7 @@
 
 import {
   ChevronDownIcon,
+  Copy01Icon,
   FileDownloadIcon,
   PrinterIcon,
   Share01Icon,
@@ -70,7 +71,14 @@ import {
   planNextActions,
 } from "@/lib/fix-plan";
 import type { PlannedFix, PlannedFixGroup } from "@/lib/fix-plan";
-import type { ListingReviewResult } from "@/lib/listing-review";
+import {
+  listingReviewHasFixPrompt,
+  listingReviewResultSchema,
+} from "@/lib/listing-review";
+import type {
+  ListingReviewContent,
+  ListingReviewResult,
+} from "@/lib/listing-review";
 import type { PeerAuditJob } from "@/lib/peers";
 import {
   fetchEntitlement,
@@ -83,6 +91,11 @@ import {
   verifySignInCode,
 } from "@/lib/polar";
 import { businessToProfiles, profileViewHref } from "@/lib/profiles";
+import {
+  buildReportAiInstructionsMarkdown,
+  downloadReportMarkdown,
+  reportAiInstructionsFilename,
+} from "@/lib/report-ai-instructions";
 import {
   buildReportPdf,
   downloadReportPdf,
@@ -217,12 +230,59 @@ const formatScanDate = (iso: string): string => {
 
 const formatScanDelta = (delta: number | null): string => {
   if (delta === null) {
-    return "—";
+    return "-";
   }
   if (delta === 0) {
     return "No change";
   }
   return `${delta > 0 ? "+" : ""}${delta}%`;
+};
+
+const aiCopyLabel = (copied: boolean, busy: boolean): string => {
+  if (copied) {
+    return "Copied";
+  }
+  if (busy) {
+    return "Preparing…";
+  }
+  return "Copy for AI";
+};
+
+const fetchListingReviewContent = async (
+  businessId: string
+): Promise<ListingReviewContent | null> => {
+  const response = await fetch(`/api/businesses/${businessId}/listing-review`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    return null;
+  }
+  const parsed = listingReviewResultSchema.parse(await response.json());
+  return listingReviewHasFixPrompt(parsed.content) ? parsed.content : null;
+};
+
+const buildExportAiInstructionsMarkdown = async (input: {
+  businessId: string;
+  businessName: string;
+  counts: { pass: number; fail: number; error: number };
+  definitions: CheckDefinition[];
+  fixPlan: PlannedFixGroup[];
+  includeListingReview: boolean;
+  overview: AuditSummaryResult["overview"];
+  showFixSteps: boolean;
+}): Promise<string> => {
+  const listingReview = input.includeListingReview
+    ? await fetchListingReviewContent(input.businessId)
+    : null;
+  return buildReportAiInstructionsMarkdown({
+    businessName: input.businessName,
+    definitions: input.definitions,
+    fixPlan: input.fixPlan,
+    includeFixSteps: input.showFixSteps,
+    listingReview,
+    overview: input.overview,
+    visibilityScore: scorePercent(input.counts),
+  });
 };
 
 const CITATION_PREVIEW = 2;
@@ -624,6 +684,84 @@ const firstFixPlanBandId = (groups: PlannedFixGroup[]): string | null => {
   return `next-${firstGroup.difficulty}-${firstBand.severity}`;
 };
 
+interface ReportNextActionsUiState {
+  aiCopied: boolean;
+  aiCopyBusy: boolean;
+  openBandIds: Set<string>;
+  openDifficultyIds: Set<PlannedFixGroup["difficulty"]>;
+  openKey: string | null;
+}
+
+type ReportNextActionsUiAction =
+  | { type: "toggle-key"; key: string }
+  | { type: "ai-copy-start" }
+  | { type: "ai-copy-done" }
+  | { type: "ai-copy-fail" }
+  | { type: "ai-copy-reset" }
+  | { type: "toggle-difficulty"; difficulty: PlannedFixGroup["difficulty"] }
+  | { type: "toggle-band"; bandId: string };
+
+const initialReportNextActionsUiState = (
+  groups: PlannedFixGroup[]
+): ReportNextActionsUiState => {
+  const [first] = groups;
+  const firstBandId = firstFixPlanBandId(groups);
+  return {
+    aiCopied: false,
+    aiCopyBusy: false,
+    openBandIds: firstBandId ? new Set([firstBandId]) : new Set(),
+    openDifficultyIds: first ? new Set([first.difficulty]) : new Set(),
+    openKey: null,
+  };
+};
+
+const reportNextActionsUiReducer = (
+  state: ReportNextActionsUiState,
+  action: ReportNextActionsUiAction
+): ReportNextActionsUiState => {
+  switch (action.type) {
+    case "toggle-key": {
+      return {
+        ...state,
+        openKey: state.openKey === action.key ? null : action.key,
+      };
+    }
+    case "ai-copy-start": {
+      return { ...state, aiCopyBusy: true };
+    }
+    case "ai-copy-done": {
+      return { ...state, aiCopied: true, aiCopyBusy: false };
+    }
+    case "ai-copy-fail": {
+      return { ...state, aiCopied: false, aiCopyBusy: false };
+    }
+    case "ai-copy-reset": {
+      return { ...state, aiCopied: false };
+    }
+    case "toggle-difficulty": {
+      const next = new Set(state.openDifficultyIds);
+      if (next.has(action.difficulty)) {
+        next.delete(action.difficulty);
+      } else {
+        next.add(action.difficulty);
+      }
+      return { ...state, openDifficultyIds: next };
+    }
+    case "toggle-band": {
+      const next = new Set(state.openBandIds);
+      if (next.has(action.bandId)) {
+        next.delete(action.bandId);
+      } else {
+        next.add(action.bandId);
+      }
+      return { ...state, openBandIds: next };
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
 const PanelGroupToggle = ({
   controls,
   expanded,
@@ -728,59 +866,83 @@ const NextActionRow = ({
 };
 
 const ReportNextActionsSection = ({
+  businessId,
+  businessName,
+  counts,
   summary,
   groups,
   citationChecks,
   definitions,
   onSelectCheck,
 }: {
+  businessId: string;
+  businessName: string;
+  counts: { pass: number; fail: number; error: number };
   summary: AuditSummaryResult;
   groups: PlannedFixGroup[];
   citationChecks: { id: string; title: string }[];
   definitions: CheckDefinition[];
   onSelectCheck: (id: string) => void;
 }) => {
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [ui, dispatchUi] = useReducer(
+    reportNextActionsUiReducer,
+    groups,
+    initialReportNextActionsUiState
+  );
+  const { aiCopied, aiCopyBusy, openBandIds, openDifficultyIds, openKey } = ui;
   const toggle = (key: string) => {
-    setOpenKey(openKey === key ? null : key);
+    dispatchUi({ key, type: "toggle-key" });
   };
-  const [openDifficultyIds, setOpenDifficultyIds] = useState<
-    Set<PlannedFixGroup["difficulty"]>
-  >(() => {
-    const [first] = groups;
-    return first ? new Set([first.difficulty]) : new Set();
-  });
-  const [openBandIds, setOpenBandIds] = useState<Set<string>>(() => {
-    const firstBandId = firstFixPlanBandId(groups);
-    return firstBandId ? new Set([firstBandId]) : new Set();
-  });
   const toggleDifficulty = (difficulty: PlannedFixGroup["difficulty"]) => {
-    setOpenDifficultyIds((current) => {
-      const next = new Set(current);
-      if (next.has(difficulty)) {
-        next.delete(difficulty);
-      } else {
-        next.add(difficulty);
-      }
-      return next;
-    });
+    dispatchUi({ difficulty, type: "toggle-difficulty" });
   };
   const toggleBand = (bandId: string) => {
-    setOpenBandIds((current) => {
-      const next = new Set(current);
-      if (next.has(bandId)) {
-        next.delete(bandId);
-      } else {
-        next.add(bandId);
-      }
-      return next;
-    });
+    dispatchUi({ bandId, type: "toggle-band" });
+  };
+
+  const copyAllAiInstructions = async () => {
+    if (aiCopyBusy) {
+      return;
+    }
+    dispatchUi({ type: "ai-copy-start" });
+    try {
+      const markdown = await buildExportAiInstructionsMarkdown({
+        businessId,
+        businessName,
+        counts,
+        definitions,
+        fixPlan: groups,
+        includeListingReview: true,
+        overview: summary.overview,
+        showFixSteps: true,
+      });
+      await navigator.clipboard.writeText(markdown);
+      dispatchUi({ type: "ai-copy-done" });
+      window.setTimeout(() => {
+        dispatchUi({ type: "ai-copy-reset" });
+      }, 2000);
+    } catch {
+      dispatchUi({ type: "ai-copy-fail" });
+    }
   };
 
   if (groups.length > 0) {
     return (
       <section className="listwell-panel" aria-labelledby="report-next">
-        <PanelHead id="report-next" title="What to do next" />
+        <PanelHead id="report-next" title="What to do next">
+          <QuietButton
+            className="gap-2"
+            size="sm"
+            type="button"
+            disabled={aiCopyBusy}
+            onClick={() => {
+              void copyAllAiInstructions();
+            }}
+          >
+            <Icon icon={Copy01Icon} size={14} />
+            {aiCopyLabel(aiCopied, aiCopyBusy)}
+          </QuietButton>
+        </PanelHead>
         {groups.map((group, groupIndex) => {
           let count = 0;
           for (const band of group.bands) {
@@ -984,7 +1146,10 @@ const ReportPriceActions = ({
 
 const ReportAccessSection = ({
   access,
+  businessId,
+  businessName,
   checkoutReturned,
+  counts,
   summary,
   fixPlan,
   citationChecks,
@@ -993,7 +1158,10 @@ const ReportAccessSection = ({
   onUnlocked,
 }: {
   access: EntitlementState;
+  businessId: string;
+  businessName: string;
   checkoutReturned: boolean;
+  counts: { pass: number; fail: number; error: number };
   summary: AuditSummaryResult;
   fixPlan: PlannedFixGroup[];
   citationChecks: { id: string; title: string }[];
@@ -1016,6 +1184,9 @@ const ReportAccessSection = ({
   if (showFixSteps) {
     return (
       <ReportNextActionsSection
+        businessId={businessId}
+        businessName={businessName}
+        counts={counts}
         summary={summary}
         groups={fixPlan}
         citationChecks={citationChecks}
@@ -1151,7 +1322,7 @@ const ScanHistorySection = ({ scans }: { scans: ScanSummary[] }) => {
               <tr key={scan.id}>
                 <td>{formatScanDate(scan.finishedAt ?? scan.startedAt)}</td>
                 <td className="listwell-panel__numeric font-medium">
-                  {scan.score === null ? "—" : `${scan.score}%`}
+                  {scan.score === null ? "Pending" : `${scan.score}%`}
                 </td>
                 <td className="listwell-panel__numeric">
                   <span className={scanDeltaClass(delta)}>
@@ -1726,7 +1897,57 @@ const shareMenuItems = (menu: HTMLElement | null): HTMLElement[] => {
   );
 };
 
+const handleShareMenuKeyDown = (
+  event: KeyboardEvent<HTMLDivElement>,
+  menu: HTMLElement | null
+) => {
+  if (
+    !(event.target instanceof HTMLElement) ||
+    event.target.getAttribute("role") !== "menuitem"
+  ) {
+    return;
+  }
+
+  const items = shareMenuItems(menu);
+  if (items.length === 0) {
+    return;
+  }
+
+  const { activeElement } = document;
+  const current =
+    activeElement instanceof HTMLElement ? items.indexOf(activeElement) : -1;
+
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    const index = current === -1 ? 0 : (current + 1) % items.length;
+    items[index]?.focus();
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    const index =
+      current === -1
+        ? items.length - 1
+        : (current - 1 + items.length) % items.length;
+    items[index]?.focus();
+    return;
+  }
+
+  if (event.key === "Home") {
+    event.preventDefault();
+    items[0]?.focus();
+    return;
+  }
+
+  if (event.key === "End") {
+    event.preventDefault();
+    items.at(-1)?.focus();
+  }
+};
+
 const ReportHeaderShareMenu = ({
+  businessId,
   businessName,
   canManageShare,
   counts,
@@ -1737,6 +1958,7 @@ const ReportHeaderShareMenu = ({
   visibilityScore,
   onShare,
 }: {
+  businessId: string;
   businessName: string;
   canManageShare: boolean;
   counts: { pass: number; fail: number; error: number };
@@ -1747,11 +1969,17 @@ const ReportHeaderShareMenu = ({
   visibilityScore: number;
   onShare: () => void;
 }) => {
+  const definitions = useMemo(
+    () => liveChecks.map((item) => item.definition),
+    [liveChecks]
+  );
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [aiExportBusy, setAiExportBusy] = useState(false);
+  const showAiExport = showFixSteps;
 
   const close = useCallback((restoreFocus = false) => {
     setOpen(false);
@@ -1800,52 +2028,6 @@ const ReportHeaderShareMenu = ({
     items[0]?.focus();
   }, [open]);
 
-  const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (
-      !(event.target instanceof HTMLElement) ||
-      event.target.getAttribute("role") !== "menuitem"
-    ) {
-      return;
-    }
-
-    const items = shareMenuItems(menuRef.current);
-    if (items.length === 0) {
-      return;
-    }
-
-    const { activeElement } = document;
-    const current =
-      activeElement instanceof HTMLElement ? items.indexOf(activeElement) : -1;
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      const index = current === -1 ? 0 : (current + 1) % items.length;
-      items[index]?.focus();
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      const index =
-        current === -1
-          ? items.length - 1
-          : (current - 1 + items.length) % items.length;
-      items[index]?.focus();
-      return;
-    }
-
-    if (event.key === "Home") {
-      event.preventDefault();
-      items[0]?.focus();
-      return;
-    }
-
-    if (event.key === "End") {
-      event.preventDefault();
-      items.at(-1)?.focus();
-    }
-  };
-
   const savePdf = () => {
     const payload = reportPdfPayload({
       businessName,
@@ -1860,6 +2042,36 @@ const ReportHeaderShareMenu = ({
       buildReportPdf(payload),
       reportPdfFilename(businessName, payload.edition ?? "preview")
     );
+  };
+
+  const exportAiInstructions = async (mode: "copy" | "download") => {
+    if (aiExportBusy) {
+      return;
+    }
+    setAiExportBusy(true);
+    try {
+      const markdown = await buildExportAiInstructionsMarkdown({
+        businessId,
+        businessName,
+        counts,
+        definitions,
+        fixPlan,
+        includeListingReview: true,
+        overview,
+        showFixSteps,
+      });
+      if (mode === "copy") {
+        await navigator.clipboard.writeText(markdown);
+      } else {
+        downloadReportMarkdown(
+          markdown,
+          reportAiInstructionsFilename(businessName)
+        );
+      }
+    } catch {
+      // Clipboard or network failures are ignored; the user can retry.
+    }
+    setAiExportBusy(false);
   };
 
   return (
@@ -1887,7 +2099,9 @@ const ReportHeaderShareMenu = ({
           tabIndex={-1}
           aria-label="Share and export"
           className="listwell-account-menu"
-          onKeyDown={handleMenuKeyDown}
+          onKeyDown={(event) => {
+            handleShareMenuKeyDown(event, menuRef.current);
+          }}
         >
           <GlideMenu className="listwell-account-menu__list">
             {canManageShare ? (
@@ -1943,6 +2157,46 @@ const ReportHeaderShareMenu = ({
               />
               Save PDF
             </button>
+            {showAiExport ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-menu-row
+                  className="listwell-account-menu__item"
+                  disabled={aiExportBusy}
+                  onClick={() => {
+                    close();
+                    void exportAiInstructions("copy");
+                  }}
+                >
+                  <Icon
+                    className={shareMenuIconClass}
+                    icon={Copy01Icon}
+                    size={15}
+                  />
+                  {aiExportBusy ? "Preparing…" : "Copy AI instructions"}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  data-menu-row
+                  className="listwell-account-menu__item"
+                  disabled={aiExportBusy}
+                  onClick={() => {
+                    close();
+                    void exportAiInstructions("download");
+                  }}
+                >
+                  <Icon
+                    className={shareMenuIconClass}
+                    icon={FileDownloadIcon}
+                    size={15}
+                  />
+                  Save AI instructions
+                </button>
+              </>
+            ) : null}
           </GlideMenu>
         </div>
       ) : null}
@@ -1988,6 +2242,7 @@ const ReportHeader = ({
       </p>
       <div className="listwell-panel__actions">
         <ReportHeaderShareMenu
+          businessId={businessId}
           businessName={businessName}
           canManageShare={canManageShare}
           counts={counts}
@@ -2266,7 +2521,10 @@ const ReportClientMain = ({
       {isOwner ? (
         <ReportAccessSection
           access={access}
+          businessId={business.id}
+          businessName={businessName}
           checkoutReturned={checkoutReturned}
+          counts={visibilityCounts(liveChecks)}
           summary={summary}
           fixPlan={fixPlan}
           citationChecks={citationChecks}

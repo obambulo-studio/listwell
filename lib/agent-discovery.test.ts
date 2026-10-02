@@ -129,11 +129,9 @@ describe("agent discovery", () => {
   });
 
   describe("well-known documents", () => {
-    it("publishes an honest ARD catalog without MCP or OAuth", () => {
+    it("publishes an ARD catalog with documentation entries", () => {
       const catalog = ardSchema.parse(ardCatalog(origin));
-      const serialized = JSON.stringify(catalog);
-      expect(serialized).not.toContain("mcp");
-      expect(serialized).not.toContain("oauth");
+      expect(catalog.entries.length).toBeGreaterThanOrEqual(3);
     });
 
     it("hashes the listing-audit skill into the index", async () => {
@@ -147,9 +145,10 @@ describe("agent discovery", () => {
       );
     });
 
-    it("describes email OTP sign-in in auth.md", () => {
+    it("describes email OTP sign-in and OAuth discovery in auth.md", () => {
       expect(authMd(origin)).toMatch(/^# auth\.md/u);
-      expect(authMd(origin)).toContain("does not offer OAuth");
+      expect(authMd(origin)).toContain("oauth-authorization-server");
+      expect(authMd(origin)).toContain("verified-email");
     });
 
     it("introduces the product in llms.txt", () => {
@@ -157,9 +156,35 @@ describe("agent discovery", () => {
       expect(llmsTxt(origin)).toContain("A$9.99");
       expect(llmsTxt(origin)).toContain("A$4.99");
       expect(llmsTxt(origin)).toContain("A$49");
-      expect(llmsTxt(origin)).toContain(
-        "does not publish a public HTTP API catalog"
+      expect(llmsTxt(origin)).toContain("/.well-known/api-catalog");
+    });
+
+    it("serves agent readiness well-known documents", async () => {
+      const paths = [
+        "/.well-known/api-catalog",
+        "/.well-known/oauth-authorization-server",
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/mcp/server-card.json",
+        "/.well-known/openapi.json",
+      ] as const;
+      const documents = await Promise.all(
+        paths.map((path) =>
+          discoveryDocument(path, origin).then((document) => ({
+            document,
+            path,
+          }))
+        )
       );
+      for (const { document, path } of documents) {
+        if (document === null) {
+          throw new Error(`missing discovery document: ${path}`);
+        }
+      }
+      const catalog = await discoveryDocument(
+        "/.well-known/api-catalog",
+        origin
+      );
+      expect(catalog?.contentType).toContain("application/linkset+json");
     });
   });
 

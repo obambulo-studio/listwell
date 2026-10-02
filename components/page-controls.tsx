@@ -25,6 +25,7 @@ import type { KeyboardEvent } from "react";
 import { Icon } from "@/components/icon";
 import GlideMenu from "@/components/primitives/glide-menu";
 import { authClient } from "@/lib/auth-client";
+import { LISTWELL_CHAT_PATH } from "@/lib/listwell-routes";
 import { clearChatSession } from "@/lib/storage";
 import { applyTheme } from "@/lib/theme";
 
@@ -398,8 +399,8 @@ export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
       return;
     }
     resetHomeBusinessForm();
-    if (pathname !== "/") {
-      push("/");
+    if (pathname !== "/" && pathname !== LISTWELL_CHAT_PATH) {
+      push(LISTWELL_CHAT_PATH);
     }
   }, [onReset, pathname, push]);
 

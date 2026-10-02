@@ -3,6 +3,8 @@ import type { ChatSessionSnapshot } from "./chat-onboarding";
 
 const STORAGE_KEY = "listwell-businesses";
 export const CHAT_SESSION_STORAGE_KEY = "listwell-chat-session";
+/** Set on marketing home before navigating to `/chat` for the crossfade entry. */
+export const LISTWELL_PENDING_BUSINESS_KEY = "listwell-pending-business-name";
 
 const zStringArray = {
   parse(value: unknown): string[] {
@@ -79,3 +81,33 @@ export const clearChatSession = (): void => {
   }
   window.localStorage.removeItem(CHAT_SESSION_STORAGE_KEY);
 };
+
+export const takePendingBusinessName = (): string | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = window.sessionStorage.getItem(LISTWELL_PENDING_BUSINESS_KEY);
+  if (!raw) {
+    return null;
+  }
+  window.sessionStorage.removeItem(LISTWELL_PENDING_BUSINESS_KEY);
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+export const hasPendingBusinessName = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return Boolean(
+    window.sessionStorage.getItem(LISTWELL_PENDING_BUSINESS_KEY)?.trim()
+  );
+};
+
+/** True when a saved chat should open on `/chat`, not the marketing home. */
+export const isRestorableChatSession = (
+  snapshot: Pick<ChatSessionSnapshot, "phase" | "messages">
+): boolean =>
+  snapshot.phase !== "business_name" ||
+  snapshot.messages.length > 1 ||
+  Boolean(snapshot.messages[0]?.userAnswer);

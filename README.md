@@ -1,8 +1,8 @@
 # Listwell
 
-Listwell audits local listings and websites for search engine optimisation (SEO). It is built for Australian small businesses and agencies. You create an audit, run the checks, then read a report with fix steps.
+Listwell audits local listings and websites for search engine optimisation (SEO). It is built for small businesses and agencies. You create an audit, run the checks, then read a report with fix steps.
 
-Obambulo Studio owns Listwell. The software is proprietary. It is not open source. See `LICENSE`.
+obambulo studio owns Listwell. The software is proprietary. It is not open source. See `LICENSE`.
 
 ## What Listwell does
 

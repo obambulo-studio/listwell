@@ -6,7 +6,7 @@ import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
 
 export const metadata: Metadata = {
   description:
-    "Match an Australian business name to Google Business Profile, Apple Maps, a website, and social profiles.",
+    "Match a business name to Google Business Profile, Apple Maps, a website, and social profiles.",
   title: "Find your listing",
 };
 

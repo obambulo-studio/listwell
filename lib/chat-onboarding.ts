@@ -440,7 +440,7 @@ export const promptForPhase = (
       return "What category best describes your business?";
     }
     case "auditing": {
-      return "Running your audit now. This usually takes under two minutes.";
+      return "Running your audit now. This usually takes under 60 seconds.";
     }
     case "report": {
       return "Here is your basic visibility report.";

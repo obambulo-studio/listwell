@@ -9,8 +9,10 @@ import { Icon } from "@/components/icon";
 import { PrimaryButton } from "@/components/listwell/actions";
 import {
   buildListingReviewFixPrompt,
+  listingReviewFieldLabel,
   listingReviewHasFixPrompt,
   listingReviewResultSchema,
+  listingReviewSourceLabel,
 } from "@/lib/listing-review";
 import type { ListingReviewResult } from "@/lib/listing-review";
 
@@ -124,12 +126,12 @@ const ListingReviewBody = ({ result }: { result: ListingReviewResult }) => {
             {content.napMismatches.map((row) => (
               <li key={row.field} className="flex flex-col gap-1.5">
                 <span className="text-ink text-[13px] font-medium">
-                  {row.field}
+                  {listingReviewFieldLabel(row.field)}
                 </span>
                 <ul className="listwell-copy m-0 list-none">
                   {row.values.map((entry) => (
                     <li key={`${entry.sourceId}-${entry.value}`}>
-                      {entry.sourceId}: {entry.value}
+                      {listingReviewSourceLabel(entry.sourceId)}: {entry.value}
                     </li>
                   ))}
                 </ul>
@@ -192,10 +194,18 @@ const ListingReviewFixPrompt = ({
         How to improve your listings
       </h3>
       <p className="listwell-panel__note mt-2">
-        Copy the instructions below and paste them into your coding agent
-        (Cursor, Claude Code, Windsurf, Copilot, etc.) to apply these listing
-        fixes.
+        Apply these steps on Google Business Profile and your website.
       </p>
+      <ol className="listwell-copy m-0 mt-2 list-decimal pl-5">
+        <li>
+          Update the description, categories, photos, and review replies on
+          Google Business Profile.
+        </li>
+        <li>
+          Use the same business name, address, phone number, and website on your
+          site.
+        </li>
+      </ol>
       <pre className="text-ink-2 border-border bg-muted/40 mt-3 max-h-64 overflow-auto rounded-md border p-3 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap">
         {prompt}
       </pre>
@@ -209,7 +219,7 @@ const ListingReviewFixPrompt = ({
           }}
         >
           <Icon icon={Copy01Icon} size={14} />
-          {copied ? "Copied" : "Copy all instructions"}
+          {copied ? "Copied" : "Copy listing instructions"}
         </PrimaryButton>
       </div>
       <p className="listwell-panel__fine mt-3">
@@ -269,8 +279,8 @@ export const ListingReviewSection = ({
       </div>
       <div className="listwell-panel__body">
         <p className="listwell-panel__note">
-          Suggestions from your website and map listings, with a one-click fix
-          prompt for your coding agent.
+          Suggestions from your website and map listings. Apply them on Google
+          Business Profile and your website.
         </p>
         {showContent && isLoading && listingReviewOverride === undefined ? (
           <p className="listwell-panel__fine" aria-live="polite">

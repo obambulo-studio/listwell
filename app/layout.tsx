@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { ConvexClientProvider } from "@/components/convex-client-provider";
+import { ListwellWebMcp } from "@/components/listwell-web-mcp";
 import { Toaster } from "@/components/ui/sonner";
 import { getToken } from "@/lib/auth-server";
 import { listwellSiteUrl } from "@/lib/site-metadata";
@@ -24,7 +25,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   description:
-    "Local and website SEO audit for Australian businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
+    "Local and website SEO audit for businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
   title: {
     default: "Listwell",
     template: "%s · Listwell",
@@ -63,9 +64,15 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
           href={`${origin}/.well-known/ai-catalog.json`}
           type="application/json"
         />
+        <link
+          rel="service-desc"
+          href={`${origin}/.well-known/api-catalog`}
+          type="application/linkset+json"
+        />
       </head>
       <body>
         <ConvexClientProvider initialToken={token}>
+          <ListwellWebMcp />
           <AppShell>{children}</AppShell>
           <Toaster position="top-center" richColors closeButton />
         </ConvexClientProvider>

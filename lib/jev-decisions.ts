@@ -639,7 +639,7 @@ export const businessTypeDisplayLabelWithJev = async (input: {
       business_type: {
         criteria: BUSINESS_TYPE_CRITERIA,
         instructions:
-          "Pick the one customer-facing label that best describes this Australian business.",
+          "Pick the one customer-facing label that best describes this business.",
         type: "choice",
       },
     },

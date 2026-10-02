@@ -16,6 +16,7 @@ import useSWR from "swr";
 
 import { Button } from "@/components/atoms/button";
 import { ReportSummary } from "@/components/chat-report-insight";
+import { HomeLanding } from "@/components/home-page";
 import {
   ComposerSubmit,
   FormActions,
@@ -109,8 +110,11 @@ import {
   addBusinessId,
   CHAT_SESSION_STORAGE_KEY,
   clearChatSession,
+  hasPendingBusinessName,
+  isRestorableChatSession,
   loadChatSession,
   saveChatSession,
+  takePendingBusinessName,
 } from "@/lib/storage";
 import {
   normalizeBusinessName,
@@ -141,7 +145,7 @@ const STARTER_PROMPT: ChatMessage = {
 
 const SESSION_RESTORE_SCRIPT = `(function(){try{var raw=localStorage.getItem(${JSON.stringify(CHAT_SESSION_STORAGE_KEY)});if(!raw)return;var s=JSON.parse(raw);var msgs=s&&s.messages;var started=s&&s.phase&&s.phase!=="business_name";var answered=msgs&&msgs[0]&&msgs[0].userAnswer;var many=msgs&&msgs.length>1;if(!started&&!answered&&!many)return;var el=document.getElementById("listwell-chat-root");if(el)el.classList.add("listwell-chat__layout--pending-restore");}catch(e){}})();`;
 
-const SessionRestoreScript = () => (
+export const SessionRestoreScript = () => (
   <Script id="listwell-session-restore" strategy="afterInteractive">
     {SESSION_RESTORE_SCRIPT}
   </Script>
@@ -150,10 +154,7 @@ const SessionRestoreScript = () => (
 const isRestoredSession = (input: {
   phase: ChatPhase;
   messages: ChatMessage[];
-}): boolean =>
-  input.phase !== "business_name" ||
-  input.messages.length > 1 ||
-  Boolean(input.messages[0]?.userAnswer);
+}): boolean => isRestorableChatSession(input);
 
 interface CheckProgressResult {
   label?: string;
@@ -538,15 +539,14 @@ const TypingIndicator = () => (
     aria-live="polite"
     aria-label="Listwell is typing"
   >
-    <span className="listwell-chat__message-label">Listwell</span>
-    <div
+    <p
       className="listwell-chat__bubble listwell-chat__bubble--assistant listwell-chat__bubble--typing"
       aria-hidden
     >
       <span className="listwell-chat__typing-dot" />
       <span className="listwell-chat__typing-dot" />
       <span className="listwell-chat__typing-dot" />
-    </div>
+    </p>
   </article>
 );
 
@@ -612,7 +612,7 @@ const ChatComposer = ({
   );
 };
 
-const ABOUT_COPY = `Listwell checks local listings and website SEO for Australian small businesses. The basic report is free. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
+const ABOUT_COPY = `Listwell checks local listings and website SEO for small businesses. The basic report is free. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`;
 
 const aboutDialogMotion =
   "transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] data-starting-style:opacity-0 data-ending-style:opacity-0 data-starting-style:translate-y-[calc(-50%+12px)] data-ending-style:translate-y-[calc(-50%+12px)]";
@@ -705,7 +705,7 @@ const PromptCard = ({
             <h1 className="listwell-chat__prompt">
               {question}{" "}
               <span className="listwell-chat__prompt-aside">
-                Free visibility check for Australian businesses
+                Free visibility check for businesses
               </span>
             </h1>
           </div>
@@ -787,7 +787,7 @@ const ChatRestart = ({
   );
 };
 
-const ListwellChatLayout = ({
+export const ListwellChatLayout = ({
   activePromptId,
   attachInput,
   auditTasks,
@@ -1092,7 +1092,7 @@ const fetchReverseLocality = async (url: string) => {
   return lookupResponseSchema.parse(await response.json());
 };
 
-const useListwellChat = () => {
+export const useListwellChat = () => {
   const { push } = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
   const skipRestoreScroll = useRef(false);
@@ -1782,6 +1782,22 @@ const useListwellChat = () => {
     [pushErrorMessage, sendChatTurn, setIsTyping]
   );
 
+  const pendingEntryStartedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (pendingEntryStartedRef.current) {
+      return;
+    }
+    if (isRestoredSession({ messages, phase })) {
+      return;
+    }
+    const pendingName = takePendingBusinessName();
+    if (!pendingName) {
+      return;
+    }
+    pendingEntryStartedRef.current = true;
+    void handlePromptSend(pendingName);
+  }, [handlePromptSend, messages, phase]);
+
   const handleListingSubmit = useCallback(
     (answers: Record<number, number[]>) => {
       const submitListing = async () => {
@@ -1907,7 +1923,65 @@ const useListwellChat = () => {
   };
 };
 
+const HOME_TO_CHAT_MS = 350;
+
+/** Crossfade from marketing landing to chat after first business-name submit. */
+type HomeCrossfade = "idle" | "active" | "complete";
+
+const homeCrossfadeDurationMs = (): number => {
+  if (typeof window === "undefined") {
+    return HOME_TO_CHAT_MS;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? 0
+    : HOME_TO_CHAT_MS;
+};
+
+const ignoreHomeSend = (_text: string) => {
+  void _text;
+};
+
+const initialHomeCrossfade = (): HomeCrossfade => {
+  if (!hasPendingBusinessName()) {
+    return "idle";
+  }
+  return homeCrossfadeDurationMs() === 0 ? "complete" : "active";
+};
+
 export const ListwellChat = () => {
   const layout = useListwellChat();
+  const [homeCrossfade, setHomeCrossfade] =
+    useState<HomeCrossfade>(initialHomeCrossfade);
+
+  useEffect(() => {
+    if (homeCrossfade !== "active") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setHomeCrossfade("complete");
+    }, homeCrossfadeDurationMs());
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [homeCrossfade]);
+
+  const showCrossfade = homeCrossfade === "active";
+
+  if (showCrossfade) {
+    return (
+      <div className="listwell-home-transition">
+        <div
+          aria-hidden
+          className="listwell-home-transition__layer listwell-home-transition__landing listwell-home-transition__landing--exit"
+        >
+          <HomeLanding onSend={ignoreHomeSend} rootId={false} />
+        </div>
+        <div className="listwell-home-transition__layer listwell-home-transition__chat listwell-home-transition__chat--enter">
+          <ListwellChatLayout {...layout} />
+        </div>
+      </div>
+    );
+  }
+
   return <ListwellChatLayout {...layout} />;
 };

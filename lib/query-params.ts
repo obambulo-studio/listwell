@@ -42,7 +42,7 @@ export const safeAppPath = (value?: string, fallback = "/account"): string => {
   return parsed.success ? parsed.data : fallback;
 };
 
-/** Home is the chat, not a signed-in destination. Empty accounts still land on /account. */
+/** Marketing home is not a post-sign-in destination. Empty accounts still land on /account. */
 export const destinationAfterSignIn = (returnPath: string): string => {
   if (
     returnPath === "/" ||

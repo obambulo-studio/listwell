@@ -113,7 +113,7 @@ describe("scan email helpers", () => {
       hasScore: true,
       hasTrendArrow: true,
       hasTrendLabel: true,
-      subject: "Listwell · October scan — Harbour Cafe",
+      subject: "Listwell · October scan for Harbour Cafe",
       textHasPrefs: true,
       textHasTrendArrow: true,
     });
@@ -158,7 +158,7 @@ describe("scan email helpers", () => {
       siteUrl: SITE,
       unsubscribeUrl: UNSUB,
     });
-    expect(email.subject).toBe("Listwell · October scans — 2 businesses");
+    expect(email.subject).toBe("Listwell · October scans, 2 businesses");
     expect(email.html).toContain("View Harbour Cafe");
     expect(email.html).toContain("View Bean Bar");
     expect(email.html).toContain("Visibility score: 58%");

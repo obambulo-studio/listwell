@@ -169,7 +169,7 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
         "message" in payload &&
         typeof payload.message === "string"
           ? payload.message
-          : "Thanks — we will be in touch.";
+          : "Thanks. We will be in touch.";
       dispatch({ error: null, message, type: "interest-result" });
     } catch {
       dispatch({

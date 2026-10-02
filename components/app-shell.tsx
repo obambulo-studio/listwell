@@ -4,6 +4,10 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { Shell } from "@/components/shell";
+import { LISTWELL_CHAT_PATH } from "@/lib/listwell-routes";
+
+const isFullHeightChatShell = (pathname: string): boolean =>
+  pathname === "/" || pathname === LISTWELL_CHAT_PATH;
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
@@ -17,5 +21,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-  return <Shell scrollable={pathname !== "/"}>{children}</Shell>;
+  return (
+    <Shell scrollable={!isFullHeightChatShell(pathname)}>{children}</Shell>
+  );
 };

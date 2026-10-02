@@ -34,14 +34,11 @@ const sizeMap = {
 } as const;
 
 const variantClassName = (variant: ButtonVariant): string | undefined => {
-  if (variant === "accent") {
-    return "bg-accent text-white hover:bg-accent-ink";
+  if (variant === "accent" || variant === "primary") {
+    return "bg-accent text-accent-foreground hover:bg-accent-ink";
   }
   if (variant === "success") {
     return "bg-green text-white hover:brightness-95";
-  }
-  if (variant === "primary") {
-    return "bg-primary text-primary-foreground hover:bg-primary/90";
   }
   return undefined;
 };

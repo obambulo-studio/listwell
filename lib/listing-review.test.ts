@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildFallbackListingReview,
   buildListingReviewFixPrompt,
+  buildListingReviewPrompt,
   generateListingReview,
+  LISTING_REVIEW_MAX_TOKENS,
+  LISTING_REVIEW_MODEL,
+  listingReviewCacheKey,
   listingReviewHasFixPrompt,
   sanitizeListingReviewContent,
 } from "./listing-review";
@@ -96,6 +100,47 @@ describe(sanitizeListingReviewContent, () => {
 
     expect(sanitized?.reviewReplyTemplates).toHaveLength(0);
   });
+
+  it("keeps only the low photo-count line when the model returns no photo gaps", () => {
+    const sanitized = sanitizeListingReviewContent(
+      {
+        napMismatches: [],
+        photoChecklistGaps: [],
+        reviewReplyTemplates: [],
+      },
+      baseInput
+    );
+
+    expect(sanitized?.photoChecklistGaps).toStrictEqual([
+      {
+        item: "Add at least three listing photos",
+        reason:
+          "Fetched sources show 1 photo; listings with more photos tend to get more clicks.",
+      },
+    ]);
+  });
+
+  it("does not replace an empty photo list with generic items when photo counts are not low", () => {
+    const input = listingReviewInputSchema.parse({
+      ...baseInput,
+      sources: baseInput.sources.map((source) =>
+        source.id === "website" ? { ...source, photoCount: 8 } : source
+      ),
+    });
+    const sanitized = sanitizeListingReviewContent(
+      {
+        napMismatches: [],
+        photoChecklistGaps: [],
+        reviewReplyTemplates: [],
+      },
+      input
+    );
+
+    expect(sanitized?.photoChecklistGaps).toStrictEqual([]);
+    expect(
+      sanitized?.napMismatches.some((row) => row.field === "phone")
+    ).toBeTruthy();
+  });
 });
 
 describe(buildListingReviewFixPrompt, () => {
@@ -153,7 +198,33 @@ describe(buildFallbackListingReview, () => {
     expect(
       result.content.napMismatches.some((row) => row.field === "phone")
     ).toBeTruthy();
-    expect(result.content.photoChecklistGaps.length).toBeGreaterThan(0);
+    expect(result.content.photoChecklistGaps).toStrictEqual([
+      {
+        item: "Add at least three listing photos",
+        reason:
+          "Fetched sources show 1 photo; listings with more photos tend to get more clicks.",
+      },
+    ]);
+  });
+});
+
+describe(buildListingReviewPrompt, () => {
+  it("asks for a short grounded description and omits generic sections", () => {
+    const prompt = buildListingReviewPrompt(baseInput);
+    expect(prompt).toContain("at most two sentences");
+    expect(prompt).toContain("prefer a category string already on a source");
+    expect(prompt).toContain("two to four sentences");
+    expect(prompt).toContain(
+      "Omit a section instead of filling it with generic advice."
+    );
+  });
+});
+
+describe(listingReviewCacheKey, () => {
+  it("includes the model id so an older model response is not reused", () => {
+    expect(listingReviewCacheKey("biz", "2026-01-01T00:00:00.000Z", "fp")).toBe(
+      `listing-review:${LISTING_REVIEW_MODEL}:biz:2026-01-01T00:00:00.000Z:fp`
+    );
   });
 });
 
@@ -185,6 +256,21 @@ describe(generateListingReview, () => {
     };
 
     const result = await generateListingReview({ ai, reviewInput: baseInput });
+    expect(ai.run).toHaveBeenCalledWith(LISTING_REVIEW_MODEL, {
+      max_tokens: LISTING_REVIEW_MAX_TOKENS,
+      messages: [
+        {
+          content:
+            "You return valid JSON only. You never invent listing facts. You write for Listwell in Australian English.",
+          role: "system",
+        },
+        {
+          content: buildListingReviewPrompt(baseInput),
+          role: "user",
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
     expect(result.available).toBeTruthy();
     expect(result.source).toBe("workers-ai");
     expect(result.content.businessDescription?.suggestedText).toContain(

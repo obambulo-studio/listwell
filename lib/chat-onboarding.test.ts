@@ -90,7 +90,7 @@ describe(promptForPhase, () => {
     expect(sequence).toStrictEqual([
       "Looking up your business.",
       "Found it.",
-      "Running your audit now. This usually takes under two minutes.",
+      "Running your audit now. This usually takes under 60 seconds.",
     ]);
     expect(sequence.join(" ")).not.toMatch(/google|apple/iu);
   });

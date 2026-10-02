@@ -159,7 +159,7 @@ export const buildListwellPrompt = (
     "- You may mention a check's provided points value. Do not add those points into a new score.",
     "- Do not mention Visimate.",
     "- Product name is Listwell.",
-    "- Plain language for an Australian small business owner.",
+    "- Plain language for a small business owner.",
     "- The overview should be 2–4 sentences: how many checks failed, the most important failing checks (by points), and notable passes when useful.",
     "- Use Australian English spelling (e.g. optimise, colour, organisation).",
     "- Do not use hype or invented statistics.",

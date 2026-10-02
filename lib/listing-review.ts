@@ -5,12 +5,16 @@ import type {
   ListingReviewSourceId,
 } from "./listing-review-context";
 import { listingReviewSourceIdSchema } from "./listing-review-context";
-import {
-  extractModelText,
-  parseJsonObject,
-  WORKERS_AI_MODEL,
-} from "./summaries";
+import { extractModelText, parseJsonObject } from "./summaries";
 import type { WorkersAiBinding } from "./summaries";
+
+export const LISTING_REVIEW_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+export const LISTING_REVIEW_MAX_TOKENS = 1200;
+
+const listingReviewResponseFormat: { type: "json_object" } = {
+  type: "json_object",
+};
 
 export const listingReviewDegradedReasonSchema = z.enum([
   "ai_binding_missing",
@@ -96,6 +100,14 @@ const LISTING_REVIEW_FIELD_LABELS: Record<
   website: "Website URL",
 };
 
+export const listingReviewSourceLabel = (
+  sourceId: ListingReviewSourceId
+): string => LISTING_REVIEW_SOURCE_LABELS[sourceId];
+
+export const listingReviewFieldLabel = (
+  field: ListingReviewContent["napMismatches"][number]["field"]
+): string => LISTING_REVIEW_FIELD_LABELS[field];
+
 export const listingReviewHasFixPrompt = (
   content: ListingReviewContent
 ): boolean =>
@@ -145,14 +157,13 @@ export const buildListingReviewFixPrompt = (input: {
   }
 
   for (const row of content.napMismatches) {
-    const fieldLabel = LISTING_REVIEW_FIELD_LABELS[row.field];
+    const fieldLabel = listingReviewFieldLabel(row.field);
     const valueLines = row.values.map(
-      (entry) =>
-        `- ${LISTING_REVIEW_SOURCE_LABELS[entry.sourceId]}: ${entry.value}`
+      (entry) => `- ${listingReviewSourceLabel(entry.sourceId)}: ${entry.value}`
     );
     blocks.push(
       [
-        `## NAP consistency — ${fieldLabel}`,
+        `## NAP consistency: ${fieldLabel}`,
         "",
         "Goal: Name, address, phone, and website should match on every listing and on the website.",
         `Issue: ${fieldLabel} differs between sources:`,
@@ -296,28 +307,15 @@ const photoGapsFromSources = (
     source.photoCount === undefined ? [] : [source.photoCount]
   );
   const minPhotos = counts.length > 0 ? Math.min(...counts) : undefined;
-  const gaps: ListingReviewContent["photoChecklistGaps"] = [];
-  if (minPhotos !== undefined && minPhotos < 3) {
-    gaps.push({
+  if (minPhotos === undefined || minPhotos >= 3) {
+    return [];
+  }
+  return [
+    {
       item: "Add at least three listing photos",
       reason: `Fetched sources show ${minPhotos} photo${minPhotos === 1 ? "" : "s"}; listings with more photos tend to get more clicks.`,
-    });
-  }
-  gaps.push(
-    {
-      item: "Storefront exterior",
-      reason: "Helps customers recognise your business on arrival.",
     },
-    {
-      item: "Interior or service area",
-      reason: "Shows the experience before they visit.",
-    },
-    {
-      item: "Team or owner portrait",
-      reason: "Builds trust for local service businesses.",
-    }
-  );
-  return gaps;
+  ];
 };
 
 export const buildFallbackListingReview = (
@@ -442,16 +440,18 @@ export const sanitizeListingReviewContent = (
 
 export const buildListingReviewPrompt = (input: ListingReviewInput): string =>
   [
-    "You help Australian small businesses improve local listings for Listwell.",
+    "You help small businesses improve local listings for Listwell.",
     "",
     "Rules:",
     "- Use ONLY facts in the JSON input (sources array).",
-    "- Do not invent addresses, phone numbers, review text, ratings, or categories not implied by the input.",
-    "- businessDescription.suggestedText and categories must cite basedOnSourceIds from the input source ids.",
+    "- Do not invent addresses, phone numbers, review text, ratings, offers, discounts, or categories that are not in the input.",
+    "- businessDescription: at most two sentences a customer would read on Google. Use only names, places, and offers in the input. Cite basedOnSourceIds from the input source ids. Omit businessDescription when the input does not support a specific description.",
+    "- categories: prefer a category string already on a source. Cite basedOnSourceIds from the input source ids. Omit categories when no category is present.",
     "- napMismatches.values must copy exact strings from the input sources for that field.",
-    "- photoChecklistGaps: suggest practical photo types; mention low photoCount when present.",
-    "- reviewReplyTemplates: include ONLY when recentReviews exist in input; reviewSnippet MUST be an exact substring of a provided review text.",
-    "- Australian English, plain language, copy-paste ready.",
+    "- photoChecklistGaps: mention a low photoCount when a source photoCount is under 3. Do not add generic photo types that are not in the input. Omit photoChecklistGaps when there is nothing specific to report.",
+    "- reviewReplyTemplates: include ONLY when recentReviews exist in the input. reviewSnippet MUST be an exact substring of a provided review text. Write two to four sentences that answer the excerpt. Do not invent offers or discounts.",
+    "- Omit a section instead of filling it with generic advice.",
+    "- Australian English, plain language, ready to publish on a listing.",
     "- Return JSON only, no markdown.",
     "",
     "JSON shape:",
@@ -483,7 +483,8 @@ export const generateListingReview = async (input: {
   }
 
   try {
-    const raw = await input.ai.run(WORKERS_AI_MODEL, {
+    const raw = await input.ai.run(LISTING_REVIEW_MODEL, {
+      max_tokens: LISTING_REVIEW_MAX_TOKENS,
       messages: [
         {
           content:
@@ -495,6 +496,7 @@ export const generateListingReview = async (input: {
           role: "user",
         },
       ],
+      response_format: listingReviewResponseFormat,
     });
     const parsed = listingReviewContentSchema.parse(
       parseJsonObject(extractModelText(raw))
@@ -526,7 +528,7 @@ export const listingReviewCacheKey = (
   businessUpdatedAt: string,
   fingerprint: string
 ): string =>
-  `${LISTING_REVIEW_KV_PREFIX}${businessId}:${businessUpdatedAt}:${fingerprint}`;
+  `${LISTING_REVIEW_KV_PREFIX}${LISTING_REVIEW_MODEL}:${businessId}:${businessUpdatedAt}:${fingerprint}`;
 
 declare global {
   var listwellListingReviewCache: Map<string, ListingReviewResult> | undefined;

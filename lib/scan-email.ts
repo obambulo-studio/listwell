@@ -432,14 +432,14 @@ const scanEmailSubject = (businesses: readonly ScanEmailBusiness[]): string => {
   if (businesses.length === 1) {
     const name = businesses[0]?.businessName ?? "your business";
     if (month) {
-      return `Listwell · ${month} scan — ${name}`;
+      return `Listwell · ${month} scan for ${name}`;
     }
-    return `Listwell · Scan ready — ${name}`;
+    return `Listwell · Scan ready for ${name}`;
   }
   if (month) {
-    return `Listwell · ${month} scans — ${businesses.length} businesses`;
+    return `Listwell · ${month} scans, ${businesses.length} businesses`;
   }
-  return `Listwell · Scans ready — ${businesses.length} businesses`;
+  return `Listwell · Scans ready, ${businesses.length} businesses`;
 };
 
 const scanEmailPreheader = (

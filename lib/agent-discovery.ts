@@ -1,4 +1,14 @@
 import {
+  agentRegistrationSkill,
+  apiCatalogLinkset,
+  jwksDocument,
+  listwellOpenApiDocument,
+  mcpServerCard,
+  oauthAuthorizationServerMetadata,
+  oauthProtectedResourceMetadata,
+  openIdConfigurationMetadata,
+} from "@/lib/agent-ready-metadata";
+import {
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
   REPORT_YEARLY_PRICE,
@@ -23,19 +33,20 @@ const AI_CRAWLER_USER_AGENTS = [
   "Applebot-Extended",
 ] as const;
 
-const START_LISTING_AUDIT_SKILL = `# Start a Listwell listing audit
+const startListingAuditSkillBody = (origin: string): string =>
+  `# Start a Listwell listing audit
 
 Use this skill when someone wants to check local listings or website SEO with Listwell.
 
 ## What Listwell is
 
-Listwell is a local and website SEO audit for Australian small businesses at https://listwell.dev. A visitor describes a business. Listwell matches Google Business Profile, Apple Maps, a website, and social profiles, then runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).
+Listwell is a local and website SEO audit for small businesses at ${origin}. A visitor describes a business. Listwell matches Google Business Profile, Apple Maps, a website, and social profiles, then runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).
 
-Obambulo Studio owns Listwell. There is no public MCP server, A2A agent, or OAuth API.
+obambulo studio owns Listwell. Discovery: \`${origin}/.well-known/api-catalog\`, WebMCP in the browser, and MCP server card at \`${origin}/.well-known/mcp/server-card.json\`. Session auth uses email OTP (see \`${origin}/auth.md\`).
 
 ## Start an audit
 
-1. Open https://listwell.dev
+1. Open ${origin}/chat (or the home page and submit a business name)
 2. Enter the business name
 3. Confirm the area if asked
 4. Pick the matching Google or Apple Maps listing, or paste a website URL
@@ -43,17 +54,20 @@ Obambulo Studio owns Listwell. There is no public MCP server, A2A agent, or OAut
 6. Read the free basic report
 7. Pay ${REPORT_ONCE_PRICE} if the visitor wants fix steps
 
-Markdown versions of the public pages are available by sending \`Accept: text/markdown\`. Site overview: https://listwell.dev/llms.txt
+Markdown versions of the public pages are available by sending \`Accept: text/markdown\`. Site overview: ${origin}/llms.txt
 
 ## Sign-in
 
-Humans sign in with an email one-time code at https://listwell.dev/sign-in. There is no password and no OAuth authorization server for agents. See https://listwell.dev/auth.md
+Humans and agents use verified email OTP. Discovery metadata: \`${origin}/.well-known/oauth-authorization-server\` and \`${origin}/auth.md\`.
+
+## Public HTTP API
+
+Rate-limited \`/api/discover\`, \`/api/health\`, and \`/api/chat/interpret\` are listed in \`${origin}/.well-known/api-catalog\`. Business APIs require a session.
 
 ## Do not
 
-- Do not treat \`/api/*\` as a public machine API. Those routes are for the signed-in product and internal jobs.
-- Do not invent OAuth, MCP, or A2A endpoints for this host.
 - Do not scrape \`/account\` or private report pages.
+- Do not bypass rate limits on public API routes.
 `;
 
 const bytesToHex = (bytes: Uint8Array): string => {
@@ -110,7 +124,7 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
   [
     "# Listwell",
     "",
-    "> Local and website SEO audit for Australian small businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
+    "> Local and website SEO audit for small businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
     "",
     `Listwell matches a business to Google Business Profile, Apple Maps, a website, and social profiles, then checks local and website SEO. The home page chat runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`,
     "",
@@ -118,7 +132,8 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
     "",
     "## Public pages",
     "",
-    `- [Home](${origin}/): start an audit in chat`,
+    `- [Home](${origin}/): marketing and start link`,
+    `- [Chat audit](${origin}/chat): run the listing check`,
     `- [Find your listing](${origin}/discover): match a business name to listings`,
     `- [Confirm listings](${origin}/new): confirm profiles before the report`,
     `- [Sign in](${origin}/sign-in): email one-time code, no password`,
@@ -126,15 +141,18 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
     "## For agents",
     "",
     `- [Markdown pages](${origin}/): send Accept: text/markdown`,
-    `- [auth.md](${origin}/auth.md): how sign-in works (no OAuth)`,
+    `- [auth.md](${origin}/auth.md): sign-in and agent registration`,
+    `- [API catalog](${origin}/.well-known/api-catalog): RFC 9727 linkset for /api`,
+    `- [OAuth AS metadata](${origin}/.well-known/oauth-authorization-server): email OTP session discovery`,
+    `- [OAuth protected resource](${origin}/.well-known/oauth-protected-resource): /api resource identifier`,
+    `- [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP discovery (HTTP endpoint reserved)`,
     `- [robots.txt](${origin}/robots.txt): crawl rules and Content Signals`,
     `- [Sitemap](${origin}/sitemap.xml): public URLs`,
-    `- [ARD catalog](${origin}/.well-known/ai-catalog.json): documentation the site actually publishes`,
+    `- [ARD catalog](${origin}/.well-known/ai-catalog.json): documentation the site publishes`,
     `- [Agent skill](${origin}/.well-known/agent-skills/index.json): start a listing audit`,
+    "- DNS-AID: publish HTTPS/SVCB `_index._agents`, `_mcp._agents`, and `_a2a._agents` on the listwell.dev zone with DNSSEC enabled",
     "",
-    "## Not available",
-    "",
-    "Listwell does not publish a public HTTP API catalog, MCP server, A2A agent card, or OAuth authorization server. Product APIs under /api/ are for the web app and require a session.",
+    "WebMCP tools (`start_listing_audit`, `discover_listings`, `listwell_health`) register on page load in supporting browsers.",
     "",
   ].join("\n");
 
@@ -142,9 +160,7 @@ export const authMd = (origin = listwellSiteUrl()): string =>
   [
     "# auth.md",
     "",
-    "Listwell does not offer OAuth 2.0, OIDC, or agent client registration.",
-    "",
-    "Audience: people using the Listwell web app at the origin below.",
+    "Audience: people and verified-email agents using Listwell at the origin below.",
     "",
     `Origin: ${origin}`,
     "",
@@ -154,30 +170,41 @@ export const authMd = (origin = listwellSiteUrl()): string =>
     "2. Enter an email address",
     "3. Submit the one-time code sent to that inbox",
     "",
-    "There is no password. Better Auth on Convex issues the email code. Sessions are cookies on the Listwell site, not bearer tokens for a public API.",
+    "There is no password. Better Auth on Convex issues the email code. Sessions are cookies on the Listwell site.",
     "",
-    "## What is not provided",
+    "## Verified email {#verified-email}",
     "",
-    "- No `/.well-known/oauth-authorization-server`",
-    "- No `/.well-known/oauth-protected-resource`",
-    "- No MCP OAuth resource",
-    "- No agent registration URI",
+    "Agents register with the verified email OTP flow:",
     "",
-    "If you need a listing audit, use the public chat at the origin. Do not call `/api/*` as a machine API.",
+    `- Send code: \`POST ${origin}/api/auth/email-otp/send-verification-otp\` with JSON \`email\` and \`type: sign-in\`.`,
+    `- Sign in: \`POST ${origin}/api/auth/sign-in/email-otp\` with JSON \`email\` and \`otp\`.`,
+    "",
+    "Machine-readable metadata:",
+    "",
+    `- \`${origin}/.well-known/oauth-authorization-server\` (includes \`agent_auth\`)`,
+    `- \`${origin}/.well-known/oauth-protected-resource\` for \`${origin}/api\``,
+    `- Agent registration skill: \`${origin}/.well-known/agent-skills/agent-registration/SKILL.md\``,
+    "",
+    "## Public API without a session",
+    "",
+    `Rate-limited routes are listed in the [API catalog](${origin}/.well-known/api-catalog). Business data under \`/api/businesses\` requires a session.`,
     "",
   ].join("\n");
 
-export const startListingAuditSkill = (): string => START_LISTING_AUDIT_SKILL;
+export const startListingAuditSkill = (origin = listwellSiteUrl()): string =>
+  startListingAuditSkillBody(origin);
 
 const pageMarkdown = (origin: string): Record<string, string> => ({
   "/": [
     "# Listwell",
     "",
-    "Local and website SEO audit for Australian businesses.",
+    "Local and website SEO audit for businesses.",
     "",
     `Listwell runs a free check of local and website visibility. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).`,
     "",
-    "Start on this page by entering a business name. Listwell looks up map listings, a website, and social profiles, then shows a basic report.",
+    "Enter a business name on this page or open the chat audit to look up map listings, a website, and social profiles, then see a basic report.",
+    "",
+    `- [Chat audit](${origin}/chat)`,
     "",
     "## Links",
     "",
@@ -186,6 +213,16 @@ const pageMarkdown = (origin: string): Record<string, string> => ({
     `- [Sign in](${origin}/sign-in)`,
     `- [llms.txt](${origin}/llms.txt)`,
     `- [auth.md](${origin}/auth.md)`,
+    "",
+  ].join("\n"),
+  "/chat": [
+    "# Check your listings",
+    "",
+    "Chat flow for a free local and website SEO audit.",
+    "",
+    "Enter a business name, confirm listings and category, then read the basic report.",
+    "",
+    `- [Home](${origin}/)`,
     "",
   ].join("\n"),
   "/discover": [
@@ -268,6 +305,7 @@ export const agentLinkHeaderValues = (origin = listwellSiteUrl()): string[] => [
   `<${origin}/llms.txt>; rel="describedby"; type="text/markdown"`,
   `<${origin}/llms.txt>; rel="service-doc"; type="text/markdown"`,
   `<${origin}/auth.md>; rel="describedby"; type="text/markdown"`,
+  `<${origin}/.well-known/api-catalog>; rel="service-desc"; type="application/linkset+json"`,
   `<${origin}/.well-known/ai-catalog.json>; rel="describedby"; type="application/json"`,
   `<${origin}/.well-known/ai-catalog.json>; rel="ard"; type="application/json"`,
 ];
@@ -303,11 +341,16 @@ const jsonDocument = (value: unknown): DiscoveryDocument => ({
   contentType: "application/json; charset=utf-8",
 });
 
+const linksetDocument = (value: unknown): DiscoveryDocument => ({
+  body: `${JSON.stringify(value, null, 2)}\n`,
+  contentType: "application/linkset+json; charset=utf-8",
+});
+
 export const ardCatalog = (origin = listwellSiteUrl()) => ({
   entries: [
     {
       description:
-        "Markdown overview of Listwell for agents. No public MCP or OAuth API.",
+        "Markdown overview of Listwell for agents, API catalog, and WebMCP tools.",
       displayName: "Listwell documentation index",
       identifier: "urn:air:listwell.dev:docs:llms",
       representativeQueries: [
@@ -350,7 +393,7 @@ export const ardCatalog = (origin = listwellSiteUrl()) => ({
 });
 
 export const agentSkillsIndex = async (origin = listwellSiteUrl()) => {
-  const skill = startListingAuditSkill();
+  const skill = startListingAuditSkill(origin);
   const digest = await sha256Hex(skill);
   return {
     $schema: "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
@@ -402,9 +445,40 @@ export const discoveryDocument = async (
   }
   if (path === "/.well-known/agent-skills/start-listing-audit/SKILL.md") {
     return {
-      body: startListingAuditSkill(),
+      body: startListingAuditSkill(origin),
       contentType: "text/markdown; charset=utf-8",
     };
+  }
+  if (path === "/.well-known/agent-skills/agent-registration/SKILL.md") {
+    return {
+      body: agentRegistrationSkill(origin),
+      contentType: "text/markdown; charset=utf-8",
+    };
+  }
+  if (path === "/.well-known/api-catalog") {
+    return linksetDocument(apiCatalogLinkset(origin));
+  }
+  if (path === "/.well-known/openapi.json") {
+    return jsonDocument(listwellOpenApiDocument(origin));
+  }
+  if (
+    path === "/.well-known/oauth-authorization-server" ||
+    path === "/.well-known/openid-configuration"
+  ) {
+    const metadata =
+      path === "/.well-known/openid-configuration"
+        ? openIdConfigurationMetadata(origin)
+        : oauthAuthorizationServerMetadata(origin);
+    return jsonDocument(metadata);
+  }
+  if (path === "/.well-known/oauth-protected-resource") {
+    return jsonDocument(oauthProtectedResourceMetadata(origin));
+  }
+  if (path === "/.well-known/jwks.json") {
+    return jsonDocument(jwksDocument());
+  }
+  if (path === "/.well-known/mcp/server-card.json") {
+    return jsonDocument(mcpServerCard(origin));
   }
   return null;
 };

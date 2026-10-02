@@ -229,7 +229,7 @@ export const ReportShareDialog = ({
             </Field>
             <p className="listwell-panel__fine">
               Expires {formatExpiry(state.expiresAt)} · Created{" "}
-              {state.createdAt ? formatExpiry(state.createdAt) : "—"}
+              {state.createdAt ? formatExpiry(state.createdAt) : "Unknown"}
             </p>
           </div>
         ) : (

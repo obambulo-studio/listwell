@@ -38,7 +38,7 @@ export const POST = async (request: Request) => {
     return NextResponse.json({
       created: result.created,
       message: result.created
-        ? "Thanks — we will be in touch."
+        ? "Thanks. We will be in touch."
         : "You are already on the list.",
     });
   } catch (error) {
