@@ -13,6 +13,11 @@ import {
   normalizeEmail,
 } from "./auth";
 import { fetchAuthMutation } from "./auth-server";
+import {
+  CheckoutPlanNotConfiguredError,
+  CheckoutResponseShapeError,
+  checkoutCreateFailureLog,
+} from "./checkout-create-error";
 import { CheckoutGrantError } from "./checkout-grant-error";
 import { api, convexAction } from "./convex/server";
 import {
@@ -508,26 +513,34 @@ export const createPolarCheckout = async (input: {
   if (plan === "monthly") {
     productId = config.productReportMonthly;
     if (!productId) {
-      throw new Error("Monthly plan is not configured");
+      throw new CheckoutPlanNotConfiguredError(plan);
     }
   } else if (plan === "yearly") {
     productId = config.productReportYearly;
     if (!productId) {
-      throw new Error("Yearly plan is not configured");
+      throw new CheckoutPlanNotConfiguredError(plan);
     }
   } else {
     productId = config.productReportOnce;
   }
 
-  const created = await polarClient(config).checkouts.create({
-    customerIpAddress: input.customerIpAddress,
-    metadata: { businessId: input.businessId, plan },
-    products: [productId],
-    returnUrl: `${input.origin}/${input.businessId}`,
-    successUrl: `${input.origin}/api/auth/checkout/{CHECKOUT_ID}/${input.businessId}`,
-  });
+  const logContext = { businessId: input.businessId, plan };
 
-  return polarCheckoutSchema.parse({
+  let created;
+  try {
+    created = await polarClient(config).checkouts.create({
+      customerIpAddress: input.customerIpAddress,
+      metadata: { businessId: input.businessId, plan },
+      products: [productId],
+      returnUrl: `${input.origin}/${input.businessId}`,
+      successUrl: `${input.origin}/api/auth/checkout/{CHECKOUT_ID}/${input.businessId}`,
+    });
+  } catch (error) {
+    checkoutCreateFailureLog(error, logContext);
+    throw error;
+  }
+
+  const parsedCheckout = polarCheckoutSchema.safeParse({
     id: created.id,
     metadata: created.metadata,
     productId: created.productId,
@@ -535,6 +548,13 @@ export const createPolarCheckout = async (input: {
     subscriptionId: created.subscriptionId,
     url: created.url,
   });
+  if (!parsedCheckout.success) {
+    const shapeError = new CheckoutResponseShapeError(parsedCheckout.error);
+    checkoutCreateFailureLog(shapeError, logContext);
+    throw shapeError;
+  }
+
+  return { url: parsedCheckout.data.url };
 };
 
 export type PolarCustomerPortal =
