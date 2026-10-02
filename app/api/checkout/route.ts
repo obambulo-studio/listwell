@@ -8,6 +8,7 @@ import {
   getPolarConfig,
   publicOrigin,
 } from "@/lib/polar-server";
+import { checkoutCreateHttpError } from "@/lib/checkout-create-error";
 import { consumeRateLimit } from "@/lib/rate-limit-kv";
 import { checkoutRequestSchema } from "@/lib/schema";
 
@@ -51,7 +52,7 @@ export const POST = async (request: Request) => {
     });
     return NextResponse.json({ url: checkout.url });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Checkout failed";
-    return NextResponse.json({ error: message }, { status: 502 });
+    const { message, status } = checkoutCreateHttpError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 };
