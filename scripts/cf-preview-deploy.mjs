@@ -74,6 +74,7 @@ const resolvePreviewName = () => {
 };
 
 ensureVinextBuildOutput();
+installWranglerBinWrapper();
 applyWranglerPreviewBranchPatch();
 prepareWranglerPreviewConfig();
 

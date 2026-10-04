@@ -21,6 +21,7 @@ export const runAfterCfBuild = () => {
     return;
   }
 
+  installWranglerBinWrapper();
   applyWranglerPreviewBranchPatch();
 
   const previewConfig = prepareWranglerPreviewConfig();
