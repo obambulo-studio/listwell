@@ -138,6 +138,12 @@ export const isSiteGateExemptPath = (pathname: string): boolean => {
   if (pathname === "/api/webhook/polar") {
     return true;
   }
+  if (pathname === "/api/analytics/collect") {
+    return true;
+  }
+  if (pathname === "/lw-analytics.js") {
+    return true;
+  }
   if (pathname === "/api/internal/dataforseo/postback") {
     return true;
   }

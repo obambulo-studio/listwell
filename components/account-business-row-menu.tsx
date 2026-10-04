@@ -2,6 +2,7 @@
 
 import {
   Building03Icon,
+  ChartIncreaseIcon,
   CreditCardIcon,
   Delete02Icon,
   MoreVerticalIcon,
@@ -250,6 +251,20 @@ const AccountBusinessRowMenuPanel = ({
             <Icon className={menuIconClass} icon={PencilEdit02Icon} size={15} />
             Rename
           </button>
+        ) : null}
+        {canRemove ? (
+          <Link
+            href={`/account/analytics/${businessId}`}
+            role="menuitem"
+            data-menu-row
+            className="listwell-account-menu__item"
+            onClick={() => {
+              onClose();
+            }}
+          >
+            <Icon className={menuIconClass} icon={ChartIncreaseIcon} size={15} />
+            Web analytics
+          </Link>
         ) : null}
         {canAddMonthlyScans ? (
           <button

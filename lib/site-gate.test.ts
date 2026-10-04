@@ -22,6 +22,8 @@ describe("site gate paths", () => {
     ).toBeTruthy();
     expect(isSiteGateExemptPath("/api/site-gate/unlock")).toBeTruthy();
     expect(isSiteGateExemptPath("/api/agent/register")).toBeTruthy();
+    expect(isSiteGateExemptPath("/api/analytics/collect")).toBeTruthy();
+    expect(isSiteGateExemptPath("/lw-analytics.js")).toBeTruthy();
   });
 
   it("exempts the agent catalog", () => {

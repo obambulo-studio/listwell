@@ -30,6 +30,7 @@ import type * as reportShares from "../reportShares.js";
 import type * as scans from "../scans.js";
 import type * as seo from "../seo.js";
 import type * as users from "../users.js";
+import type * as webAnalytics from "../webAnalytics.js";
 
 import type {
   ApiFromModules,
@@ -60,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   scans: typeof scans;
   seo: typeof seo;
   users: typeof users;
+  webAnalytics: typeof webAnalytics;
 }>;
 
 /**

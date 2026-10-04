@@ -34,6 +34,9 @@ const planNotConfiguredMessage = (plan: CheckoutPlan): string => {
   if (plan === "yearly") {
     return "Yearly billing is not available yet.";
   }
+  if (plan.startsWith("analytics_")) {
+    return "This analytics plan is not available yet.";
+  }
   return "Payment is not configured";
 };
 

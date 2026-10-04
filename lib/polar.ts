@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  ANALYTICS_BANDS,
+  analyticsEntitlementKindSchema,
+  isAnalyticsCheckoutPlan,
+} from "./analytics-pricing";
 import { CONTINUED_REPORT_COPY } from "./research-report";
 import {
   apiErrorSchema,
@@ -113,9 +118,54 @@ export const checkoutCustomerIp = (
 };
 
 export interface PolarProductIds {
+  analytics10kProductId?: string;
+  analytics100kProductId?: string;
+  analytics1mProductId?: string;
   monthlyProductId?: string;
+  onceProductId?: string;
   yearlyProductId?: string;
 }
+
+const analyticsProductMap = (
+  products: PolarProductIds
+): ReadonlyMap<string, EntitlementKind> => {
+  const envByKind: Record<string, string | undefined> = {
+    analytics_10k: products.analytics10kProductId,
+    analytics_100k: products.analytics100kProductId,
+    analytics_1m: products.analytics1mProductId,
+  };
+  const map = new Map<string, EntitlementKind>();
+  for (const band of ANALYTICS_BANDS) {
+    const productId = envByKind[band.entitlementKind];
+    if (productId) {
+      map.set(productId, entitlementKindSchema.parse(band.entitlementKind));
+    }
+  }
+  return map;
+};
+
+const kindFromProductId = (
+  productId: string | undefined,
+  products: PolarProductIds
+): EntitlementKind | undefined => {
+  if (!productId) {
+    return undefined;
+  }
+  const analytics = analyticsProductMap(products).get(productId);
+  if (analytics) {
+    return analytics;
+  }
+  if (products.onceProductId && productId === products.onceProductId) {
+    return entitlementKindSchema.parse("report_once");
+  }
+  if (products.monthlyProductId && productId === products.monthlyProductId) {
+    return entitlementKindSchema.parse("report_monthly");
+  }
+  if (products.yearlyProductId && productId === products.yearlyProductId) {
+    return entitlementKindSchema.parse("report_monthly");
+  }
+  return undefined;
+};
 
 const WEBHOOK_TOLERANCE_SECONDS = 300;
 
@@ -294,26 +344,39 @@ export const entitlementKindFromCheckout = (
   },
   products: PolarProductIds
 ): EntitlementKind => {
+  const fromProduct = kindFromProductId(checkout.productId, products);
+  if (fromProduct) {
+    return fromProduct;
+  }
+  const plan = checkout.metadata?.plan;
+  if (typeof plan === "string" && isAnalyticsCheckoutPlan(plan)) {
+    return analyticsEntitlementKindSchema.parse(plan);
+  }
   if (checkout.subscriptionId) {
     return entitlementKindSchema.parse("report_monthly");
   }
-  if (
-    products.yearlyProductId &&
-    checkout.productId === products.yearlyProductId
-  ) {
-    return entitlementKindSchema.parse("report_monthly");
-  }
-  if (
-    products.monthlyProductId &&
-    checkout.productId === products.monthlyProductId
-  ) {
-    return entitlementKindSchema.parse("report_monthly");
-  }
-  const plan = checkout.metadata?.plan;
   if (plan === "monthly" || plan === "yearly") {
     return entitlementKindSchema.parse("report_monthly");
   }
   return entitlementKindSchema.parse("report_once");
+};
+
+export const checkoutReturnPathFromMetadata = (
+  metadata?: Record<string, unknown>,
+  businessId?: string
+): string => {
+  const raw = metadata?.returnPath;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (
+      trimmed.startsWith("/account/analytics/") &&
+      !trimmed.includes("//") &&
+      trimmed.length <= 256
+    ) {
+      return trimmed;
+    }
+  }
+  return checkoutReturnPath(businessId);
 };
 
 export const entitlementKindFromPolarData = (

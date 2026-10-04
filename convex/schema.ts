@@ -152,4 +152,26 @@ export default defineSchema({
     spentUsdMicros: v.number(),
     updatedAt: v.string(),
   }).index("by_month", ["month"]),
+
+  webAnalyticsSites: defineTable({
+    businessExternalId: v.string(),
+    createdAt: v.string(),
+    ingestKey: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_businessExternalId", ["businessExternalId"])
+    .index("by_businessExternalId_and_ingestKey", [
+      "businessExternalId",
+      "ingestKey",
+    ]),
+
+  webAnalyticsUsage: defineTable({
+    businessExternalId: v.string(),
+    eventCount: v.number(),
+    month: v.string(),
+    updatedAt: v.string(),
+  }).index("by_businessExternalId_and_month", [
+    "businessExternalId",
+    "month",
+  ]),
 });

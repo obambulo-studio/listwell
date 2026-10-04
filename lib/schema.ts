@@ -109,7 +109,13 @@ export const auditJobPollSchema = z.object({
 });
 export type AuditJobPoll = z.infer<typeof auditJobPollSchema>;
 
-export const entitlementKindSchema = z.enum(["report_once", "report_monthly"]);
+export const entitlementKindSchema = z.enum([
+  "report_once",
+  "report_monthly",
+  "analytics_10k",
+  "analytics_100k",
+  "analytics_1m",
+]);
 export type EntitlementKind = z.infer<typeof entitlementKindSchema>;
 
 export const entitlementStatusSchema = z.enum(["active", "revoked"]);
@@ -278,7 +284,14 @@ export const accountReportsSchema = z.object({
 });
 export type AccountReports = z.infer<typeof accountReportsSchema>;
 
-export const checkoutPlanSchema = z.enum(["once", "monthly", "yearly"]);
+export const checkoutPlanSchema = z.enum([
+  "once",
+  "monthly",
+  "yearly",
+  "analytics_10k",
+  "analytics_100k",
+  "analytics_1m",
+]);
 export type CheckoutPlan = z.infer<typeof checkoutPlanSchema>;
 
 export const checkoutRequestSchema = z.object({
