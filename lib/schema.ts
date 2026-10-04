@@ -278,6 +278,12 @@ export const accountReportsSchema = z.object({
 });
 export type AccountReports = z.infer<typeof accountReportsSchema>;
 
+export const accountPageSchema = z.object({
+  reports: z.array(accountReportSchema),
+  sharedReports: z.array(accountReportSchema),
+});
+export type AccountPage = z.infer<typeof accountPageSchema>;
+
 export const checkoutPlanSchema = z.enum(["once", "monthly", "yearly"]);
 export type CheckoutPlan = z.infer<typeof checkoutPlanSchema>;
 

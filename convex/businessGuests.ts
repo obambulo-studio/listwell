@@ -9,8 +9,6 @@ import { sendBusinessGuestInvite } from "./lib/email";
 import { requireInternalSecret } from "./lib/internal";
 import { normalizeInviteEmail } from "./lib/normalizeEmail";
 
-const MAX_GUESTS_PER_BUSINESS = 25;
-
 const nowIso = (): string => new Date().toISOString();
 
 const newInviteToken = (): string => {
@@ -149,9 +147,6 @@ export const invite = authedMutation({
         q.eq("businessExternalId", args.businessExternalId)
       )
       .collect();
-    const activeCount = existingRows.filter(
-      (row) => row.status === "pending" || row.status === "active"
-    ).length;
     const existingForEmail = existingRows.find(
       (row) =>
         row.inviteeEmail === inviteeEmail &&
@@ -170,9 +165,6 @@ export const invite = authedMutation({
         updatedAt: timestamp,
       });
     } else {
-      if (activeCount >= MAX_GUESTS_PER_BUSINESS) {
-        throw new Error("Guest limit reached for this business");
-      }
       inviteToken = newInviteToken();
       rowId = await ctx.db.insert("businessGuests", {
         businessExternalId: args.businessExternalId,
@@ -431,27 +423,26 @@ const upsertGuestReport = async (
   });
 };
 
-/** Used by account.listReports to merge guest businesses. */
-export const mergeGuestBusinessesForUser = async (
+type GuestAccountReportRow = {
+  id: string;
+  name: string;
+  owned: boolean;
+  unlocked: boolean;
+  plan: "preview" | "once" | "monthly";
+  lastScan: {
+    score: number | null;
+    finishedAt: string | null;
+    previousScore: number | null;
+  } | null;
+  nextScanAt: string | null;
+};
+
+/** Guest businesses for the account page shared list. */
+export const listGuestReportsForUser = async (
   ctx: Pick<QueryCtx, "db">,
-  userId: string,
-  byExternalId: Map<
-    string,
-    {
-      id: string;
-      name: string;
-      owned: boolean;
-      unlocked: boolean;
-      plan: "preview" | "once" | "monthly";
-      lastScan: {
-        score: number | null;
-        finishedAt: string | null;
-        previousScore: number | null;
-      } | null;
-      nextScanAt: string | null;
-    }
-  >
-): Promise<void> => {
+  userId: string
+): Promise<GuestAccountReportRow[]> => {
+  const byExternalId = new Map<string, GuestAccountReportRow>();
   const rows = await ctx.db
     .query("businessGuests")
     .withIndex("by_guestUserId", (q) => q.eq("guestUserId", userId))
@@ -462,4 +453,5 @@ export const mergeGuestBusinessesForUser = async (
     }
     await upsertGuestReport(ctx, row.businessExternalId, byExternalId);
   }
+  return [...byExternalId.values()];
 };
