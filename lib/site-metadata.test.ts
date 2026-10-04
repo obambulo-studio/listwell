@@ -80,6 +80,7 @@ describe("site metadata", () => {
       process.env.NEXT_PUBLIC_SITE_URL = "https://listwell.dev";
       expect(sitemapEntries().map((entry) => entry.url)).toStrictEqual([
         "https://listwell.dev/",
+        "https://listwell.dev/chat",
         "https://listwell.dev/discover",
         "https://listwell.dev/new",
         "https://listwell.dev/sign-in",

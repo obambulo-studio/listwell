@@ -7,6 +7,7 @@ import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
 import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import { z } from "zod";
 
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import type { CheckoutPlan } from "./schema";
 
 export { CheckoutResponseShapeError } from "./checkout-response-shape-error";
