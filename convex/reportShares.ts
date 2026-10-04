@@ -59,8 +59,9 @@ export const getByToken = query({
 });
 
 export const getActiveForBusiness = query({
-  args: { businessExternalId: v.string() },
+  args: { businessExternalId: v.string(), secret: v.string() },
   handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
     const rows = await ctx.db
       .query("reportShares")
       .withIndex("by_businessExternalId", (q) =>

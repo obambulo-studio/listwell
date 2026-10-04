@@ -1,5 +1,6 @@
 import { renderAuthCodeEmail } from "../../emails/auth-code";
 import type { AuthCodeType } from "../../emails/auth-code";
+import { renderBusinessGuestInviteEmail } from "../../emails/business-guest-invite";
 import { env } from "../_generated/server";
 
 const USESEND_DEFAULT_BASE = "https://app.usesend.com";
@@ -60,6 +61,59 @@ export const sendSignInCode = async (
     return true;
   } catch (error) {
     console.error("sendSignInCode: UseSend request error", error);
+    return false;
+  }
+};
+
+export const sendBusinessGuestInvite = async (input: {
+  acceptUrl: string;
+  businessName: string;
+  siteUrl: string;
+  to: string;
+}): Promise<boolean> => {
+  const apiKey = env.USESEND_API_KEY;
+  const from = env.USESEND_FROM;
+  if (!apiKey || !from) {
+    console.error(
+      "sendBusinessGuestInvite: USESEND_API_KEY or USESEND_FROM is not configured on Convex"
+    );
+    return false;
+  }
+
+  const message = renderBusinessGuestInviteEmail({
+    acceptUrl: input.acceptUrl,
+    businessName: input.businessName,
+    siteUrl: input.siteUrl,
+  });
+  const baseUrl = env.USESEND_BASE_URL ?? USESEND_DEFAULT_BASE;
+  const payload = {
+    from,
+    html: message.html,
+    subject: message.subject,
+    text: message.text,
+    to: input.to,
+  };
+
+  try {
+    const response = await fetch(emailsUrl(baseUrl), {
+      body: JSON.stringify(payload),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      console.error("sendBusinessGuestInvite: UseSend request failed", {
+        body,
+        status: response.status,
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("sendBusinessGuestInvite: UseSend request error", error);
     return false;
   }
 };

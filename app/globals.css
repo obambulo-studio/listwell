@@ -3734,3 +3734,122 @@ div.listwell-panel__row:hover {
     scroll-behavior: auto;
   }
 }
+
+.home-footer {
+  padding: 96px 0 56px;
+  margin-top: 24px;
+}
+
+.home-footer__nav {
+  margin: 0;
+}
+
+.home-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-footer__link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--home-ink);
+  text-decoration: none;
+}
+
+.home-footer__link:hover,
+.home-footer__link:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.home-footer__note {
+  margin: 20px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--home-faint);
+}
+
+.home-footer__studio {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.listwell-legal {
+  width: min(42rem, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 8px 0 64px;
+}
+
+.listwell-legal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 20px 20px 28px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.listwell-legal__lede {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.listwell-legal__meta {
+  margin: -12px 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.listwell-legal__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.listwell-legal__heading {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.listwell-legal__list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.listwell-legal__list--services {
+  gap: 12px;
+}
+
+.listwell-legal__body a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.listwell-legal__body a:hover,
+.listwell-legal__body a:focus-visible {
+  color: var(--accent-ink);
+}
+
+.listwell-legal__body p {
+  margin: 0;
+}
+
+.listwell-legal__body strong {
+  font-weight: 600;
+  color: var(--ink);
+}

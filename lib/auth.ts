@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import { fetchAuthQuery } from "./auth-server";
 import { api } from "./convex/server";
-import { accountReportSchema } from "./schema";
-import type { AccountReport, UserRow } from "./schema";
+import { accountPageSchema, accountReportSchema } from "./schema";
+import type { AccountPage, AccountReport, UserRow } from "./schema";
 
 const authUserSchema = z.object({
   _id: z.string(),
@@ -90,4 +90,11 @@ export const listReportsForUser = async (
 ): Promise<AccountReport[]> => {
   const reports = await fetchAuthQuery(api.account.listReports);
   return z.array(accountReportSchema).parse(reports);
+};
+
+export const listAccountForUser = async (
+  _userId: string
+): Promise<AccountPage> => {
+  const page = await fetchAuthQuery(api.account.listAccount);
+  return accountPageSchema.parse(page);
 };

@@ -91,11 +91,17 @@ const cloudflareRequest = async (
   return payload.result;
 };
 
-const readWranglerPublicVars = () => {
+const readWranglerJsonc = () => {
   const wranglerPath = path.join(root, "wrangler.jsonc");
-  const wranglerFile = JSON.parse(
-    readFileSync(wranglerPath, "utf-8").replaceAll(/,(?=\s*[}\]])/gu, "")
-  );
+  const withoutComments = readFileSync(wranglerPath, "utf-8")
+    .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+    .replaceAll(/^\s*\/\/.*$/gmu, "")
+    .replaceAll(/,(?=\s*[}\]])/gu, "");
+  return JSON.parse(withoutComments);
+};
+
+const readWranglerPublicVars = () => {
+  const wranglerFile = readWranglerJsonc();
   if (
     !wranglerFile ||
     typeof wranglerFile !== "object" ||
@@ -139,8 +145,9 @@ const listTriggers = () =>
 const BUILD_COMMAND = "bun run build";
 const PRODUCTION_DEPLOY_COMMAND =
   "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
-const PREVIEW_DEPLOY_COMMAND =
-  "npx wrangler preview --config dist/server/wrangler.json --keep-vars";
+/** Build + preview in one step so preview triggers work even with an empty build command. */
+const PREVIEW_DEPLOY_COMMAND = "node scripts/cf-preview-deploy.mjs";
+const PREVIEW_BUILD_COMMAND = "true";
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
@@ -162,10 +169,10 @@ const isPreviewTrigger = (trigger) => {
   return branches.some((branch) => String(branch).includes("*"));
 };
 
-const updateTriggerCommands = (triggerUuid, deployCommand) =>
+const updateTriggerCommands = (triggerUuid, buildCommand, deployCommand) =>
   cloudflareRequest(`/accounts/${ACCOUNT_ID}/builds/triggers/${triggerUuid}`, {
     body: {
-      build_command: BUILD_COMMAND,
+      build_command: buildCommand,
       deploy_command: deployCommand,
     },
     method: "PATCH",
@@ -184,13 +191,15 @@ const syncTrigger = async (trigger) => {
   if (!triggerUuid) {
     return;
   }
-  const deployCommand = isPreviewTrigger(trigger)
+  const isPreview = isPreviewTrigger(trigger);
+  const buildCommand = isPreview ? PREVIEW_BUILD_COMMAND : BUILD_COMMAND;
+  const deployCommand = isPreview
     ? PREVIEW_DEPLOY_COMMAND
     : PRODUCTION_DEPLOY_COMMAND;
-  await updateTriggerCommands(triggerUuid, deployCommand);
+  await updateTriggerCommands(triggerUuid, buildCommand, deployCommand);
   await upsertBuildEnv(triggerUuid, variables);
   console.log(
-    `Build env synced for trigger: ${triggerName} (${BUILD_COMMAND} → ${deployCommand})`
+    `Build env synced for trigger: ${triggerName} (${buildCommand} → ${deployCommand})`
   );
 };
 

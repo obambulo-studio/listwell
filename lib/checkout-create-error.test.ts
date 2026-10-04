@@ -4,10 +4,10 @@ import { z } from "zod";
 
 import {
   CheckoutPlanNotConfiguredError,
-  CheckoutResponseShapeError,
   checkoutCreateFailureLog,
   checkoutCreateHttpError,
 } from "./checkout-create-error";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 
 describe(checkoutCreateHttpError, () => {
   it("maps missing monthly plan config to 503", () => {
