@@ -2,18 +2,17 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { z } from "zod";
-
 const root = path.join(import.meta.dirname, "..");
 const serverConfigPath = path.join(root, "dist/server/wrangler.json");
 const previewConfigPath = path.join(root, "dist/server/wrangler.preview.json");
 
-const wranglerObjectSchema = z.record(z.string(), z.unknown());
-
 export const prepareWranglerPreviewConfig = () => {
   const raw = readFileSync(serverConfigPath, "utf-8");
   const parsed = JSON.parse(raw);
-  const config = wranglerObjectSchema.parse(parsed);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("dist/server/wrangler.json must be a JSON object");
+  }
+  const config = parsed;
   const previewConfig = { ...config };
   delete previewConfig.routes;
   writeFileSync(
