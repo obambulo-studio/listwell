@@ -5,6 +5,12 @@ const root = path.join(import.meta.dirname, "..");
 const wranglerPath = path.join(root, "wrangler.jsonc");
 
 const source = readFileSync(wranglerPath, "utf-8");
+
+if (source.includes('"main": "dist/server/index.js"')) {
+  console.log("wrangler.jsonc already patched for Workers preview.");
+  process.exit(0);
+}
+
 let patched = source.replace(
   /"main"\s*:\s*"vinext\/server\/fetch-handler"/u,
   '"main": "dist/server/index.js"'
@@ -17,10 +23,10 @@ patched = patched.replace(
   ""
 );
 
+patched = patched.replace(/"services"\s*:\s*\[[\s\S]*?\],/u, "");
+
 if (patched === source) {
-  throw new Error(
-    "Could not patch wrangler.jsonc for Workers preview deploy."
-  );
+  throw new Error("Could not patch wrangler.jsonc for Workers preview deploy.");
 }
 
 writeFileSync(wranglerPath, patched);
