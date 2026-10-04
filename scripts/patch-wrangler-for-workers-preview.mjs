@@ -3,19 +3,27 @@ import path from "node:path";
 
 const root = path.join(import.meta.dirname, "..");
 const wranglerPath = path.join(root, "wrangler.jsonc");
-const workerEntry = path.join(root, "dist/server/index.js");
 
 const source = readFileSync(wranglerPath, "utf-8");
-const patched = source.replace(
+let patched = source.replace(
   /"main"\s*:\s*"vinext\/server\/fetch-handler"/u,
   '"main": "dist/server/index.js"'
 );
 
+patched = patched.replace(/"workers_dev"\s*:\s*false/u, '"workers_dev": true');
+
+patched = patched.replace(
+  /\/\/ Apex only[\s\S]*?"routes"\s*:\s*\[[\s\S]*?\],/u,
+  ""
+);
+
 if (patched === source) {
   throw new Error(
-    "Could not patch wrangler.jsonc main for Workers preview deploy."
+    "Could not patch wrangler.jsonc for Workers preview deploy."
   );
 }
 
 writeFileSync(wranglerPath, patched);
-console.log(`Patched ${wranglerPath} main → dist/server/index.js (${workerEntry})`);
+console.log(
+  "Patched wrangler.jsonc for Workers preview (dist entry, no custom routes)."
+);
