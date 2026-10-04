@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
+import { applyWranglerPreviewBranchPatch } from "./patch-wrangler-preview-branch.mjs";
 import { prepareWranglerPreviewConfig } from "./prepare-wrangler-preview-config.mjs";
 
 const root = path.join(import.meta.dirname, "..");
@@ -42,6 +43,7 @@ const resolvePreviewName = () => {
   return "preview";
 };
 
+applyWranglerPreviewBranchPatch();
 prepareWranglerPreviewConfig();
 
 const previewName = resolvePreviewName();

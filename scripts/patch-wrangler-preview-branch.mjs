@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-const PATCH_MARKER = "listwell-preview-branch-sanitize";
+export const PATCH_MARKER = "listwell-preview-branch-sanitize";
 
 const root = path.join(import.meta.dirname, "..");
 const cliPath = path.join(root, "node_modules/wrangler/wrangler-dist/cli.js");
@@ -61,19 +62,25 @@ function getBranchName2() {
   }
 }`;
 
-const applyPatch = () => {
+export const applyWranglerPreviewBranchPatch = () => {
   let content = readFileSync(cliPath, "utf-8");
   if (content.includes(PATCH_MARKER)) {
-    return;
+    return false;
   }
   if (!content.includes(originalGetBranchName2)) {
     console.warn(
       "wrangler preview branch patch: getBranchName2 shape changed; skip patch"
     );
-    return;
+    return false;
   }
   content = content.replace(originalGetBranchName2, patchedGetBranchName2);
   writeFileSync(cliPath, content);
+  return true;
 };
 
-applyPatch();
+const executedPath = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : "";
+if (import.meta.url === executedPath) {
+  applyWranglerPreviewBranchPatch();
+}
