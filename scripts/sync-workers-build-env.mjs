@@ -91,11 +91,17 @@ const cloudflareRequest = async (
   return payload.result;
 };
 
-const readWranglerPublicVars = () => {
+const readWranglerJsonc = () => {
   const wranglerPath = path.join(root, "wrangler.jsonc");
-  const wranglerFile = JSON.parse(
-    readFileSync(wranglerPath, "utf-8").replaceAll(/,(?=\s*[}\]])/gu, "")
-  );
+  const withoutComments = readFileSync(wranglerPath, "utf-8")
+    .replaceAll(/\/\*[\s\S]*?\*\//gu, "")
+    .replaceAll(/^\s*\/\/.*$/gmu, "")
+    .replaceAll(/,(?=\s*[}\]])/gu, "");
+  return JSON.parse(withoutComments);
+};
+
+const readWranglerPublicVars = () => {
+  const wranglerFile = readWranglerJsonc();
   if (
     !wranglerFile ||
     typeof wranglerFile !== "object" ||
@@ -139,7 +145,7 @@ const listTriggers = () =>
 const BUILD_COMMAND = "bun run cf:build";
 const PRODUCTION_DEPLOY_COMMAND =
   "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
-const PREVIEW_DEPLOY_COMMAND = "bun run cf:preview-deploy";
+const PREVIEW_DEPLOY_COMMAND = "node scripts/cf-preview-deploy.mjs";
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
