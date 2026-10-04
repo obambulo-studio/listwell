@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import { chatSessionSnapshotSchema } from "./chat-onboarding";
 import type { ChatSessionSnapshot } from "./chat-onboarding";
 
@@ -5,6 +7,21 @@ const STORAGE_KEY = "listwell-businesses";
 export const CHAT_SESSION_STORAGE_KEY = "listwell-chat-session";
 /** Set on marketing home before navigating to `/chat` for the crossfade entry. */
 export const LISTWELL_PENDING_BUSINESS_KEY = "listwell-pending-business-name";
+
+export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY =
+  "listwell-account-background-scan";
+
+export const LISTWELL_CHAT_SESSION_EVENT = "listwell:chat-session";
+
+export interface AccountBackgroundScanState {
+  businessName: string;
+  status: "running";
+}
+
+const accountBackgroundScanSchema = z.object({
+  businessName: z.string().min(1),
+  status: z.literal("running"),
+});
 
 const zStringArray = {
   parse(value: unknown): string[] {
@@ -70,6 +87,7 @@ export const saveChatSession = (snapshot: ChatSessionSnapshot): void => {
       CHAT_SESSION_STORAGE_KEY,
       JSON.stringify(snapshot)
     );
+    window.dispatchEvent(new Event(LISTWELL_CHAT_SESSION_EVENT));
   } catch {
     // Ignore quota or privacy mode errors.
   }
@@ -80,6 +98,7 @@ export const clearChatSession = (): void => {
     return;
   }
   window.localStorage.removeItem(CHAT_SESSION_STORAGE_KEY);
+  window.dispatchEvent(new Event(LISTWELL_CHAT_SESSION_EVENT));
 };
 
 export const takePendingBusinessName = (): string | null => {
@@ -111,3 +130,53 @@ export const isRestorableChatSession = (
   snapshot.phase !== "business_name" ||
   snapshot.messages.length > 1 ||
   Boolean(snapshot.messages[0]?.userAnswer);
+
+export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT =
+  "listwell:account-background-scan";
+
+export const readAccountBackgroundScan =
+  (): AccountBackgroundScanState | null => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    try {
+      const raw = window.sessionStorage.getItem(
+        LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY
+      );
+      if (!raw) {
+        return null;
+      }
+      const parsed = accountBackgroundScanSchema.safeParse(JSON.parse(raw));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  };
+
+export const startAccountBackgroundScan = (businessName: string): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const trimmed = businessName.trim();
+  if (!trimmed) {
+    return;
+  }
+  clearChatSession();
+  const state: AccountBackgroundScanState = {
+    businessName: trimmed,
+    status: "running",
+  };
+  window.sessionStorage.setItem(
+    LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY,
+    JSON.stringify(state)
+  );
+  window.dispatchEvent(new Event(LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT));
+};
+
+export const clearAccountBackgroundScan = (): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.removeItem(LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY);
+  window.dispatchEvent(new Event(LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT));
+};

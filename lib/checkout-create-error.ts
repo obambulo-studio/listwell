@@ -7,20 +7,12 @@ import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
 import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import { z } from "zod";
 
+import { CheckoutPlanNotConfiguredError } from "./checkout-plan-not-configured-error";
 import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import type { CheckoutPlan } from "./schema";
 
+export { CheckoutPlanNotConfiguredError } from "./checkout-plan-not-configured-error";
 export { CheckoutResponseShapeError } from "./checkout-response-shape-error";
-
-export class CheckoutPlanNotConfiguredError extends Error {
-  readonly plan: CheckoutPlan;
-
-  constructor(plan: CheckoutPlan) {
-    super(`Checkout plan not configured: ${plan}`);
-    this.name = "CheckoutPlanNotConfiguredError";
-    this.plan = plan;
-  }
-}
 
 const planNotConfiguredMessage = (plan: CheckoutPlan): string => {
   if (plan === "monthly") {

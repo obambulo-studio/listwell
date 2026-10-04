@@ -206,8 +206,8 @@ button:focus-visible {
 
 .listwell-page-controls--dock {
   position: absolute;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  right: max(16px, env(safe-area-inset-right));
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
   z-index: 4;
 }
 
@@ -292,8 +292,10 @@ button:focus-visible {
 }
 
 .listwell-page-controls--dock .listwell-page-controls__popover {
-  left: auto;
-  right: 0;
+  top: calc(100% + 8px);
+  bottom: auto;
+  left: 0;
+  right: auto;
 }
 
 .listwell-page-controls__popover-label {
@@ -734,6 +736,11 @@ button:focus-visible {
   letter-spacing: -0.02em;
   line-height: 1.2;
   color: var(--ink);
+  text-decoration: none;
+}
+
+.listwell-chat__starter-title:hover {
+  color: var(--ink);
 }
 
 .listwell-chat__starter-about {
@@ -1003,7 +1010,7 @@ button:focus-visible {
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   line-height: 1.25;
   height: 32px;
   padding: 0;
@@ -2194,6 +2201,47 @@ div.listwell-panel__row:hover {
 
 .listwell-page-home:hover {
   background: var(--hover);
+}
+
+.listwell-account-scan-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: min(var(--listwell-column), 100%);
+  margin: 0 auto 12px;
+  padding: 0 4px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.listwell-account-scan-status__spinner {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--ink);
+  border-radius: 999px;
+  animation: listwell-spin 0.7s linear infinite;
+}
+
+.listwell-account-background-scan {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes listwell-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .listwell-check-body {

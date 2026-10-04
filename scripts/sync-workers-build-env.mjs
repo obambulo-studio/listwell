@@ -142,7 +142,7 @@ const listTriggers = () =>
     `/accounts/${ACCOUNT_ID}/builds/workers/${WORKER_SCRIPT_ID}/triggers`
   );
 
-const BUILD_COMMAND = "bun run cf:build";
+const BUILD_COMMAND = "bun run build";
 const PRODUCTION_DEPLOY_COMMAND =
   "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
 /** Build + preview in one step so preview triggers work even with an empty build command. */
