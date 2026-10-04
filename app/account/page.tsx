@@ -1,4 +1,4 @@
-import { ChevronRightIcon, UserIcon } from "@hugeicons/core-free-icons";
+import { ChevronRightIcon } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { z } from "zod";
@@ -6,8 +6,7 @@ import { z } from "zod";
 import { AccountBusinessRowMenu } from "@/components/account-business-row-menu";
 import { ButtonLink } from "@/components/atoms/button";
 import { Icon } from "@/components/icon";
-import { AddBusinessLink } from "@/components/page-controls";
-import { buttonVariants } from "@/components/ui/button";
+import { AccountPageActions } from "@/components/account-page-actions";
 import {
   accountReportMeta,
   accountScoreDelta,
@@ -60,26 +59,7 @@ const AccountMessage = ({ children }: { children: ReactNode }) => (
   </AccountCard>
 );
 
-const accountButtonClass = "h-11 px-4";
-
-const accountActions = (
-  <div className="listwell-page__actions">
-    <AddBusinessLink
-      className={cn(
-        buttonVariants({ size: "lg", variant: "default" }),
-        accountButtonClass
-      )}
-    />
-    <ButtonLink
-      className={accountButtonClass}
-      href="/account/profile"
-      variant="secondary"
-    >
-      <Icon icon={UserIcon} size={16} />
-      Profile
-    </ButtonLink>
-  </div>
-);
+const accountActions = <AccountPageActions />;
 
 const billingNoticeSchema = z.enum(["unconfigured", "missing", "error"]);
 

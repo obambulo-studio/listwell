@@ -29,7 +29,7 @@ import {
   HOMEPAGE_CHECK_COUNT,
 } from "@/lib/home-checks-display";
 import type { HomepageCheckGridIcon } from "@/lib/home-checks-display";
-import { listwellChatHref } from "@/lib/listwell-routes";
+import { listwellChatHref, listwellWordmarkHref } from "@/lib/listwell-routes";
 import {
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
@@ -412,7 +412,10 @@ export const HomeLanding = ({
       <header className="home-nav">
         <div className="home-nav__inner">
           <div className="home-nav__brand">
-            <Link className="home-nav__product" href="/">
+            <Link
+              className="home-nav__product"
+              href={listwellWordmarkHref(signedIn)}
+            >
               <Icon
                 aria-hidden
                 color="var(--accent)"

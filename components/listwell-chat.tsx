@@ -17,6 +17,7 @@ import useSWR from "swr";
 import { Button } from "@/components/atoms/button";
 import { ReportSummary } from "@/components/chat-report-insight";
 import { HomeLanding } from "@/components/home-page";
+import { ListwellHomeLink } from "@/components/listwell-home-link";
 import {
   ComposerSubmit,
   FormActions,
@@ -747,7 +748,7 @@ const PromptCard = ({
         style={{ animationDelay: messageEnterDelay(index) }}
       >
         <div className="listwell-chat__starter-chrome">
-          <p className="listwell-chat__starter-title">Listwell</p>
+          <ListwellHomeLink className="listwell-chat__starter-title" />
           <QuietButton
             type="button"
             className="listwell-chat__starter-about h-auto p-0 text-sm"
