@@ -3,7 +3,7 @@ description:
 globs:
 alwaysApply: true
 ---
-- Product name is Listwell. Do not use Visimate in UI, copy, metadata, package name, titles, or README. Upstream copyright stays in LICENSE only.
+- Product name is Listwell in UI, copy, metadata, package name, titles, and README. Upstream copyright stays in LICENSE only.
 - Listwell is proprietary software owned by obambulo studio, not open source.
 - Use `bun` to install node packages.
 - Next.js App Router on Cloudflare Workers via vinext (wrangler).
