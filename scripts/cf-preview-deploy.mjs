@@ -77,10 +77,11 @@ applyWranglerPreviewBranchPatch();
 prepareWranglerPreviewConfig();
 
 const previewName = resolvePreviewName();
+const wranglerCli = path.join(root, "node_modules/wrangler/bin/wrangler.js");
 const result = spawnSync(
-  "npx",
+  "node",
   [
-    "wrangler",
+    wranglerCli,
     "preview",
     "--config",
     "dist/server/wrangler.preview.json",
