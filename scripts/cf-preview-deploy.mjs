@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { applyWranglerPreviewBranchPatch } from "./patch-wrangler-preview-branch.mjs";
 import { prepareWranglerPreviewConfig } from "./prepare-wrangler-preview-config.mjs";
+import { installWranglerBinWrapper } from "./wrangler-bin-wrapper.mjs";
 
 const root = path.join(import.meta.dirname, "..");
 const serverConfigPath = path.join(root, "dist/server/wrangler.json");
