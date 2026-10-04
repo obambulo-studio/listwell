@@ -32,6 +32,9 @@ export const stripProductionOnlyWranglerFields = (config) => {
     }
   }
 
+  // Preview deploy config only (production wrangler.jsonc keeps workers_dev false).
+  previewConfig.workers_dev = true;
+
   return previewConfig;
 };
 
