@@ -17,11 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  apiErrorSchema,
-  businessGuestListSchema,
-  type BusinessGuestList,
-} from "@/lib/schema";
+import { apiErrorSchema, businessGuestListSchema } from "@/lib/schema";
+import type { BusinessGuestList, BusinessGuestRow } from "@/lib/schema";
 
 const guestApiError = (payload: unknown, fallback: string): string => {
   const parsed = apiErrorSchema.safeParse(payload);
@@ -58,10 +55,10 @@ const inviteGuest = async (
 
 const revokeGuest = async (
   businessId: string,
-  email: string
+  guestEmail: string
 ): Promise<BusinessGuestList> => {
   const response = await fetch(`/api/businesses/${businessId}/guests`, {
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email: guestEmail }),
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     method: "DELETE",
@@ -81,6 +78,49 @@ const statusLabel = (status: "pending" | "active" | "revoked"): string => {
     return "Active";
   }
   return "Removed";
+};
+
+const GuestAccessList = ({
+  busy,
+  guests,
+  isLoading,
+  onRemove,
+}: {
+  busy: boolean;
+  guests: BusinessGuestRow[];
+  isLoading: boolean;
+  onRemove: (guestEmail: string) => void;
+}) => {
+  if (isLoading) {
+    return <p className="listwell-panel__text">Loading guests…</p>;
+  }
+  if (guests.length === 0) {
+    return <p className="listwell-panel__note">No guests yet.</p>;
+  }
+  return (
+    <ul className="listwell-panel__rows" aria-label="Guest access">
+      {guests.map((guest) => (
+        <li key={guest.id} className="listwell-panel__row">
+          <span className="listwell-panel__row-main">
+            <span className="listwell-panel__row-title">{guest.email}</span>
+            <span className="listwell-panel__row-meta">
+              {statusLabel(guest.status)}
+            </span>
+          </span>
+          <button
+            className="listwell-account-menu__item"
+            disabled={busy}
+            onClick={() => {
+              onRemove(guest.email);
+            }}
+            type="button"
+          >
+            Remove
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 };
 
 export const BusinessGuestAccessDialog = ({
@@ -121,18 +161,17 @@ export const BusinessGuestAccessDialog = ({
             ? inviteError.message
             : "Could not send invite"
         );
-      } finally {
-        setBusy(false);
       }
+      setBusy(false);
     })();
   };
 
-  const removeGuest = (email: string) => {
+  const removeGuestAccess = (guestEmail: string) => {
     void (async () => {
       setBusy(true);
       setError(null);
       try {
-        const next = await revokeGuest(businessId, email);
+        const next = await revokeGuest(businessId, guestEmail);
         await mutate(next, { revalidate: false });
       } catch (revokeError) {
         setError(
@@ -140,9 +179,8 @@ export const BusinessGuestAccessDialog = ({
             ? revokeError.message
             : "Could not remove access"
         );
-      } finally {
-        setBusy(false);
       }
+      setBusy(false);
     })();
   };
 
@@ -198,36 +236,12 @@ export const BusinessGuestAccessDialog = ({
           </QuietButton>
         </FormActions>
         <div className="listwell-panel__body">
-          {isLoading ? (
-            <p className="listwell-panel__text">Loading guests…</p>
-          ) : guests.length === 0 ? (
-            <p className="listwell-panel__note">No guests yet.</p>
-          ) : (
-            <ul className="listwell-panel__rows" aria-label="Guest access">
-              {guests.map((guest) => (
-                <li key={guest.id} className="listwell-panel__row">
-                  <span className="listwell-panel__row-main">
-                    <span className="listwell-panel__row-title">
-                      {guest.email}
-                    </span>
-                    <span className="listwell-panel__row-meta">
-                      {statusLabel(guest.status)}
-                    </span>
-                  </span>
-                  <button
-                    className="listwell-account-menu__item"
-                    disabled={busy}
-                    onClick={() => {
-                      removeGuest(guest.email);
-                    }}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <GuestAccessList
+            busy={busy}
+            guests={guests}
+            isLoading={isLoading}
+            onRemove={removeGuestAccess}
+          />
         </div>
       </DialogContent>
     </Dialog>

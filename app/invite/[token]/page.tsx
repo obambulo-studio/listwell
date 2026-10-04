@@ -3,8 +3,7 @@ import { z } from "zod";
 
 import { BusinessGuestInviteAccept } from "@/components/business-guest-invite-accept";
 import { getSessionUser } from "@/lib/auth";
-import { convexPublicQuery } from "@/lib/convex/server";
-import { api } from "@/lib/convex/server";
+import { api, convexPublicQuery } from "@/lib/convex/server";
 import { businessGuestInvitePreviewSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +26,7 @@ const InvitePage = async ({
     api.businessGuests.previewByToken,
     { token }
   );
-  const previewParsed =
-    businessGuestInvitePreviewSchema.safeParse(previewRaw);
+  const previewParsed = businessGuestInvitePreviewSchema.safeParse(previewRaw);
   if (!previewParsed.success) {
     notFound();
   }

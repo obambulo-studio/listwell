@@ -4,6 +4,7 @@ import { z } from "zod";
 import { CheckoutReturnRedirect } from "@/components/checkout-return-redirect";
 import { ReportClient } from "@/components/report-client";
 import { runBusinessCheckBatch } from "@/lib/audit-jobs";
+import { resolveReportViewRole } from "@/lib/business-guest-access";
 import { checksForCategory } from "@/lib/checks/registry";
 import { pointsFor } from "@/lib/checks/types";
 import {
@@ -13,7 +14,6 @@ import {
   hasAuditKv,
   probeConvexBusinesses,
 } from "@/lib/data";
-import { resolveReportViewRole } from "@/lib/business-guest-access";
 import { monthlyResearchVisible } from "@/lib/entitlements-access";
 import { getReportAccess } from "@/lib/polar-server";
 import { loadResearchView } from "@/lib/research-load";

@@ -22,8 +22,8 @@ export default defineSchema({
     createdAt: v.string(),
     guestUserId: v.optional(v.string()),
     inviteToken: v.string(),
-    inviteeEmail: v.string(),
     invitedByUserId: v.string(),
+    inviteeEmail: v.string(),
     revokedAt: v.optional(v.string()),
     status: v.union(
       v.literal("pending"),
@@ -32,12 +32,11 @@ export default defineSchema({
     ),
     updatedAt: v.string(),
   })
-    .index("by_businessExternalId", ["businessExternalId"])
     .index("by_guestUserId", ["guestUserId"])
     .index("by_inviteToken", ["inviteToken"])
     .index("by_inviteeEmail_and_business", [
-      "inviteeEmail",
       "businessExternalId",
+      "inviteeEmail",
     ]),
 
   businesses: defineTable({

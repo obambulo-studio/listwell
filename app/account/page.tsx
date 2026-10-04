@@ -221,9 +221,10 @@ const AccountPage = async ({
     // Linking is best-effort. The account list still loads.
   }
   try {
-    const page = await listAccountForUser(user.id);
-    reports = page.reports;
-    sharedReports = page.sharedReports;
+    const { reports: ownedReports, sharedReports: guestReports } =
+      await listAccountForUser(user.id);
+    reports = ownedReports;
+    sharedReports = guestReports;
   } catch {
     return (
       <AccountMessage>

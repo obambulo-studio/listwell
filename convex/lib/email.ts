@@ -1,6 +1,6 @@
 import { renderAuthCodeEmail } from "../../emails/auth-code";
-import { renderBusinessGuestInviteEmail } from "../../emails/business-guest-invite";
 import type { AuthCodeType } from "../../emails/auth-code";
+import { renderBusinessGuestInviteEmail } from "../../emails/business-guest-invite";
 import { env } from "../_generated/server";
 
 const USESEND_DEFAULT_BASE = "https://app.usesend.com";

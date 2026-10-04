@@ -1,9 +1,8 @@
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
-import { internalAction, query } from "./_generated/server";
+import { env, internalAction, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
-import { env } from "./_generated/server";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { sendBusinessGuestInvite } from "./lib/email";
 import { requireInternalSecret } from "./lib/internal";
@@ -14,9 +13,7 @@ const nowIso = (): string => new Date().toISOString();
 const newInviteToken = (): string => {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-  return [...bytes]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
 const authSiteUrl = (): string => {
@@ -89,7 +86,7 @@ export const listForBusiness = authedQuery({
     }
     const rows = await ctx.db
       .query("businessGuests")
-      .withIndex("by_businessExternalId", (q) =>
+      .withIndex("by_inviteeEmail_and_business", (q) =>
         q.eq("businessExternalId", args.businessExternalId)
       )
       .collect();
@@ -143,7 +140,7 @@ export const invite = authedMutation({
 
     const existingRows = await ctx.db
       .query("businessGuests")
-      .withIndex("by_businessExternalId", (q) =>
+      .withIndex("by_inviteeEmail_and_business", (q) =>
         q.eq("businessExternalId", args.businessExternalId)
       )
       .collect();
@@ -158,9 +155,11 @@ export const invite = authedMutation({
     let rowId: string;
 
     if (existingForEmail) {
-      inviteToken = existingForEmail.inviteToken;
-      rowId = existingForEmail._id;
-      await ctx.db.patch(existingForEmail._id, {
+      const { _id: existingRowId, inviteToken: existingInviteToken } =
+        existingForEmail;
+      inviteToken = existingInviteToken;
+      rowId = existingRowId;
+      await ctx.db.patch("businessGuests", existingRowId, {
         invitedByUserId: user._id,
         updatedAt: timestamp,
       });
@@ -170,8 +169,8 @@ export const invite = authedMutation({
         businessExternalId: args.businessExternalId,
         createdAt: timestamp,
         inviteToken,
-        inviteeEmail,
         invitedByUserId: user._id,
+        inviteeEmail,
         status: "pending",
         updatedAt: timestamp,
       });
@@ -203,8 +202,8 @@ export const revoke = authedMutation({
       .query("businessGuests")
       .withIndex("by_inviteeEmail_and_business", (q) =>
         q
-          .eq("inviteeEmail", inviteeEmail)
           .eq("businessExternalId", args.businessExternalId)
+          .eq("inviteeEmail", inviteeEmail)
       )
       .collect();
     const row = rows.find(
@@ -223,7 +222,7 @@ export const revoke = authedMutation({
       throw new Error("Forbidden");
     }
     const timestamp = nowIso();
-    await ctx.db.patch(row._id, {
+    await ctx.db.patch("businessGuests", row._id, {
       revokedAt: timestamp,
       status: "revoked",
       updatedAt: timestamp,
@@ -281,12 +280,12 @@ export const acceptByToken = authedMutation({
     }
     if (row.status === "active" && row.guestUserId === user._id) {
       return {
-        businessExternalId: row.businessExternalId,
         alreadyAccepted: true as const,
+        businessExternalId: row.businessExternalId,
       };
     }
     const timestamp = nowIso();
-    await ctx.db.patch(row._id, {
+    await ctx.db.patch("businessGuests", row._id, {
       acceptedAt: timestamp,
       guestUserId: user._id,
       status: "active",
@@ -360,6 +359,18 @@ export const sendInviteEmail = internalAction({
   },
 });
 
+const guestPlanFromKind = (
+  activeKind: "report_once" | "report_monthly" | null
+): "preview" | "once" | "monthly" => {
+  if (activeKind === "report_monthly") {
+    return "monthly";
+  }
+  if (activeKind === "report_once") {
+    return "once";
+  }
+  return "preview";
+};
+
 const upsertGuestReport = async (
   ctx: Pick<QueryCtx, "db">,
   businessExternalId: string,
@@ -387,15 +398,12 @@ const upsertGuestReport = async (
   if (!business) {
     return;
   }
-  const entitlement = await activeEntitlementForBusiness(ctx, businessExternalId);
-  const activeKind =
-    entitlement?.status === "active" ? entitlement.kind : null;
-  const plan =
-    activeKind === "report_monthly"
-      ? ("monthly" as const)
-      : activeKind === "report_once"
-        ? ("once" as const)
-        : ("preview" as const);
+  const entitlement = await activeEntitlementForBusiness(
+    ctx,
+    businessExternalId
+  );
+  const activeKind = entitlement?.status === "active" ? entitlement.kind : null;
+  const plan = guestPlanFromKind(activeKind);
   const existing = byExternalId.get(businessExternalId);
   if (existing) {
     existing.owned = false;
@@ -423,19 +431,19 @@ const upsertGuestReport = async (
   });
 };
 
-type GuestAccountReportRow = {
+interface GuestAccountReportRow {
   id: string;
-  name: string;
-  owned: boolean;
-  unlocked: boolean;
-  plan: "preview" | "once" | "monthly";
   lastScan: {
-    score: number | null;
     finishedAt: string | null;
     previousScore: number | null;
+    score: number | null;
   } | null;
+  name: string;
   nextScanAt: string | null;
-};
+  owned: boolean;
+  plan: "preview" | "once" | "monthly";
+  unlocked: boolean;
+}
 
 /** Guest businesses for the account page shared list. */
 export const listGuestReportsForUser = async (
@@ -447,11 +455,11 @@ export const listGuestReportsForUser = async (
     .query("businessGuests")
     .withIndex("by_guestUserId", (q) => q.eq("guestUserId", userId))
     .collect();
-  for (const row of rows) {
-    if (row.status !== "active") {
-      continue;
-    }
-    await upsertGuestReport(ctx, row.businessExternalId, byExternalId);
-  }
+  const activeRows = rows.filter((row) => row.status === "active");
+  await Promise.all(
+    activeRows.map((row) =>
+      upsertGuestReport(ctx, row.businessExternalId, byExternalId)
+    )
+  );
   return [...byExternalId.values()];
 };

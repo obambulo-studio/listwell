@@ -11,10 +11,10 @@ describe("guest report access", () => {
       sessionUserId: "guest-1",
       unlocked: true,
     });
-    expect(purchaserSessionRequired).toBe(true);
+    expect(purchaserSessionRequired).toBeTruthy();
 
     const guestMember = true;
     const sessionRequired = guestMember ? false : purchaserSessionRequired;
-    expect(sessionRequired).toBe(false);
+    expect(sessionRequired).toBeFalsy();
   });
 });

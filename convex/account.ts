@@ -7,19 +7,19 @@ import { accountReportValidator } from "./lib/responseValidators";
 
 type ReportPlan = "preview" | "once" | "monthly";
 
-type AccountReportRow = {
+interface AccountReportRow {
   id: string;
-  name: string;
-  owned: boolean;
-  unlocked: boolean;
-  plan: ReportPlan;
   lastScan: {
-    score: number | null;
     finishedAt: string | null;
     previousScore: number | null;
+    score: number | null;
   } | null;
+  name: string;
   nextScanAt: string | null;
-};
+  owned: boolean;
+  plan: ReportPlan;
+  unlocked: boolean;
+}
 
 const planFromKind = (
   activeKind: "report_once" | "report_monthly" | null
@@ -97,8 +97,7 @@ const buildPrimaryReports = async (
     if (activeKind) {
       existing.unlocked = true;
       existing.plan = plan;
-      existing.nextScanAt =
-        activeKind === "report_monthly" ? nextScanAt : null;
+      existing.nextScanAt = activeKind === "report_monthly" ? nextScanAt : null;
     }
   };
 
@@ -136,9 +135,7 @@ const buildPrimaryReports = async (
     upsert(
       business,
       activeKind,
-      entitlement.status === "active"
-        ? (entitlement.nextScanAt ?? null)
-        : null,
+      entitlement.status === "active" ? (entitlement.nextScanAt ?? null) : null,
       business.userId === userId
     );
   }

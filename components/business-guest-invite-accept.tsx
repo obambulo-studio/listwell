@@ -54,18 +54,16 @@ export const BusinessGuestInviteAccept = ({
         const payload: unknown = await response.json().catch(() => null);
         if (!response.ok) {
           const parsed = apiErrorSchema.safeParse(payload);
-          throw new Error(
+          setError(
             parsed.success ? parsed.data.error : "Could not accept invite"
           );
+          setBusy(false);
+          return;
         }
         const result = acceptResponseSchema.parse(payload);
         push(`/${result.businessExternalId}`);
-      } catch (acceptError) {
-        setError(
-          acceptError instanceof Error
-            ? acceptError.message
-            : "Could not accept invite"
-        );
+      } catch {
+        setError("Could not accept invite");
         setBusy(false);
       }
     })();

@@ -27,6 +27,21 @@ export const isActiveBusinessGuest = async (
   }
 };
 
+export const clearsSessionRequiredForGuest = async (input: {
+  businessId: string;
+  sessionRequired: boolean;
+  sessionUserId: string | null;
+}): Promise<boolean> => {
+  if (!input.sessionRequired || !input.sessionUserId) {
+    return input.sessionRequired;
+  }
+  const guest = await isActiveBusinessGuest(
+    input.businessId,
+    input.sessionUserId
+  );
+  return guest ? false : input.sessionRequired;
+};
+
 export const resolveReportViewRole = async (
   businessId: string
 ): Promise<"owner" | "guest" | "public"> => {
