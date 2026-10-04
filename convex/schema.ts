@@ -168,8 +168,5 @@ export default defineSchema({
     eventCount: v.number(),
     month: v.string(),
     updatedAt: v.string(),
-  }).index("by_businessExternalId_and_month", [
-    "businessExternalId",
-    "month",
-  ]),
+  }).index("by_businessExternalId_and_month", ["businessExternalId", "month"]),
 });

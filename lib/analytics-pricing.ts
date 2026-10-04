@@ -75,9 +75,7 @@ export type AnalyticsCheckoutPlan = z.infer<typeof analyticsCheckoutPlanSchema>;
 export const analyticsCheckoutPlanFromBand = (
   bandId: AnalyticsBandId
 ): AnalyticsCheckoutPlan =>
-  analyticsCheckoutPlanSchema.parse(
-    analyticsBandById(bandId).entitlementKind
-  );
+  analyticsCheckoutPlanSchema.parse(analyticsBandById(bandId).entitlementKind);
 
 export const isAnalyticsEntitlementKind = (
   kind: string

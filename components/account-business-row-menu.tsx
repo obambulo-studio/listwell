@@ -262,7 +262,11 @@ const AccountBusinessRowMenuPanel = ({
               onClose();
             }}
           >
-            <Icon className={menuIconClass} icon={ChartIncreaseIcon} size={15} />
+            <Icon
+              className={menuIconClass}
+              icon={ChartIncreaseIcon}
+              size={15}
+            />
             Web analytics
           </Link>
         ) : null}

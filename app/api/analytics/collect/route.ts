@@ -25,10 +25,13 @@ const recordPageview = async (
   businessExternalId: string,
   ingestKey: string
 ): Promise<boolean> => {
-  const result = await getConvexClient().mutation(api.webAnalytics.recordEvent, {
-    businessExternalId,
-    ingestKey,
-  });
+  const result = await getConvexClient().mutation(
+    api.webAnalytics.recordEvent,
+    {
+      businessExternalId,
+      ingestKey,
+    }
+  );
   return result.accepted;
 };
 
@@ -102,6 +105,9 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const accepted = await recordPageview(parsed.data.site, parsed.data.ingestKey);
+  const accepted = await recordPageview(
+    parsed.data.site,
+    parsed.data.ingestKey
+  );
   return NextResponse.json({ ok: accepted }, { status: accepted ? 200 : 403 });
 };

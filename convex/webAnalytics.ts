@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 
-import { analyticsMonthUtc } from "./lib/analyticsMonth";
-import { authedQuery } from "./lib/customFunctions";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { analyticsMonthUtc } from "./lib/analyticsMonth";
+import { authedQuery } from "./lib/customFunctions";
 import { requireInternalSecret } from "./lib/internal";
 
 const analyticsEntitlementKinds = [
@@ -14,9 +14,7 @@ const analyticsEntitlementKinds = [
 
 type AnalyticsEntitlementKind = (typeof analyticsEntitlementKinds)[number];
 
-const isAnalyticsKind = (
-  kind: string
-): kind is AnalyticsEntitlementKind =>
+const isAnalyticsKind = (kind: string): kind is AnalyticsEntitlementKind =>
   (analyticsEntitlementKinds as readonly string[]).includes(kind);
 
 const nowIso = (): string => new Date().toISOString();
@@ -117,7 +115,9 @@ export const getUsageForMonth = query({
     const row = await ctx.db
       .query("webAnalyticsUsage")
       .withIndex("by_businessExternalId_and_month", (q) =>
-        q.eq("businessExternalId", args.businessExternalId).eq("month", args.month)
+        q
+          .eq("businessExternalId", args.businessExternalId)
+          .eq("month", args.month)
       )
       .unique();
     return row?.eventCount ?? 0;

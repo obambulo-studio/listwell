@@ -126,16 +126,21 @@ export const AccountWebAnalytics = ({
           ) : (
             <>
               <p className="listwell-panel__text">
-                Lightweight pageview counting for this business. Billed separately
-                from your visibility report. Pick a monthly event band:
+                Lightweight pageview counting for this business. Billed
+                separately from your visibility report. Pick a monthly event
+                band:
               </p>
               <ul className="listwell-analytics-bands">
                 {ANALYTICS_BANDS.map((band) => {
                   const configured = availableBands.includes(band.bandId);
                   return (
-                    <li key={band.bandId} className="listwell-analytics-bands__row">
+                    <li
+                      key={band.bandId}
+                      className="listwell-analytics-bands__row"
+                    >
                       <span className="listwell-analytics-bands__label">
-                        {formatEventLimit(band.eventLimitPerMonth)} events / month
+                        {formatEventLimit(band.eventLimitPerMonth)} events /
+                        month
                       </span>
                       <span className="listwell-analytics-bands__price">
                         {band.displayPrice}
@@ -150,7 +155,9 @@ export const AccountWebAnalytics = ({
                           Choose plan
                         </Button>
                       ) : (
-                        <span className="listwell-panel__note">Not available</span>
+                        <span className="listwell-panel__note">
+                          Not available
+                        </span>
                       )}
                     </li>
                   );

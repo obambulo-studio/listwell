@@ -1,13 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 
 import { AccountWebAnalytics } from "@/components/account-web-analytics";
+import { configuredAnalyticsBandIds } from "@/lib/analytics-catalog";
 import { getSessionUser } from "@/lib/auth";
 import { fetchAuthQuery } from "@/lib/auth-server";
-import { configuredAnalyticsBandIds } from "@/lib/analytics-catalog";
 import { api } from "@/lib/convex/server";
 import { getPolarConfig } from "@/lib/polar-server";
-import { listwellSiteUrl } from "@/lib/site-metadata";
 import { firstSearchParam } from "@/lib/query-params";
+import { listwellSiteUrl } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,7 @@ const AccountAnalyticsPage = async ({
 }) => {
   const { id: businessId } = await params;
   const query = await searchParams;
-  const checkoutReturned =
-    firstSearchParam(query.checkout_returned) === "1";
+  const checkoutReturned = firstSearchParam(query.checkout_returned) === "1";
 
   const user = await getSessionUser();
   if (!user) {

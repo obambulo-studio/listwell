@@ -1,16 +1,14 @@
-import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
-import { HTTPValidationError } from "@polar-sh/sdk/models/errors/httpvalidationerror";
-import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import {
   ConnectionError,
   RequestTimeoutError,
 } from "@polar-sh/sdk/models/errors/httpclienterrors";
+import { HTTPValidationError } from "@polar-sh/sdk/models/errors/httpvalidationerror";
+import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
+import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import { z } from "zod";
 
-import type { CheckoutPlan } from "./schema";
 import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
-
-export { CheckoutResponseShapeError };
+import type { CheckoutPlan } from "./schema";
 
 export class CheckoutPlanNotConfiguredError extends Error {
   readonly plan: CheckoutPlan;

@@ -16,9 +16,9 @@ describe("analytics pricing bands", () => {
   });
 
   it("maps entitlement kinds to event limits", () => {
-    expect(analyticsBandByEntitlementKind("analytics_10k").eventLimitPerMonth).toBe(
-      10_000
-    );
+    expect(
+      analyticsBandByEntitlementKind("analytics_10k").eventLimitPerMonth
+    ).toBe(10_000);
     expect(formatEventLimit(1_000_000)).toBe("1,000,000");
   });
 });

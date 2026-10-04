@@ -299,7 +299,13 @@ Account owners open **Web analytics** from the business menu on `/account`, choo
 Example snippet (values come from the account page after purchase):
 
 ```html
-<script async defer src="https://listwell.dev/lw-analytics.js" data-site="YOUR_BUSINESS_ID" data-key="YOUR_INGEST_KEY"></script>
+<script
+  async
+  defer
+  src="https://listwell.dev/lw-analytics.js"
+  data-site="YOUR_BUSINESS_ID"
+  data-key="YOUR_INGEST_KEY"
+></script>
 ```
 
 ## Create an audit

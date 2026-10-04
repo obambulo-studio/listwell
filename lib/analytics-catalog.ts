@@ -1,7 +1,9 @@
 import type { AnalyticsBandId } from "./analytics-pricing";
 import { getPolarConfig } from "./polar-server";
 
-export const configuredAnalyticsBandIds = async (): Promise<AnalyticsBandId[]> => {
+export const configuredAnalyticsBandIds = async (): Promise<
+  AnalyticsBandId[]
+> => {
   const config = await getPolarConfig();
   if (!config) {
     return [];
