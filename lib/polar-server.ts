@@ -13,6 +13,7 @@ import {
   normalizeEmail,
 } from "./auth";
 import { fetchAuthMutation } from "./auth-server";
+import { clearsSessionRequiredForGuest } from "./business-guest-access";
 import {
   CheckoutPlanNotConfiguredError,
   CheckoutResponseShapeError,
@@ -184,9 +185,7 @@ const attachUnlockedPurchase = async (
   return await getActiveEntitlementOwner(businessId);
 };
 
-export const getReportAccess = async (
-  businessId: string
-): Promise<EntitlementState> => {
+const loadReportAccessContext = async (businessId: string) => {
   const sessionUser = await getSessionUser();
   const [config, authEnabled, owner, paymentsDisabledFlag] = await Promise.all([
     getPolarConfig(),
@@ -213,15 +212,17 @@ export const getReportAccess = async (
       ? purchaserEmail
       : null);
   const maskedEmail = emailToMask ? maskEmail(emailToMask) : null;
-  const sessionRequired = reportSessionRequired({
-    authEnabled,
-    ownerUserId,
-    purchaserBound,
+  const sessionRequired = await clearsSessionRequiredForGuest({
+    businessId,
+    sessionRequired: reportSessionRequired({
+      authEnabled,
+      ownerUserId,
+      purchaserBound,
+      sessionUserId: sessionUser?.id ?? null,
+      unlocked,
+    }),
     sessionUserId: sessionUser?.id ?? null,
-    unlocked,
   });
-  const monthlyAvailable = Boolean(config?.productReportMonthly);
-  const yearlyAvailable = Boolean(config?.productReportYearly);
   const polarConfigured = Boolean(config);
   const waived = fixStepsWithoutPayment({
     intentionallyDisabled: paymentsDisabledFlag,
@@ -229,32 +230,52 @@ export const getReportAccess = async (
     polarConfigured,
   });
 
-  if (!config) {
+  return {
+    authEnabled,
+    backendAvailable,
+    config,
+    kind,
+    maskedEmail,
+    monthlyAvailable: Boolean(config?.productReportMonthly),
+    purchaserBound,
+    sessionRequired,
+    unlocked,
+    waived,
+    yearlyAvailable: Boolean(config?.productReportYearly),
+  };
+};
+
+export const getReportAccess = async (
+  businessId: string
+): Promise<EntitlementState> => {
+  const context = await loadReportAccessContext(businessId);
+
+  if (!context.config) {
     return entitlementStateSchema.parse({
-      authEnabled,
-      backendAvailable,
-      fixStepsWithoutPayment: waived,
-      kind,
-      maskedEmail,
+      authEnabled: context.authEnabled,
+      backendAvailable: context.backendAvailable,
+      fixStepsWithoutPayment: context.waived,
+      kind: context.kind,
+      maskedEmail: context.maskedEmail,
       monthlyAvailable: false,
       paymentsEnabled: false,
-      sessionRequired: purchaserBound ? sessionRequired : false,
-      unlocked,
+      sessionRequired: context.purchaserBound ? context.sessionRequired : false,
+      unlocked: context.unlocked,
       yearlyAvailable: false,
     });
   }
 
   return entitlementStateSchema.parse({
-    authEnabled,
-    backendAvailable,
-    fixStepsWithoutPayment: waived,
-    kind,
-    maskedEmail,
-    monthlyAvailable,
+    authEnabled: context.authEnabled,
+    backendAvailable: context.backendAvailable,
+    fixStepsWithoutPayment: context.waived,
+    kind: context.kind,
+    maskedEmail: context.maskedEmail,
+    monthlyAvailable: context.monthlyAvailable,
     paymentsEnabled: true,
-    sessionRequired,
-    unlocked,
-    yearlyAvailable,
+    sessionRequired: context.sessionRequired,
+    unlocked: context.unlocked,
+    yearlyAvailable: context.yearlyAvailable,
   });
 };
 
