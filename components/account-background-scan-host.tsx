@@ -1,7 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { toast } from "sonner";
 
 import {
@@ -15,26 +21,52 @@ import {
   LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
 } from "@/lib/storage";
 
-const BackgroundChatRunnerInner = ({
+const subscribeAccountScan = (onStoreChange: () => void): (() => void) => {
+  window.addEventListener(
+    LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
+    onStoreChange
+  );
+  return () => {
+    window.removeEventListener(
+      LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
+      onStoreChange
+    );
+  };
+};
+
+const activeScanBusinessName = (): string | null =>
+  readAccountBackgroundScan()?.businessName ?? null;
+
+const BackgroundChatRunner = ({
   businessName,
   onDone,
 }: {
   businessName: string;
   onDone: (outcome: "complete" | "stalled" | "error") => void;
 }) => {
+  useLayoutEffect(() => {
+    clearChatSession();
+  }, []);
+
   const layout = useListwellChat();
   const startedRef = useRef(false);
   const autoStepRef = useRef<string | null>(null);
   const finishedRef = useRef(false);
-  const { handleListingSubmit, handleSend } = layout;
+  const onDoneRef = useRef(onDone);
 
-  const finish = (outcome: "complete" | "stalled" | "error") => {
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
+  const finish = useCallback((outcome: "complete" | "stalled" | "error") => {
     if (finishedRef.current) {
       return;
     }
     finishedRef.current = true;
-    onDone(outcome);
-  };
+    onDoneRef.current(outcome);
+  }, []);
+
+  const { handleListingSubmit, handleSend } = layout;
 
   useEffect(() => {
     if (startedRef.current) {
@@ -75,6 +107,7 @@ const BackgroundChatRunnerInner = ({
       finish("stalled");
     }
   }, [
+    finish,
     handleListingSubmit,
     handleSend,
     layout.businessId,
@@ -90,7 +123,7 @@ const BackgroundChatRunnerInner = ({
       return;
     }
     finish("error");
-  }, [layout.showTryAgain]);
+  }, [finish, layout.showTryAgain]);
 
   return (
     <div aria-hidden className="listwell-account-background-scan" inert>
@@ -99,44 +132,13 @@ const BackgroundChatRunnerInner = ({
   );
 };
 
-const BackgroundChatRunner = ({
-  businessName,
-  onDone,
-}: {
-  businessName: string;
-  onDone: (outcome: "complete" | "stalled" | "error") => void;
-}) => {
-  const [sessionReady, setSessionReady] = useState(false);
-
-  useLayoutEffect(() => {
-    clearChatSession();
-    setSessionReady(true);
-  }, []);
-
-  if (!sessionReady) {
-    return null;
-  }
-
-  return (
-    <BackgroundChatRunnerInner businessName={businessName} onDone={onDone} />
-  );
-};
-
 export const AccountBackgroundScanHost = () => {
   const { refresh } = useRouter();
-  const [activeName, setActiveName] = useState<string | null>(() =>
-    readAccountBackgroundScan()?.businessName ?? null
+  const activeName = useSyncExternalStore(
+    subscribeAccountScan,
+    activeScanBusinessName,
+    () => null
   );
-
-  useEffect(() => {
-    const sync = () => {
-      setActiveName(readAccountBackgroundScan()?.businessName ?? null);
-    };
-    window.addEventListener(LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT, sync);
-    return () => {
-      window.removeEventListener(LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT, sync);
-    };
-  }, []);
 
   if (!activeName) {
     return null;
@@ -144,10 +146,10 @@ export const AccountBackgroundScanHost = () => {
 
   return (
     <BackgroundChatRunner
+      key={activeName}
       businessName={activeName}
       onDone={(outcome) => {
         clearAccountBackgroundScan();
-        setActiveName(null);
         if (outcome === "complete") {
           toast.success("Basic check finished. Your business is on the list.");
           refresh();

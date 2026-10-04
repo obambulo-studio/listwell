@@ -13,10 +13,10 @@ export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY =
 
 export const LISTWELL_CHAT_SESSION_EVENT = "listwell:chat-session";
 
-export type AccountBackgroundScanState = {
+export interface AccountBackgroundScanState {
   businessName: string;
   status: "running";
-};
+}
 
 const accountBackgroundScanSchema = z.object({
   businessName: z.string().min(1),

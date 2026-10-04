@@ -17,12 +17,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import {
   LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
   readAccountBackgroundScan,
   startAccountBackgroundScan,
 } from "@/lib/storage";
+import { cn } from "@/lib/utils";
 
 const accountButtonClass = "h-11 px-4";
 
@@ -79,21 +79,14 @@ export const AccountPageActions = () => {
   return (
     <>
       {scanning ? (
-        <div
-          className="listwell-account-scan-status"
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className="listwell-account-scan-status__spinner"
-            aria-hidden
-          />
+        <output className="listwell-account-scan-status" aria-live="polite">
+          <span className="listwell-account-scan-status__spinner" aria-hidden />
           <span>
             {scanLabel
               ? `Running a basic check for ${scanLabel}.`
               : "Starting a basic check."}
           </span>
-        </div>
+        </output>
       ) : null}
       <div className="listwell-page__actions">
         <button
