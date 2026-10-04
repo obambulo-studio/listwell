@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 
+import { HomeFooter } from "@/components/home-footer";
 import { Icon } from "@/components/icon";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -572,6 +573,8 @@ export const HomeLanding = ({
         <section className="home-section">
           <HomeFaq />
         </section>
+
+        <HomeFooter />
       </div>
     </div>
   );

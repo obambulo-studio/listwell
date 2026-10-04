@@ -10,6 +10,8 @@ import { z } from "zod";
 import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import type { CheckoutPlan } from "./schema";
 
+export { CheckoutResponseShapeError } from "./checkout-response-shape-error";
+
 export class CheckoutPlanNotConfiguredError extends Error {
   readonly plan: CheckoutPlan;
 

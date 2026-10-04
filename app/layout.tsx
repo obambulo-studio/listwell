@@ -26,6 +26,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   description:
     "Local and website SEO audit for businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
+  icons: {
+    apple: [{ type: "image/svg+xml", url: "/apple-touch-icon.svg" }],
+    icon: [{ type: "image/svg+xml", url: "/favicon.svg" }],
+  },
   title: {
     default: "Listwell",
     template: "%s · Listwell",
