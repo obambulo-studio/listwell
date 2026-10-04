@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "portless run vite dev",
     "dev:localhost": "vite dev --port 3000",
-    "build": "vite build",
+    "build": "vite build && node scripts/patch-wrangler-for-workers-preview.mjs",
     "convex:dev": "npx convex dev",
     "convex:deploy": "npx convex deploy",
     "convex:sync-env": "bash scripts/sync-convex-env.sh",
