@@ -80,9 +80,14 @@ describe("site metadata", () => {
       process.env.NEXT_PUBLIC_SITE_URL = "https://listwell.dev";
       expect(sitemapEntries().map((entry) => entry.url)).toStrictEqual([
         "https://listwell.dev/",
+        "https://listwell.dev/chat",
         "https://listwell.dev/discover",
         "https://listwell.dev/new",
         "https://listwell.dev/sign-in",
+        "https://listwell.dev/privacy",
+        "https://listwell.dev/terms",
+        "https://listwell.dev/refunds",
+        "https://listwell.dev/how-it-works",
         "https://listwell.dev/llms.txt",
       ]);
     });

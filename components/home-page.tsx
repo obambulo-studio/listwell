@@ -37,6 +37,7 @@ import {
   REPORT_YEARLY_VALUE_NOTE,
 } from "@/lib/polar";
 import { ONCE_RESCAN_WINDOW_DAYS } from "@/lib/scan-config";
+import { HomeFooter } from "@/components/home-footer";
 import { clearChatSession, LISTWELL_PENDING_BUSINESS_KEY } from "@/lib/storage";
 
 const homepageCheckGridGroups = getHomepageCheckGridGroups();
@@ -572,6 +573,8 @@ export const HomeLanding = ({
         <section className="home-section">
           <HomeFaq />
         </section>
+
+        <HomeFooter />
       </div>
     </div>
   );
