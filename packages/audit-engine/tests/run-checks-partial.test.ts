@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type * as EngineZod from "zod";
 
 import { runChecks } from "../src/run";
 import type { BusinessSnapshot } from "../src/types";
@@ -7,7 +8,7 @@ import type { BusinessSnapshot } from "../src/types";
 // Zod 4 `z.record(enum, schema)` requires every enum key. Zod 3 does not.
 vi.mock(import("zod"), async () => {
   const appZod = await import("../../../node_modules/zod/index.js");
-  return appZod as unknown as typeof import("zod");
+  return appZod as unknown as typeof EngineZod;
 });
 
 const services: BusinessSnapshot = {
