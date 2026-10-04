@@ -4,10 +4,10 @@ import { z } from "zod";
 
 import {
   CheckoutPlanNotConfiguredError,
-  CheckoutResponseShapeError,
   checkoutCreateFailureLog,
   checkoutCreateHttpError,
 } from "./checkout-create-error";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 
 describe(checkoutCreateHttpError, () => {
   it("maps missing monthly plan config to 503", () => {
@@ -80,8 +80,8 @@ describe(checkoutCreateFailureLog, () => {
     expect(errorLog).toHaveBeenCalledWith(
       "Polar checkout create failed",
       expect.objectContaining({
-        polarStatus: 422,
         plan: "once",
+        polarStatus: 422,
       })
     );
     const logged = errorLog.mock.calls[0]?.[1];

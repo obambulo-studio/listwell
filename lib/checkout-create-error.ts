@@ -8,6 +8,9 @@ import {
 import { z } from "zod";
 
 import type { CheckoutPlan } from "./schema";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
+
+export { CheckoutResponseShapeError };
 
 export class CheckoutPlanNotConfiguredError extends Error {
   readonly plan: CheckoutPlan;
@@ -16,14 +19,6 @@ export class CheckoutPlanNotConfiguredError extends Error {
     super(`Checkout plan not configured: ${plan}`);
     this.name = "CheckoutPlanNotConfiguredError";
     this.plan = plan;
-  }
-}
-
-export class CheckoutResponseShapeError extends Error {
-  constructor(cause: z.ZodError) {
-    super("Polar checkout response did not match expected shape");
-    this.name = "CheckoutResponseShapeError";
-    this.cause = cause;
   }
 }
 

@@ -158,12 +158,10 @@ export default defineSchema({
     createdAt: v.string(),
     ingestKey: v.string(),
     updatedAt: v.string(),
-  })
-    .index("by_businessExternalId", ["businessExternalId"])
-    .index("by_businessExternalId_and_ingestKey", [
-      "businessExternalId",
-      "ingestKey",
-    ]),
+  }).index("by_businessExternalId_and_ingestKey", [
+    "businessExternalId",
+    "ingestKey",
+  ]),
 
   webAnalyticsUsage: defineTable({
     businessExternalId: v.string(),

@@ -82,19 +82,17 @@ export const recordEvent = mutation({
       .unique();
 
     const timestamp = nowIso();
-    if (existing) {
-      await ctx.db.patch("webAnalyticsUsage", existing._id, {
-        eventCount: existing.eventCount + 1,
-        updatedAt: timestamp,
-      });
-    } else {
-      await ctx.db.insert("webAnalyticsUsage", {
-        businessExternalId: args.businessExternalId,
-        eventCount: 1,
-        month,
-        updatedAt: timestamp,
-      });
-    }
+    await (existing
+      ? ctx.db.patch("webAnalyticsUsage", existing._id, {
+          eventCount: existing.eventCount + 1,
+          updatedAt: timestamp,
+        })
+      : ctx.db.insert("webAnalyticsUsage", {
+          businessExternalId: args.businessExternalId,
+          eventCount: 1,
+          month,
+          updatedAt: timestamp,
+        }));
 
     return { accepted: true as const, reason: null };
   },
@@ -162,10 +160,10 @@ export const getAccountState = authedQuery({
 
     const site = await ctx.db
       .query("webAnalyticsSites")
-      .withIndex("by_businessExternalId", (q) =>
+      .withIndex("by_businessExternalId_and_ingestKey", (q) =>
         q.eq("businessExternalId", args.businessExternalId)
       )
-      .unique();
+      .first();
 
     const kind = await activeAnalyticsKind(ctx, args.businessExternalId);
 
@@ -188,10 +186,10 @@ export const provisionAfterGrant = mutation({
     requireInternalSecret(args.secret);
     const existing = await ctx.db
       .query("webAnalyticsSites")
-      .withIndex("by_businessExternalId", (q) =>
+      .withIndex("by_businessExternalId_and_ingestKey", (q) =>
         q.eq("businessExternalId", args.businessExternalId)
       )
-      .unique();
+      .first();
     if (existing) {
       return existing.ingestKey;
     }

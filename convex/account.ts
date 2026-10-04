@@ -5,6 +5,15 @@ import { accountReportValidator } from "./lib/responseValidators";
 
 type ReportPlan = "preview" | "once" | "monthly";
 
+const reportEntitlementKind = (
+  kind: string
+): "report_once" | "report_monthly" | null => {
+  if (kind === "report_once" || kind === "report_monthly") {
+    return kind;
+  }
+  return null;
+};
+
 const planFromKind = (
   activeKind: "report_once" | "report_monthly" | null
 ): ReportPlan => {
@@ -102,7 +111,9 @@ export const listReports = authedQuery({
         continue;
       }
       const activeKind =
-        entitlement.status === "active" ? entitlement.kind : null;
+        entitlement.status === "active"
+          ? reportEntitlementKind(entitlement.kind)
+          : null;
       upsert(
         business,
         activeKind,

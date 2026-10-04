@@ -30,8 +30,8 @@ const event = (type: string, data: Record<string, unknown>) =>
   polarWebhookEventSchema.parse({ data, type });
 
 const polarProducts = {
-  analytics10kProductId: "prod_analytics_10k",
   analytics100kProductId: "prod_analytics_100k",
+  analytics10kProductId: "prod_analytics_10k",
   analytics1mProductId: "prod_analytics_1m",
   monthlyProductId: "prod_month",
   onceProductId: "prod_once",

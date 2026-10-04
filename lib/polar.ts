@@ -130,8 +130,8 @@ const analyticsProductMap = (
   products: PolarProductIds
 ): ReadonlyMap<string, EntitlementKind> => {
   const envByKind: Record<string, string | undefined> = {
-    analytics_10k: products.analytics10kProductId,
     analytics_100k: products.analytics100kProductId,
+    analytics_10k: products.analytics10kProductId,
     analytics_1m: products.analytics1mProductId,
   };
   const map = new Map<string, EntitlementKind>();

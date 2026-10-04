@@ -101,11 +101,18 @@ export const linkPurchasedBusinesses = async (
   return assigned;
 };
 
+type StoredEntitlementKind =
+  | "report_once"
+  | "report_monthly"
+  | "analytics_10k"
+  | "analytics_100k"
+  | "analytics_1m";
+
 const toEntitlementResponse = (doc: {
   _id: string;
   businessExternalId: string;
   userId?: string;
-  kind: "report_once" | "report_monthly";
+  kind: StoredEntitlementKind;
   status: "active" | "revoked";
   polarCustomerId?: string;
   polarOrderId?: string;
@@ -476,7 +483,7 @@ export const grant = mutation({
 const findActiveEntitlement = async (
   ctx: MutationCtx,
   businessExternalId: string,
-  kind: "report_monthly" | "report_once"
+  kind: StoredEntitlementKind
 ) => {
   const rows = await ctx.db
     .query("entitlements")
@@ -560,7 +567,7 @@ export const revoke = mutation({
       _id: GenericId<"entitlements">;
       businessExternalId: string;
       userId?: string;
-      kind: "report_once" | "report_monthly";
+      kind: StoredEntitlementKind;
       status: "active" | "revoked";
       polarOrderId?: string;
       polarSubscriptionId?: string;

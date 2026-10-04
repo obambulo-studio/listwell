@@ -11,8 +11,10 @@ import {
   analyticsBandByEntitlementKind,
   analyticsCheckoutPlanFromBand,
   formatEventLimit,
-  type AnalyticsBandId,
-  type AnalyticsEntitlementKind,
+} from "@/lib/analytics-pricing";
+import type {
+  AnalyticsBandId,
+  AnalyticsEntitlementKind,
 } from "@/lib/analytics-pricing";
 import { analyticsInstallSnippet } from "@/lib/analytics-snippet";
 import { requestCheckoutUrl } from "@/lib/polar";

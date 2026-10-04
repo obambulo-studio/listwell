@@ -13,11 +13,9 @@ import {
   normalizeEmail,
 } from "./auth";
 import { fetchAuthMutation } from "./auth-server";
-import {
-  CheckoutPlanNotConfiguredError,
-  CheckoutResponseShapeError,
-  checkoutCreateFailureLog,
-} from "./checkout-create-error";
+import { checkoutCreateFailureLog } from "./checkout-create-error";
+import { resolveCheckoutProduct } from "./polar-checkout-plan";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import { CheckoutGrantError } from "./checkout-grant-error";
 import {
   api,
@@ -38,7 +36,7 @@ import {
   reportSessionRequired,
   sharedViewerEntitlementState,
 } from "./entitlements-access";
-import { isAnalyticsEntitlementKind } from "./entitlement-kinds";
+import { isAnalyticsEntitlementKind } from "./analytics-pricing";
 import {
   businessIdFromMetadata,
   checkoutCustomerIp,
@@ -80,55 +78,85 @@ export interface PolarConfig {
 }
 
 const polarProductIdsFromConfig = (config: PolarConfig): PolarProductIds => ({
-  analytics10kProductId: config.productAnalytics10k,
   analytics100kProductId: config.productAnalytics100k,
+  analytics10kProductId: config.productAnalytics10k,
   analytics1mProductId: config.productAnalytics1m,
   monthlyProductId: config.productReportMonthly,
   onceProductId: config.productReportOnce,
   yearlyProductId: config.productReportYearly,
 });
 
+const optionalPolarSecret = (
+  workerEnv: Awaited<ReturnType<typeof getCloudflareEnv>>,
+  workerKey: keyof NonNullable<Awaited<ReturnType<typeof getCloudflareEnv>>>,
+  processKey: string
+): string | undefined =>
+  readSecret(workerEnv?.[workerKey]) ?? readSecret(process.env[processKey]);
+
+const polarAnalyticsProducts = (
+  workerEnv: Awaited<ReturnType<typeof getCloudflareEnv>>
+): Pick<
+  PolarConfig,
+  "productAnalytics100k" | "productAnalytics10k" | "productAnalytics1m"
+> => ({
+  productAnalytics100k: optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_ANALYTICS_100K",
+    "POLAR_PRODUCT_ANALYTICS_100K"
+  ),
+  productAnalytics10k: optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_ANALYTICS_10K",
+    "POLAR_PRODUCT_ANALYTICS_10K"
+  ),
+  productAnalytics1m: optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_ANALYTICS_1M",
+    "POLAR_PRODUCT_ANALYTICS_1M"
+  ),
+});
+
 export const getPolarConfig = async (): Promise<PolarConfig | null> => {
   const workerEnv = await getCloudflareEnv();
-  const accessToken =
-    readSecret(workerEnv?.POLAR_ACCESS_TOKEN) ??
-    readSecret(process.env.POLAR_ACCESS_TOKEN);
-  const productReportOnce =
-    readSecret(workerEnv?.POLAR_PRODUCT_REPORT_ONCE) ??
-    readSecret(process.env.POLAR_PRODUCT_REPORT_ONCE);
+  const accessToken = optionalPolarSecret(
+    workerEnv,
+    "POLAR_ACCESS_TOKEN",
+    "POLAR_ACCESS_TOKEN"
+  );
+  const productReportOnce = optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_REPORT_ONCE",
+    "POLAR_PRODUCT_REPORT_ONCE"
+  );
   if (!accessToken || !productReportOnce) {
     return null;
   }
 
   const serverValue =
-    readSecret(workerEnv?.POLAR_SERVER) ??
-    readSecret(process.env.POLAR_SERVER) ??
-    "sandbox";
+    optionalPolarSecret(workerEnv, "POLAR_SERVER", "POLAR_SERVER") ?? "sandbox";
   const serverParsed = polarServerSchema.safeParse(serverValue);
   const server = serverParsed.success ? serverParsed.data : "sandbox";
 
   return {
     accessToken,
-    productAnalytics10k:
-      readSecret(workerEnv?.POLAR_PRODUCT_ANALYTICS_10K) ??
-      readSecret(process.env.POLAR_PRODUCT_ANALYTICS_10K),
-    productAnalytics100k:
-      readSecret(workerEnv?.POLAR_PRODUCT_ANALYTICS_100K) ??
-      readSecret(process.env.POLAR_PRODUCT_ANALYTICS_100K),
-    productAnalytics1m:
-      readSecret(workerEnv?.POLAR_PRODUCT_ANALYTICS_1M) ??
-      readSecret(process.env.POLAR_PRODUCT_ANALYTICS_1M),
-    productReportMonthly:
-      readSecret(workerEnv?.POLAR_PRODUCT_REPORT_MONTHLY) ??
-      readSecret(process.env.POLAR_PRODUCT_REPORT_MONTHLY),
+    ...polarAnalyticsProducts(workerEnv),
+    productReportMonthly: optionalPolarSecret(
+      workerEnv,
+      "POLAR_PRODUCT_REPORT_MONTHLY",
+      "POLAR_PRODUCT_REPORT_MONTHLY"
+    ),
     productReportOnce,
-    productReportYearly:
-      readSecret(workerEnv?.POLAR_PRODUCT_REPORT_YEARLY) ??
-      readSecret(process.env.POLAR_PRODUCT_REPORT_YEARLY),
+    productReportYearly: optionalPolarSecret(
+      workerEnv,
+      "POLAR_PRODUCT_REPORT_YEARLY",
+      "POLAR_PRODUCT_REPORT_YEARLY"
+    ),
     server,
-    webhookSecret:
-      readSecret(workerEnv?.POLAR_WEBHOOK_SECRET) ??
-      readSecret(process.env.POLAR_WEBHOOK_SECRET),
+    webhookSecret: optionalPolarSecret(
+      workerEnv,
+      "POLAR_WEBHOOK_SECRET",
+      "POLAR_WEBHOOK_SECRET"
+    ),
   };
 };
 
@@ -573,39 +601,11 @@ export const createPolarCheckout = async (input: {
   }
 
   const plan = checkoutPlanSchema.parse(input.plan);
-  let productId: string | undefined;
-  let returnPath = `/${input.businessId}`;
-  if (plan === "monthly") {
-    productId = config.productReportMonthly;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else if (plan === "yearly") {
-    productId = config.productReportYearly;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else if (plan === "analytics_10k") {
-    productId = config.productAnalytics10k;
-    returnPath = `/account/analytics/${input.businessId}`;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else if (plan === "analytics_100k") {
-    productId = config.productAnalytics100k;
-    returnPath = `/account/analytics/${input.businessId}`;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else if (plan === "analytics_1m") {
-    productId = config.productAnalytics1m;
-    returnPath = `/account/analytics/${input.businessId}`;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else {
-    productId = config.productReportOnce;
-  }
+  const { productId, returnPath } = resolveCheckoutProduct(
+    config,
+    plan,
+    input.businessId
+  );
 
   const logContext = { businessId: input.businessId, plan };
 
