@@ -5,7 +5,7 @@ Listwell is a chat-first local and website SEO audit. This document describes ho
 ## Brand and naming
 
 - Product name is **Listwell** everywhere user-facing (titles, metadata, chat, emails).
-- Do not use Visimate in UI, copy, or metadata.
+- Use Listwell only in UI, copy, and metadata.
 - Do not show the Vercel wordmark or triangle on Listwell surfaces.
 
 ## Typography

@@ -157,7 +157,6 @@ export const buildListwellPrompt = (
     "- Every overview sentence and every next action must cite one or more check ids from that JSON.",
     "- Do not invent scores, percentages, rankings, or outcomes.",
     "- You may mention a check's provided points value. Do not add those points into a new score.",
-    "- Do not mention Visimate.",
     "- Product name is Listwell.",
     "- Plain language for a small business owner.",
     "- The overview should be 2–4 sentences: how many checks failed, the most important failing checks (by points), and notable passes when useful.",
