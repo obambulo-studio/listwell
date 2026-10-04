@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { QueryCtx } from "./_generated/server";
 import { listGuestReportsForUser } from "./businessGuests";
 import { authedQuery } from "./lib/customFunctions";
+import { reportEntitlementKind } from "./lib/reportEntitlements";
 import { accountReportValidator } from "./lib/responseValidators";
 
 type ReportPlan = "preview" | "once" | "monthly";
@@ -131,7 +132,9 @@ const buildPrimaryReports = async (
       continue;
     }
     const activeKind =
-      entitlement.status === "active" ? entitlement.kind : null;
+      entitlement.status === "active"
+        ? reportEntitlementKind(entitlement.kind)
+        : null;
     upsert(
       business,
       activeKind,
@@ -161,15 +164,9 @@ export const listAccount = authedQuery({
   handler: async (ctx) => {
     const { user } = ctx;
     const reports = await buildPrimaryReports(ctx, user._id);
-    const primaryIds = new Set(reports.map((report) => report.id));
-    const guestReports = await listGuestReportsForUser(ctx, user._id);
-    const sharedReports = guestReports
-      .filter((report) => !primaryIds.has(report.id))
-      .toSorted((left, right) => right.name.localeCompare(left.name));
-
     await attachLastScans(ctx, reports);
+    const sharedReports = await listGuestReportsForUser(ctx, user._id);
     await attachLastScans(ctx, sharedReports);
-
     return { reports, sharedReports };
   },
   returns: v.object({

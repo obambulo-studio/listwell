@@ -7,6 +7,7 @@ import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { sendBusinessGuestInvite } from "./lib/email";
 import { requireInternalSecret } from "./lib/internal";
 import { normalizeInviteEmail } from "./lib/normalizeEmail";
+import { reportEntitlementKind } from "./lib/reportEntitlements";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -402,7 +403,10 @@ const upsertGuestReport = async (
     ctx,
     businessExternalId
   );
-  const activeKind = entitlement?.status === "active" ? entitlement.kind : null;
+  const activeKind =
+    entitlement?.status === "active"
+      ? reportEntitlementKind(entitlement.kind)
+      : null;
   const plan = guestPlanFromKind(activeKind);
   const existing = byExternalId.get(businessExternalId);
   if (existing) {

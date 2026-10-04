@@ -24,6 +24,11 @@ describe("site gate paths", () => {
     expect(isSiteGateExemptPath("/api/agent/register")).toBeTruthy();
   });
 
+  it("exempts web analytics assets", () => {
+    expect(isSiteGateExemptPath("/api/analytics/collect")).toBeTruthy();
+    expect(isSiteGateExemptPath("/lw-analytics.js")).toBeTruthy();
+  });
+
   it("exempts the agent catalog", () => {
     expect(isSiteGateExemptPath("/.well-known/ai-catalog.json")).toBeTruthy();
   });

@@ -22,15 +22,20 @@ export const GET = async (
   let { businessId } = params;
   let cookies: string[] = [];
   let purchasePending = false;
+  let returnPath: string | undefined;
 
   try {
     const confirmed = await confirmPolarCheckout(params.checkoutId, request);
-    const { businessId: confirmedBusinessId, cookies: confirmedCookies } =
-      confirmed;
+    const {
+      businessId: confirmedBusinessId,
+      cookies: confirmedCookies,
+      returnPath: confirmedReturnPath,
+    } = confirmed;
     if (confirmedBusinessId) {
       businessId = confirmedBusinessId;
     }
     cookies = confirmedCookies;
+    returnPath = confirmedReturnPath;
   } catch (error) {
     if (error instanceof CheckoutGrantError) {
       const {
@@ -54,8 +59,8 @@ export const GET = async (
     }
   }
 
-  const returnPath = checkoutReturnPath(businessId);
-  const redirectUrl = new URL(returnPath, `${publicOrigin(request)}/`);
+  const path = returnPath ?? checkoutReturnPath(businessId);
+  const redirectUrl = new URL(path, `${publicOrigin(request)}/`);
   if (purchasePending) {
     redirectUrl.searchParams.set("purchase_pending", "1");
     redirectUrl.searchParams.set("checkout_retry", params.checkoutId);

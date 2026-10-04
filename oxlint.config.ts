@@ -12,6 +12,7 @@ export default defineConfig({
     "components/ui/**",
     "components/reui/**",
     "convex/_generated/**",
+    "public/**",
   ],
   jsPlugins: ["@convex-dev/eslint-plugin"],
   overrides: [

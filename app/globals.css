@@ -492,6 +492,58 @@ button:focus-visible {
   margin-top: 0;
 }
 
+.listwell-panel__body--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.listwell-analytics-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listwell-analytics-bands__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field);
+}
+
+.listwell-analytics-bands__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.listwell-analytics-bands__price {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.listwell-analytics-snippet__code {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--ink);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .listwell-account-menu__form {
   display: flex;
   flex-direction: column;

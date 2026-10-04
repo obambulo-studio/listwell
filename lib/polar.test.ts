@@ -9,6 +9,7 @@ import {
   deliveryCostEvent,
   customerNameFromPolarData,
   parsePolarCustomerPortalUrl,
+  checkoutReturnPathFromMetadata,
   entitlementActionFromPolarEvent,
   entitlementKindFromCheckout,
   entitlementKindFromPolarData,
@@ -29,7 +30,11 @@ const event = (type: string, data: Record<string, unknown>) =>
   polarWebhookEventSchema.parse({ data, type });
 
 const polarProducts = {
+  analytics100kProductId: "prod_analytics_100k",
+  analytics10kProductId: "prod_analytics_10k",
+  analytics1mProductId: "prod_analytics_1m",
   monthlyProductId: "prod_month",
+  onceProductId: "prod_once",
   yearlyProductId: "prod_year",
 };
 
@@ -169,6 +174,39 @@ describe(entitlementKindFromCheckout, () => {
     expect(
       entitlementKindFromCheckout({ productId: "prod_once" }, polarProducts)
     ).toBe("report_once");
+  });
+
+  it("maps analytics product ids", () => {
+    expect(
+      entitlementKindFromCheckout(
+        { productId: "prod_analytics_100k", subscriptionId: "sub_a" },
+        polarProducts
+      )
+    ).toBe("analytics_100k");
+  });
+
+  it("maps analytics plan metadata", () => {
+    expect(
+      entitlementKindFromCheckout(
+        { metadata: { plan: "analytics_1m" }, subscriptionId: "sub_a" },
+        polarProducts
+      )
+    ).toBe("analytics_1m");
+  });
+});
+
+describe(checkoutReturnPathFromMetadata, () => {
+  it("uses analytics return path from metadata", () => {
+    expect(
+      checkoutReturnPathFromMetadata(
+        { returnPath: "/account/analytics/biz_1" },
+        "biz_1"
+      )
+    ).toBe("/account/analytics/biz_1");
+  });
+
+  it("falls back to the report path", () => {
+    expect(checkoutReturnPathFromMetadata({}, "biz_1")).toBe("/biz_1");
   });
 });
 

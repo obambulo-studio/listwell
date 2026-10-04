@@ -29,7 +29,10 @@ export const pinnedCompetitorValidator = v.object({
 
 export const entitlementKindValidator = v.union(
   v.literal("report_once"),
-  v.literal("report_monthly")
+  v.literal("report_monthly"),
+  v.literal("analytics_10k"),
+  v.literal("analytics_100k"),
+  v.literal("analytics_1m")
 );
 
 export const entitlementStatusValidator = v.union(

@@ -23,6 +23,20 @@ import {
 
 const SCAN_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 
+const reportEntitlementKinds = new Set(["report_once", "report_monthly"]);
+
+const isReportEntitlementKind = (kind: string): boolean =>
+  reportEntitlementKinds.has(kind);
+
+const analyticsEntitlementKinds = new Set([
+  "analytics_10k",
+  "analytics_100k",
+  "analytics_1m",
+]);
+
+const isAnalyticsEntitlementKind = (kind: string): boolean =>
+  analyticsEntitlementKinds.has(kind);
+
 const nowIso = (): string => new Date().toISOString();
 
 const nextScanAtFrom = (date: Date): string =>
@@ -87,11 +101,18 @@ export const linkPurchasedBusinesses = async (
   return assigned;
 };
 
+type StoredEntitlementKind =
+  | "report_once"
+  | "report_monthly"
+  | "analytics_10k"
+  | "analytics_100k"
+  | "analytics_1m";
+
 const toEntitlementResponse = (doc: {
   _id: string;
   businessExternalId: string;
   userId?: string;
-  kind: "report_once" | "report_monthly";
+  kind: StoredEntitlementKind;
   status: "active" | "revoked";
   polarCustomerId?: string;
   polarOrderId?: string;
@@ -158,7 +179,9 @@ export const getActiveOwner = query({
       )
       .collect();
 
-    const active = entitlements.find((row) => row.status === "active");
+    const active = entitlements.find(
+      (row) => row.status === "active" && isReportEntitlementKind(row.kind)
+    );
     if (!active) {
       return {
         kind: null,
@@ -197,12 +220,14 @@ export const hasActive = query({
         q.eq("businessExternalId", args.businessExternalId)
       )
       .collect();
-    return entitlements.some((row) => row.status === "active");
+    return entitlements.some(
+      (row) => row.status === "active" && isReportEntitlementKind(row.kind)
+    );
   },
   returns: v.boolean(),
 });
 
-/** Active monthly entitlement when one exists, otherwise any active row. */
+/** Active monthly entitlement when one exists, otherwise any active report row. */
 export const getActiveForBusiness = query({
   args: { businessExternalId: v.string(), secret: v.string() },
   handler: async (ctx, args) => {
@@ -213,7 +238,9 @@ export const getActiveForBusiness = query({
         q.eq("businessExternalId", args.businessExternalId)
       )
       .collect();
-    const active = rows.filter((row) => row.status === "active");
+    const active = rows.filter(
+      (row) => row.status === "active" && isReportEntitlementKind(row.kind)
+    );
     const chosen =
       active.find((row) => row.kind === "report_monthly") ?? active[0];
     if (!chosen) {
@@ -361,6 +388,23 @@ export const grant = mutation({
         .collect(),
     ]);
 
+    if (isAnalyticsEntitlementKind(args.kind)) {
+      await Promise.all(
+        existingRows.map(async (row) => {
+          if (
+            row.status === "active" &&
+            isAnalyticsEntitlementKind(row.kind) &&
+            row.kind !== args.kind
+          ) {
+            await ctx.db.patch("entitlements", row._id, {
+              status: "revoked",
+              updatedAt: timestamp,
+            });
+          }
+        })
+      );
+    }
+
     const existing = existingRows.find((row) => {
       if (row.kind === args.kind) {
         return true;
@@ -439,7 +483,7 @@ export const grant = mutation({
 const findActiveEntitlement = async (
   ctx: MutationCtx,
   businessExternalId: string,
-  kind: "report_monthly" | "report_once"
+  kind: StoredEntitlementKind
 ) => {
   const rows = await ctx.db
     .query("entitlements")
@@ -523,7 +567,7 @@ export const revoke = mutation({
       _id: GenericId<"entitlements">;
       businessExternalId: string;
       userId?: string;
-      kind: "report_once" | "report_monthly";
+      kind: StoredEntitlementKind;
       status: "active" | "revoked";
       polarOrderId?: string;
       polarSubscriptionId?: string;
