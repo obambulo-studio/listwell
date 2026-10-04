@@ -140,7 +140,7 @@ const BUILD_COMMAND = "bun run cf:build";
 const PRODUCTION_DEPLOY_COMMAND =
   "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
 const PREVIEW_DEPLOY_COMMAND =
-  "npx wrangler preview --config dist/server/wrangler.json";
+  "npx wrangler preview --config dist/server/wrangler.json --keep-vars";
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
