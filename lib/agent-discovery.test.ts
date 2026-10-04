@@ -150,6 +150,7 @@ describe("agent discovery", () => {
       expect(authMd(origin)).toContain("oauth-authorization-server");
       expect(authMd(origin)).toContain("registration_disabled");
       expect(authMd(origin)).toContain("/api/agent/register");
+      expect(authMd(origin)).toContain("read-only MCP");
     });
 
     it("introduces the product in llms.txt", () => {
@@ -158,6 +159,10 @@ describe("agent discovery", () => {
       expect(llmsTxt(origin)).toContain("A$4.99");
       expect(llmsTxt(origin)).toContain("A$49");
       expect(llmsTxt(origin)).toContain("/.well-known/api-catalog");
+    });
+
+    it("points agents at read-only HTTP MCP", () => {
+      expect(llmsTxt(origin)).toContain("Read-only HTTP MCP");
     });
 
     it("serves agent readiness well-known documents", async () => {

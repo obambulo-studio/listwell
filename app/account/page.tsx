@@ -1,18 +1,15 @@
-import { ChevronRightIcon } from "@hugeicons/core-free-icons";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { z } from "zod";
 
-import { AccountBusinessRowMenu } from "@/components/account-business-row-menu";
-import { AccountPageActions } from "@/components/account-page-actions";
-import { ButtonLink } from "@/components/atoms/button";
-import { Icon } from "@/components/icon";
 import {
-  accountReportMeta,
-  accountScoreDelta,
-  accountScoreDeltaAriaLabel,
-  formatAccountScoreDelta,
-} from "@/lib/account-report";
+  AccountOwnedBusinesses,
+  AccountPageActions,
+  AccountSharedBusinesses,
+  BillingNoticeToast,
+} from "@/components/account-page-actions";
+import { ButtonLink } from "@/components/atoms/button";
+import { accountUpgradeCatalogSchema } from "@/lib/account-row-upgrade";
+import { configuredAnalyticsBandIds } from "@/lib/analytics-catalog";
 import { getSessionUser, listAccountForUser } from "@/lib/auth";
 import { fetchAuthMutation } from "@/lib/auth-server";
 import { api } from "@/lib/convex/server";
@@ -20,7 +17,7 @@ import { probeConvexBusinesses } from "@/lib/data";
 import { getSharedReportViewerAccess } from "@/lib/polar-server";
 import { firstSearchParam } from "@/lib/query-params";
 import type { AccountReport } from "@/lib/schema";
-import { cn } from "@/lib/utils";
+import { listwellSiteUrl } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -28,24 +25,24 @@ export const metadata = {
   title: "Your businesses",
 };
 
-const Chevron = () => (
-  <Icon className="listwell-panel__chevron" icon={ChevronRightIcon} size={15} />
-);
-
 const AccountCard = ({
   actions,
   children,
+  includeHead = true,
   title = "Your businesses",
 }: {
   actions?: ReactNode;
   children: ReactNode;
+  includeHead?: boolean;
   title?: string;
 }) => (
   <section className="listwell-page">
     <div className="listwell-panel">
-      <div className="listwell-panel__head">
-        <h1 className="listwell-panel__title">{title}</h1>
-      </div>
+      {includeHead ? (
+        <div className="listwell-panel__head">
+          <h1 className="listwell-panel__title">{title}</h1>
+        </div>
+      ) : null}
       {children}
     </div>
     {actions}
@@ -76,81 +73,9 @@ const billingNoticeCopy = (
   return "We could not open billing. Try again in a few minutes.";
 };
 
-const BillingNotice = ({ notice }: { notice: string | null }) => {
-  if (!notice) {
-    return null;
-  }
-  return (
-    <div className="listwell-panel__body">
-      <p className="listwell-panel__text">{notice}</p>
-    </div>
-  );
-};
-
-const AccountReportRow = ({
-  monthlyScansAvailable,
-  report,
-  showOwnerMenu,
-}: {
-  monthlyScansAvailable: boolean;
-  report: AccountReport;
-  showOwnerMenu: boolean;
-}) => {
-  const score = report.lastScan?.score;
-  const meta = accountReportMeta(report);
-  const scoreDelta = accountScoreDelta(
-    score ?? null,
-    report.lastScan?.previousScore ?? null
-  );
-  return (
-    <li className="listwell-account-row">
-      <div className="listwell-panel__row">
-        <Link className="listwell-panel__row-link" href={`/${report.id}`}>
-          <span className="listwell-panel__row-main">
-            <span className="listwell-panel__row-title">{report.name}</span>
-            {meta ? (
-              <span className="listwell-panel__row-meta">{meta}</span>
-            ) : null}
-          </span>
-          {score === null || score === undefined ? null : (
-            <span className="listwell-account-row__score">
-              <span className="listwell-panel__mono">{score}%</span>
-              {scoreDelta ? (
-                <span
-                  className={cn(
-                    "listwell-account-row__score-delta",
-                    `listwell-account-row__score-delta--${scoreDelta.direction}`
-                  )}
-                  aria-label={accountScoreDeltaAriaLabel(scoreDelta)}
-                >
-                  {formatAccountScoreDelta(scoreDelta)}
-                </span>
-              ) : null}
-            </span>
-          )}
-        </Link>
-        <div className="listwell-account-row__trail">
-          {showOwnerMenu ? (
-            <AccountBusinessRowMenu
-              businessId={report.id}
-              businessName={report.name}
-              canRemove={report.owned}
-              monthlyScansAvailable={monthlyScansAvailable}
-              plan={report.plan}
-            />
-          ) : null}
-          <Link
-            className="listwell-account-row__chevron"
-            href={`/${report.id}`}
-            aria-label={`View ${report.name}`}
-          >
-            <Chevron />
-          </Link>
-        </div>
-      </div>
-    </li>
-  );
-};
+const billingNoticeTone = (
+  notice: z.infer<typeof billingNoticeSchema>
+): "error" | "message" => (notice === "missing" ? "message" : "error");
 
 const AccountPage = async ({
   searchParams,
@@ -158,11 +83,15 @@ const AccountPage = async ({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => {
   const params = await searchParams;
+  const checkoutReturned = firstSearchParam(params.checkout_returned) === "1";
   const billingNotice = billingNoticeSchema.safeParse(
     firstSearchParam(params.billing)
   );
   const billingNote = billingNotice.success
-    ? billingNoticeCopy(billingNotice.data)
+    ? {
+        message: billingNoticeCopy(billingNotice.data),
+        tone: billingNoticeTone(billingNotice.data),
+      }
     : null;
   const user = await getSessionUser();
   if (!user) {
@@ -195,6 +124,13 @@ const AccountPage = async ({
   let reports: AccountReport[] = [];
   let sharedReports: AccountReport[] = [];
   let monthlyScansAvailable = false;
+  let upgradeCatalog = accountUpgradeCatalogSchema.parse({
+    availableAnalyticsBands: [],
+    fixStepsWithoutPayment: false,
+    monthlyAvailable: false,
+    paymentsEnabled: false,
+    yearlyAvailable: false,
+  });
   try {
     await fetchAuthMutation(api.entitlements.attachPurchasesForCurrentUser, {});
   } catch {
@@ -216,56 +152,41 @@ const AccountPage = async ({
   try {
     const catalog = await getSharedReportViewerAccess();
     monthlyScansAvailable = catalog.paymentsEnabled && catalog.monthlyAvailable;
+    let availableAnalyticsBands: Awaited<
+      ReturnType<typeof configuredAnalyticsBandIds>
+    > = [];
+    try {
+      availableAnalyticsBands = await configuredAnalyticsBandIds();
+    } catch {
+      availableAnalyticsBands = [];
+    }
+    upgradeCatalog = accountUpgradeCatalogSchema.parse({
+      availableAnalyticsBands,
+      fixStepsWithoutPayment: catalog.fixStepsWithoutPayment,
+      monthlyAvailable: catalog.monthlyAvailable,
+      paymentsEnabled: catalog.paymentsEnabled,
+      yearlyAvailable: catalog.yearlyAvailable,
+    });
   } catch {
     monthlyScansAvailable = false;
   }
 
-  const hasPrimary = reports.length > 0;
   const hasShared = sharedReports.length > 0;
-
-  if (!hasPrimary && !hasShared) {
-    return (
-      <AccountCard actions={accountActions}>
-        <BillingNotice notice={billingNote} />
-        <div className="listwell-panel__body">
-          <p className="listwell-panel__text">No businesses yet.</p>
-          <p className="listwell-panel__note">
-            Check a business from the chat to start a report.
-          </p>
-        </div>
-      </AccountCard>
-    );
-  }
+  const siteOrigin = listwellSiteUrl();
+  const { paymentsEnabled } = upgradeCatalog;
 
   return (
     <>
-      <AccountCard actions={accountActions}>
-        <BillingNotice notice={billingNote} />
-        {hasPrimary ? (
-          <ul
-            className="listwell-panel__rows"
-            aria-label="Businesses on your account"
-          >
-            {reports.map((report) => (
-              <AccountReportRow
-                key={report.id}
-                monthlyScansAvailable={monthlyScansAvailable}
-                report={report}
-                showOwnerMenu
-              />
-            ))}
-          </ul>
-        ) : (
-          <div className="listwell-panel__body">
-            <p className="listwell-panel__text">
-              No businesses on your account yet.
-            </p>
-            <p className="listwell-panel__note">
-              Check a business from the chat to start a report, or open a shared
-              report below.
-            </p>
-          </div>
-        )}
+      <AccountCard actions={accountActions} includeHead={false}>
+        <BillingNoticeToast notice={billingNote} />
+        <AccountOwnedBusinesses
+          catalog={upgradeCatalog}
+          checkoutReturned={checkoutReturned}
+          monthlyScansAvailable={monthlyScansAvailable}
+          paymentsEnabled={paymentsEnabled}
+          reports={reports}
+          siteOrigin={siteOrigin}
+        />
       </AccountCard>
       {hasShared ? (
         <AccountCard title="Shared with you">
@@ -273,19 +194,12 @@ const AccountPage = async ({
             Reports other people invited you to view. Billing and settings stay
             on their account.
           </p>
-          <ul
-            className="listwell-panel__rows"
-            aria-label="Businesses shared with you"
-          >
-            {sharedReports.map((report) => (
-              <AccountReportRow
-                key={report.id}
-                monthlyScansAvailable={false}
-                report={report}
-                showOwnerMenu={false}
-              />
-            ))}
-          </ul>
+          <AccountSharedBusinesses
+            catalog={upgradeCatalog}
+            paymentsEnabled={paymentsEnabled}
+            reports={sharedReports}
+            siteOrigin={siteOrigin}
+          />
         </AccountCard>
       ) : null}
     </>

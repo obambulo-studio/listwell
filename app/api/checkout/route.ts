@@ -49,6 +49,7 @@ export const POST = async (request: Request) => {
       customerIpAddress: customerIpAddress(request),
       origin: publicOrigin(request),
       plan: parsed.plan,
+      returnTo: parsed.returnTo,
     });
     return NextResponse.json({ url: checkout.url });
   } catch (error) {

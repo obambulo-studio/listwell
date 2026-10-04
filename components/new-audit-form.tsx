@@ -638,11 +638,12 @@ export const NewAuditForm = ({
           <PrimaryButton
             type="button"
             disabled={saveDisabled}
+            loading={state.saving}
             onClick={() => {
               void saveAudit();
             }}
           >
-            {state.saving ? "Saving" : "Save"}
+            Save
           </PrimaryButton>
         </FormActions>
       </div>
@@ -674,8 +675,9 @@ export const NewAuditForm = ({
           void saveAudit();
         }}
         disabled={saveDisabled}
+        loading={state.saving}
       >
-        {state.saving ? "Saving" : "Get report"}
+        Get report
       </PrimaryButton>
     </div>
   );

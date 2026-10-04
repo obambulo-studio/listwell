@@ -128,6 +128,12 @@ export const accountReportPlanValidator = v.union(
 );
 
 export const accountReportValidator = v.object({
+  analyticsKind: v.union(
+    v.literal("analytics_10k"),
+    v.literal("analytics_100k"),
+    v.literal("analytics_1m"),
+    v.null()
+  ),
   id: v.string(),
   lastScan: v.union(
     v.object({

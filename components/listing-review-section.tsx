@@ -2,7 +2,7 @@
 
 import { Copy01Icon } from "@hugeicons/core-free-icons";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { Icon } from "@/components/icon";
@@ -167,7 +167,6 @@ const ListingReviewFixPrompt = ({
   businessName: string;
   result: ListingReviewResult;
 }) => {
-  const [copied, setCopied] = useState(false);
   if (!listingReviewHasFixPrompt(result.content)) {
     return null;
   }
@@ -179,12 +178,9 @@ const ListingReviewFixPrompt = ({
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-      window.setTimeout(() => {
-        setCopied(false);
-      }, 2000);
+      toast.success("Listing instructions copied");
     } catch {
-      setCopied(false);
+      toast.error("Could not copy listing instructions");
     }
   };
 
@@ -219,7 +215,7 @@ const ListingReviewFixPrompt = ({
           }}
         >
           <Icon icon={Copy01Icon} size={14} />
-          {copied ? "Copied" : "Copy listing instructions"}
+          Copy listing instructions
         </PrimaryButton>
       </div>
       <p className="listwell-panel__fine mt-3">

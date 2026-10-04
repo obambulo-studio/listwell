@@ -347,7 +347,7 @@ export const mapPackLeaders = (input: {
   return leaders;
 };
 
-/** Pinned, then map-pack leaders, then nearby. Preview stays nearby-only. Hidden places never return. */
+/** Pinned, then map-pack leaders, then nearby. Preview skips pins and map pack. Hidden places never return. */
 export const selectCompetitorPlaces = (input: {
   hiddenPlaceIds: readonly string[];
   mapPackPlaces?: readonly { phrase: string; place: GooglePlace }[];
@@ -1093,7 +1093,7 @@ export const peerAuditCaption = (job: PeerAuditJob): string => {
 
 export const peerAuditHeading = (job: PeerAuditJob): string => {
   if (!job.placeTypeLabel || job.radiusMeters === undefined) {
-    return "Nearby businesses";
+    return "Compare";
   }
   const kilometres = job.radiusMeters / 1000;
   return `${job.placeTypeLabel} within ${kilometres} km`;

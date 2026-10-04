@@ -11,7 +11,7 @@ export const ThemeBootstrapScript = () =>
   createElement("script", {
     dangerouslySetInnerHTML: { __html: THEME_BOOTSTRAP_SCRIPT },
     suppressHydrationWarning: true,
-    type: typeof window === "undefined" ? "text/javascript" : "text/plain",
+    type: "text/javascript",
   });
 
 export const applyTheme = (): void => {

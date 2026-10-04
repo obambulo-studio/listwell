@@ -204,6 +204,11 @@ button:focus-visible {
   z-index: 4;
 }
 
+.listwell-page-controls--account .listwell-page-controls__btn {
+  width: 32px;
+  height: 32px;
+}
+
 .listwell-page-controls--dock {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
@@ -220,7 +225,7 @@ button:focus-visible {
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;
@@ -249,6 +254,19 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.listwell-page-controls__btn--round {
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.listwell-page-controls__avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .listwell-page-controls__popover-sr {
   position: absolute;
   width: 1px;
@@ -273,7 +291,7 @@ button:focus-visible {
   max-width: min(220px, calc(100vw - 32px));
   padding: 4px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--tooltip-bg);
   color: var(--tooltip-fg);
   box-shadow: var(--shadow-hairline);
@@ -323,10 +341,11 @@ button:focus-visible {
   top: calc(100% + 6px);
   right: 0;
   z-index: 6;
-  min-width: 188px;
-  max-width: min(240px, calc(100vw - 32px));
+  width: max-content;
+  min-width: 164px;
+  max-width: min(280px, calc(100vw - 32px));
   padding: 4px;
-  border-radius: 10px;
+  border-radius: var(--radius-window);
   overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow-hairline);
@@ -355,12 +374,14 @@ button:focus-visible {
 .listwell-account-menu__list {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
 }
 
-/* Inner radius: 10px menu − 4px padding */
+/* Inner radius: window − 4px menu padding */
 .listwell-glide-highlight {
   inset-inline: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-inset);
   background: var(--hover);
 }
 
@@ -386,7 +407,7 @@ button:focus-visible {
   margin: 0;
   padding: 7px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-inset);
   background: transparent;
   color: var(--ink-2);
   font: inherit;
@@ -444,7 +465,7 @@ button:focus-visible {
 }
 
 .listwell-account-menu--form {
-  min-width: 228px;
+  width: max-content;
   max-width: min(280px, calc(100vw - 32px));
 }
 
@@ -454,12 +475,12 @@ button:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
   width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 7px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-inset);
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -514,7 +535,7 @@ button:focus-visible {
   align-items: center;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-window);
   background: var(--field);
 }
 
@@ -530,11 +551,93 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.listwell-account-upgrade-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.listwell-account-upgrade-analytics__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.listwell-account-upgrade-analytics__head input[type="checkbox"] {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+
+.listwell-account-upgrade-analytics__copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.listwell-account-upgrade-analytics__copy label {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.listwell-account-upgrade-analytics__bands {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+}
+
+.listwell-account-upgrade-analytics__bands-legend {
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.listwell-account-upgrade-analytics__band {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 2.75rem;
+  padding: 6px 8px;
+  margin: 0 -4px;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+@media (hover: hover) {
+  .listwell-account-upgrade-analytics__band:hover {
+    background: var(--hover);
+  }
+}
+
+.listwell-account-upgrade-analytics__band input[type="radio"] {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.listwell-account-upgrade-analytics__band-choice {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .listwell-analytics-snippet__code {
   margin: 0;
   padding: 12px;
   overflow-x: auto;
-  border-radius: 10px;
+  border-radius: var(--radius-window);
   background: var(--field);
   color: var(--ink);
   font-family: var(--font-geist-mono), ui-monospace, monospace;
@@ -573,7 +676,7 @@ button:focus-visible {
   margin: 0;
   padding: 7px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--field);
   color: var(--ink);
   font: inherit;
@@ -1107,7 +1210,7 @@ button:focus-visible {
   flex-shrink: 0;
   appearance: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   width: 28px;
   height: 28px;
   display: inline-flex;
@@ -1200,14 +1303,16 @@ button:focus-visible {
 
 .listwell-chat__bubble--user {
   padding: 9px 13px;
-  border-radius: 14px 14px 4px 14px;
+  border-radius: var(--radius-window) var(--radius-window) 4px
+    var(--radius-window);
   background: var(--ink);
   color: var(--surface);
 }
 
 .listwell-chat__bubble--assistant {
   padding: 9px 13px;
-  border-radius: 14px 14px 14px 4px;
+  border-radius: var(--radius-window) var(--radius-window) var(--radius-window)
+    4px;
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-hairline);
@@ -1514,6 +1619,31 @@ button:focus-visible {
   border-bottom: 1px solid var(--line-soft);
 }
 
+.listwell-panel:has(.listwell-panel__empty) {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-window);
+  background: transparent;
+  box-shadow: none;
+}
+
+.listwell-panel__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 116px;
+  padding: 24px 16px;
+  border-radius: inherit;
+  background: transparent;
+  text-align: center;
+}
+
+.listwell-panel__empty-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
 .listwell-panel__title {
   margin: 0;
   font-size: 0.8125rem;
@@ -1680,7 +1810,7 @@ button:focus-visible {
   animation: fade-up 360ms var(--ease-out, ease-out) 80ms both;
 }
 
-.listwell-page__actions > a {
+.listwell-page__actions > :is(a, button) {
   width: 100%;
   box-shadow: var(--shadow-hairline);
 }
@@ -1705,8 +1835,50 @@ button:focus-visible {
   display: block;
 }
 
+.listwell-account-row--enter {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@starting-style {
+  .listwell-account-row--enter {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.listwell-account-row--pending .listwell-panel__row,
+.listwell-account-row--pending .listwell-panel__row:hover {
+  background: transparent;
+  cursor: default;
+}
+
+.listwell-account-row__spinner {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--ink);
+  border-radius: 999px;
+  animation: listwell-spin 0.7s linear infinite;
+}
+
 .listwell-account-row .listwell-panel__row {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.listwell-account-row .listwell-panel__row:hover {
+  background: transparent;
+}
+
+@media (hover: hover) {
+  .listwell-account-row
+    .listwell-panel__row:has(.listwell-panel__row-link:hover) {
+    background: var(--inset);
+  }
 }
 
 .listwell-account-row .listwell-panel__error {
@@ -1731,6 +1903,41 @@ button:focus-visible {
   gap: 8px;
 }
 
+button.listwell-account-row__upgrade {
+  appearance: none;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+button.listwell-account-row__upgrade:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  button.listwell-account-row__upgrade:hover {
+    background: var(--hover);
+  }
+}
+
 .listwell-account-row__menu {
   position: relative;
 }
@@ -1750,6 +1957,10 @@ button:focus-visible {
   background: transparent;
   color: var(--ink-2);
   cursor: pointer;
+  transition:
+    background 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .listwell-account-row__menu-trigger:focus-visible {
@@ -2260,7 +2471,7 @@ div.listwell-panel__row:hover {
   align-items: center;
   height: 36px;
   padding: 0 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -2270,29 +2481,6 @@ div.listwell-panel__row:hover {
 
 .listwell-page-home:hover {
   background: var(--hover);
-}
-
-.listwell-account-scan-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  max-width: min(var(--listwell-column), 100%);
-  margin: 0 auto 12px;
-  padding: 0 4px;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: var(--ink-2);
-}
-
-.listwell-account-scan-status__spinner {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--line-strong);
-  border-top-color: var(--ink);
-  border-radius: 999px;
-  animation: listwell-spin 0.7s linear infinite;
 }
 
 .listwell-account-background-scan {
@@ -2384,6 +2572,21 @@ div.listwell-panel__row:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .listwell-account-row__spinner {
+    animation: none;
+  }
+
+  .listwell-account-row--enter {
+    transition: opacity 120ms ease;
+    transform: none;
+  }
+
+  @starting-style {
+    .listwell-account-row--enter {
+      transform: none;
+    }
+  }
+
   .listwell-panel,
   .listwell-page__actions {
     animation: none;
@@ -2486,13 +2689,33 @@ div.listwell-panel__row:hover {
 }
 
 .listwell-report__segments .listwell-panel__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-start;
+  gap: 6px;
   width: 100%;
   height: auto;
   min-height: 32px;
   padding: 6px 10px;
   text-align: left;
   white-space: normal;
+}
+
+.listwell-report__segments .listwell-panel__action[data-locked="true"] {
+  color: var(--muted-foreground, #737373);
+}
+
+.listwell-report__segment-lock {
+  margin-inline-start: auto;
+  font-size: 11px;
+}
+
+.listwell-report__locked-upgrade {
+  width: auto;
+  height: auto;
+  min-height: 32px;
+  padding: 6px 12px;
 }
 
 @media (min-width: 768px) {
@@ -3119,14 +3342,14 @@ div.listwell-panel__row:hover {
   justify-content: center;
   min-height: clamp(420px, 62vh, 720px);
   padding: 72px 32px;
-  border-radius: 18px;
+  border-radius: var(--radius-window);
   background: var(--home-stage);
 }
 
 .home-composer {
   width: min(34rem, 100%);
   padding: 28px;
-  border-radius: 16px;
+  border-radius: var(--radius-window);
   background: #fff;
 }
 
@@ -3267,7 +3490,7 @@ div.listwell-panel__row:hover {
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(23, 23, 23, 0.1);
-  border-radius: 16px;
+  border-radius: var(--radius-window);
   background: var(--home-surface, #fff);
   overflow: hidden;
 }
@@ -3279,6 +3502,55 @@ div.listwell-panel__row:hover {
 
 .home-pricing__continued-row {
   border-top: 1px solid rgba(23, 23, 23, 0.1);
+}
+
+.home-pricing__addons-row {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 28px 24px;
+  border-top: 1px solid rgba(23, 23, 23, 0.1);
+}
+
+.home-pricing__addons-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 36rem;
+}
+
+.home-pricing__addons-label {
+  margin: 0;
+  color: var(--home-ink);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.home-pricing__addons-lede {
+  margin: 0;
+  color: var(--home-faint);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.home-pricing__addons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0;
+}
+
+.home-pricing__tier--addon {
+  border-left: 0;
+  padding: 0;
+}
+
+.home-pricing__tier--addon .home-pricing__price--unit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 24px;
 }
 
 .home-pricing__tier--continued {
@@ -3440,7 +3712,7 @@ div.listwell-panel__row:hover {
   min-height: 44px;
   margin: 0;
   padding: 14px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   white-space: normal;
   text-align: left;
   justify-self: stretch;
@@ -3748,7 +4020,7 @@ div.listwell-panel__row:hover {
     gap: 4px;
     width: 100%;
     padding: 4px;
-    border-radius: 20px;
+    border-radius: var(--radius-window);
   }
 
   .home-split__action {
@@ -3781,6 +4053,10 @@ div.listwell-panel__row:hover {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    padding: 20px 16px 24px;
+  }
+
+  .home-pricing__addons-row {
     padding: 20px 16px 24px;
   }
 

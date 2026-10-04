@@ -49,6 +49,12 @@ export const POST = async (
   if (!access.unlocked || access.sessionRequired) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (access.monthlyCancelled) {
+    return NextResponse.json(
+      { error: "Re-scan is not available for this report" },
+      { status: 400 }
+    );
+  }
   if (access.kind !== "report_once" && access.kind !== "report_monthly") {
     return NextResponse.json(
       { error: "Re-scan is not available for this report" },

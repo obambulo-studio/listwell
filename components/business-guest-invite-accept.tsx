@@ -115,7 +115,12 @@ export const BusinessGuestInviteAccept = ({
           {error}
         </p>
       ) : null}
-      <PrimaryButton disabled={busy} onClick={accept} type="button">
+      <PrimaryButton
+        disabled={busy}
+        loading={busy}
+        onClick={accept}
+        type="button"
+      >
         Accept invite for {businessName}
       </PrimaryButton>
       <p className="listwell-panel__note">

@@ -71,9 +71,10 @@ const RefundsPage = () => (
     <LegalSection title="Subscriptions">
       <p>
         Monthly and yearly plans renew through Polar until you cancel.
-        Cancelling stops future charges. You keep access for the period you have
-        already paid for unless Polar or Listwell revokes access after a refund
-        or chargeback.
+        Cancelling stops future charges. Scans continue until the end of the
+        period you have already paid for. After that, new scans stop, and you
+        keep every previous scan and the report data already stored for that
+        business. A refund or chargeback removes that paid access.
       </p>
       <p>
         Manage billing through the Polar customer portal linked from your

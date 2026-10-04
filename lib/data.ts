@@ -473,8 +473,20 @@ export const revokeEntitlements = async (input: {
   });
 };
 
+/** Ends a monthly subscription but keeps stored scans readable. */
+export const lapseEntitlements = async (input: {
+  businessId?: string;
+  polarSubscriptionId?: string;
+}): Promise<void> => {
+  await convexMutation(api.entitlements.lapse, {
+    businessExternalId: input.businessId,
+    polarSubscriptionId: input.polarSubscriptionId,
+  });
+};
+
 const activeOwnerValueSchema = z.object({
   kind: entitlementKindSchema.nullable(),
+  monthlyCancelled: z.boolean(),
   ownerEmail: z.string().nullable(),
   ownerUserId: z.string().nullable(),
   polarOrderId: z.string().nullable(),
@@ -488,6 +500,7 @@ export type EntitlementOwnerSnapshot =
       backendAvailable: true;
       unlocked: boolean;
       kind: EntitlementKind | null;
+      monthlyCancelled: boolean;
       ownerEmail: string | null;
       ownerUserId: string | null;
       polarOrderId: string | null;
@@ -502,7 +515,7 @@ export const getResearchEntitlement = async (
   status: EntitlementStatus;
 } | null> => {
   const row = await tryConvexQuery(() =>
-    convexQuery(api.entitlements.getActiveForBusiness, {
+    convexQuery(api.entitlements.getReadableForBusiness, {
       businessExternalId: businessId,
     })
   );
@@ -533,6 +546,7 @@ export const getActiveEntitlementOwner = async (
   return {
     backendAvailable: true,
     kind: value.kind,
+    monthlyCancelled: value.monthlyCancelled,
     ownerEmail: value.ownerEmail,
     ownerUserId: value.ownerUserId,
     polarOrderId: value.polarOrderId,

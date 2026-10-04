@@ -1,11 +1,16 @@
 import { z } from "zod";
 
+import { isAnalyticsEntitlementKind } from "./analytics-pricing";
+
 export const otherAccountsStillHaveAccessMessage =
   "Other accounts still have access";
 
 const removalEntitlementSchema = z.object({
+  kind: z.string(),
+  polarCustomerId: z.string().nullable(),
   polarSubscriptionId: z.string().nullable(),
-  status: z.enum(["active", "revoked"]),
+  purchaserEmail: z.string().nullable(),
+  status: z.enum(["active", "cancelled", "revoked"]),
   userId: z.string().nullable(),
 });
 
@@ -25,13 +30,31 @@ export const removalBlockedByOtherActiveEntitlement = (
       row.status === "active" && row.userId !== null && row.userId !== ownerId
   );
 
-const subscriptionIdToRevoke = (value: string | null): string | null => {
-  if (value === null) {
+const trimmedId = (value: string | null | undefined): string | null => {
+  if (!value) {
     return null;
   }
   const id = value.trim();
   return id.length > 0 ? id : null;
 };
+
+const ownedActiveEntitlement = (
+  row: RemovalEntitlement,
+  ownerId: string
+): boolean => {
+  const ownedHere = row.userId === null || row.userId === ownerId;
+  return row.status === "active" && ownedHere;
+};
+
+const entitlementRenews = (row: RemovalEntitlement): boolean =>
+  row.kind === "report_monthly" ||
+  isAnalyticsEntitlementKind(row.kind) ||
+  trimmedId(row.polarSubscriptionId) !== null;
+
+/** Web analytics is billed per account; removing one site must not cancel it. */
+export const entitlementRevokesOnBusinessRemoval = (
+  row: RemovalEntitlement
+): boolean => !isAnalyticsEntitlementKind(row.kind);
 
 /** Active subscriptions owned by this account, or not assigned to anyone. */
 export const subscriptionIdsToRevoke = (
@@ -40,13 +63,45 @@ export const subscriptionIdsToRevoke = (
 ): string[] => {
   const ids = new Set<string>();
   for (const row of entitlements) {
-    const ownedHere = row.userId === null || row.userId === ownerId;
-    const subscriptionId = subscriptionIdToRevoke(row.polarSubscriptionId);
-    if (row.status === "active" && ownedHere && subscriptionId !== null) {
+    const subscriptionId = trimmedId(row.polarSubscriptionId);
+    if (
+      ownedActiveEntitlement(row, ownerId) &&
+      entitlementRevokesOnBusinessRemoval(row) &&
+      subscriptionId !== null
+    ) {
       ids.add(subscriptionId);
     }
   }
   return [...ids];
+};
+
+/** Billing this removal must stop before the business rows are deleted. */
+export const removalBillingTarget = (
+  entitlements: readonly RemovalEntitlement[],
+  ownerId: string
+) => {
+  let polarCustomerId: string | null = null;
+  let purchaserEmail: string | null = null;
+  let recurring = false;
+  for (const row of entitlements) {
+    if (!ownedActiveEntitlement(row, ownerId)) {
+      continue;
+    }
+    if (entitlementRevokesOnBusinessRemoval(row) && entitlementRenews(row)) {
+      recurring = true;
+    }
+    polarCustomerId ??= trimmedId(row.polarCustomerId);
+    const email = row.purchaserEmail?.trim();
+    if (purchaserEmail === null && email) {
+      purchaserEmail = email;
+    }
+  }
+  return {
+    polarCustomerId,
+    purchaserEmail,
+    recurring,
+    subscriptionIds: subscriptionIdsToRevoke(entitlements, ownerId),
+  };
 };
 
 /** Another account's entitlement row must stay when this business is removed. */

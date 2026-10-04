@@ -47,6 +47,7 @@ describe("agent-ready metadata", () => {
     expect(card.serverInfo.name).toBe("Listwell");
     expect(card.url).toBe(`${origin}/mcp`);
     expect(card.capabilities.tools).toBeTruthy();
+    expect(card.description).toContain("Read-only");
   });
 
   it("serves an empty JWKS document", () => {

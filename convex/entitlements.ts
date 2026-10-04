@@ -1,16 +1,25 @@
 import { v } from "convex/values";
-import type { GenericId } from "convex/values";
 
 import {
   normalizePurchaserEmail,
   activePurchaseLinksToUser,
 } from "../lib/purchase-link";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { requireInternalSecret } from "./lib/internal";
+import {
+  activeReportEntitlement,
+  businessClaimAllowed,
+  cancelledMonthlyEntitlement,
+  entitlementRowsForBillingEnd,
+  entitlementStatusAfterEnd,
+  grantReusesEntitlementRow,
+  researchReportEntitlement,
+} from "./lib/reportEntitlements";
 import {
   dueEntitlementRowValidator,
   entitlementResponseValidator,
@@ -51,9 +60,19 @@ const claimUnownedBusiness = async (
     .query("businesses")
     .withIndex("by_externalId", (q) => q.eq("externalId", businessExternalId))
     .unique();
-  if (doc && !doc.userId) {
-    await ctx.db.patch("businesses", doc._id, { updatedAt: nowIso(), userId });
+  if (!doc || doc.userId) {
+    return;
   }
+  const entitlements = await ctx.db
+    .query("entitlements")
+    .withIndex("by_businessExternalId", (q) =>
+      q.eq("businessExternalId", businessExternalId)
+    )
+    .collect();
+  if (!businessClaimAllowed(entitlements, userId)) {
+    return;
+  }
+  await ctx.db.patch("businesses", doc._id, { updatedAt: nowIso(), userId });
 };
 
 /** Attach paid reports bought with this email to the account, and claim those businesses. */
@@ -113,7 +132,7 @@ const toEntitlementResponse = (doc: {
   businessExternalId: string;
   userId?: string;
   kind: StoredEntitlementKind;
-  status: "active" | "revoked";
+  status: "active" | "cancelled" | "revoked";
   polarCustomerId?: string;
   polarOrderId?: string;
   polarSubscriptionId?: string;
@@ -161,6 +180,7 @@ const maskEmail = (email: string): string => {
 
 const activeOwnerResponse = v.object({
   kind: v.union(entitlementKindValidator, v.null()),
+  monthlyCancelled: v.boolean(),
   ownerEmail: v.union(v.string(), v.null()),
   ownerUserId: v.union(v.string(), v.null()),
   polarOrderId: v.union(v.string(), v.null()),
@@ -179,12 +199,12 @@ export const getActiveOwner = query({
       )
       .collect();
 
-    const active = entitlements.find(
-      (row) => row.status === "active" && isReportEntitlementKind(row.kind)
-    );
-    if (!active) {
+    const active = activeReportEntitlement(entitlements);
+    const readable = active ?? cancelledMonthlyEntitlement(entitlements);
+    if (!readable) {
       return {
         kind: null,
+        monthlyCancelled: false,
         ownerEmail: null,
         ownerUserId: null,
         polarOrderId: null,
@@ -194,17 +214,18 @@ export const getActiveOwner = query({
     }
 
     let ownerEmail: string | null = null;
-    if (active.userId) {
-      const user = await authComponent.getAnyUserById(ctx, active.userId);
+    if (readable.userId) {
+      const user = await authComponent.getAnyUserById(ctx, readable.userId);
       ownerEmail = user?.email ? maskEmail(user.email) : null;
     }
 
     return {
-      kind: active.kind,
+      kind: readable.kind,
+      monthlyCancelled: active === null,
       ownerEmail,
-      ownerUserId: active.userId ?? null,
-      polarOrderId: active.polarOrderId ?? null,
-      purchaserEmail: active.purchaserEmail ?? null,
+      ownerUserId: readable.userId ?? null,
+      polarOrderId: readable.polarOrderId ?? null,
+      purchaserEmail: readable.purchaserEmail ?? null,
       unlocked: true,
     };
   },
@@ -272,6 +293,46 @@ export const getActiveForBusiness = query({
     }),
     v.null()
   ),
+});
+
+const readableEntitlementValidator = v.union(
+  v.object({
+    kind: entitlementKindValidator,
+    nextScanAt: v.union(v.string(), v.null()),
+    polarCustomerId: v.union(v.string(), v.null()),
+    purchaserEmail: v.union(v.string(), v.null()),
+    status: entitlementStatusValidator,
+  }),
+  v.null()
+);
+
+/**
+ * Active monthly plan, otherwise a cancelled monthly plan, otherwise any
+ * active report. Cancelled plans stay readable so previous scans remain.
+ */
+export const getReadableForBusiness = query({
+  args: { businessExternalId: v.string(), secret: v.string() },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_businessExternalId", (q) =>
+        q.eq("businessExternalId", args.businessExternalId)
+      )
+      .collect();
+    const chosen = researchReportEntitlement(rows);
+    if (!chosen) {
+      return null;
+    }
+    return {
+      kind: chosen.kind,
+      nextScanAt: chosen.nextScanAt ?? null,
+      polarCustomerId: chosen.polarCustomerId ?? null,
+      purchaserEmail: chosen.purchaserEmail ?? null,
+      status: chosen.status,
+    };
+  },
+  returns: readableEntitlementValidator,
 });
 
 /** Fills a missing Polar customer id on active entitlements for one business. */
@@ -405,34 +466,34 @@ export const grant = mutation({
       );
     }
 
-    const existing = existingRows.find((row) => {
-      if (row.kind === args.kind) {
-        return true;
-      }
-      if (args.polarOrderId && row.polarOrderId === args.polarOrderId) {
-        return true;
-      }
-      if (
-        args.polarSubscriptionId &&
-        row.polarSubscriptionId === args.polarSubscriptionId
-      ) {
-        return true;
-      }
-      return false;
-    });
+    const existing = existingRows.find((row) =>
+      grantReusesEntitlementRow({
+        existingKind: row.kind,
+        grantKind: args.kind,
+        polarOrderId: args.polarOrderId,
+        polarSubscriptionId: args.polarSubscriptionId,
+        rowOrderId: row.polarOrderId,
+        rowSubscriptionId: row.polarSubscriptionId,
+      })
+    );
 
     if (existing) {
+      let scheduledNextScanAt: string | undefined;
+      if (args.kind === "report_monthly") {
+        const restartSchedule =
+          existing.status === "cancelled" || !existing.nextScanAt;
+        scheduledNextScanAt = restartSchedule
+          ? nextScanAt
+          : existing.nextScanAt;
+      }
       await ctx.db.patch("entitlements", existing._id, {
         kind: args.kind,
-        nextScanAt:
-          args.kind === "report_monthly"
-            ? (existing.nextScanAt ?? nextScanAt)
-            : undefined,
+        nextScanAt: scheduledNextScanAt,
         polarCustomerId: args.polarCustomerId ?? existing.polarCustomerId,
         polarOrderId: args.polarOrderId ?? existing.polarOrderId,
         polarSubscriptionId:
           args.polarSubscriptionId ?? existing.polarSubscriptionId,
-        ...(existing.status === "revoked"
+        ...(existing.status === "revoked" || existing.status === "cancelled"
           ? { purchaseEmailSentAt: undefined }
           : {}),
         purchaserEmail: existing.purchaserEmail ?? purchaseOwner.email,
@@ -563,54 +624,50 @@ export const revoke = mutation({
     }
 
     const timestamp = nowIso();
-    interface EntitlementDoc {
-      _id: GenericId<"entitlements">;
-      businessExternalId: string;
-      userId?: string;
-      kind: StoredEntitlementKind;
-      status: "active" | "revoked";
-      polarOrderId?: string;
-      polarSubscriptionId?: string;
-      nextScanAt?: string;
-      createdAt: string;
-      updatedAt: string;
-    }
-    const matchingRows: EntitlementDoc[] = [];
-    if (args.businessExternalId) {
-      const byBusiness = await ctx.db
-        .query("entitlements")
-        .withIndex("by_businessExternalId", (q) =>
-          q.eq("businessExternalId", args.businessExternalId as string)
-        )
-        .collect();
-      matchingRows.push(...byBusiness);
-    }
-    if (args.polarOrderId) {
-      const byOrder = await ctx.db
-        .query("entitlements")
-        .withIndex("by_polarOrderId", (q) =>
-          q.eq("polarOrderId", args.polarOrderId as string)
-        )
-        .collect();
-      for (const row of byOrder) {
-        if (!matchingRows.some((existing) => existing._id === row._id)) {
-          matchingRows.push(row);
+    const identified: Doc<"entitlements">[] = [];
+    const appendUnique = (rows: readonly Doc<"entitlements">[]) => {
+      for (const row of rows) {
+        if (!identified.some((existing) => existing._id === row._id)) {
+          identified.push(row);
         }
       }
+    };
+    if (args.polarOrderId) {
+      appendUnique(
+        await ctx.db
+          .query("entitlements")
+          .withIndex("by_polarOrderId", (q) =>
+            q.eq("polarOrderId", args.polarOrderId as string)
+          )
+          .collect()
+      );
     }
     if (args.polarSubscriptionId) {
-      const bySubscription = await ctx.db
-        .query("entitlements")
-        .withIndex("by_polarSubscriptionId", (q) =>
-          q.eq("polarSubscriptionId", args.polarSubscriptionId as string)
-        )
-        .collect();
-      for (const row of bySubscription) {
-        if (!matchingRows.some((existing) => existing._id === row._id)) {
-          matchingRows.push(row);
-        }
-      }
+      appendUnique(
+        await ctx.db
+          .query("entitlements")
+          .withIndex("by_polarSubscriptionId", (q) =>
+            q.eq("polarSubscriptionId", args.polarSubscriptionId as string)
+          )
+          .collect()
+      );
     }
+    const businessRows =
+      args.businessExternalId && !args.polarOrderId && !args.polarSubscriptionId
+        ? await ctx.db
+            .query("entitlements")
+            .withIndex("by_businessExternalId", (q) =>
+              q.eq("businessExternalId", args.businessExternalId as string)
+            )
+            .collect()
+        : [];
+    const matchingRows = entitlementRowsForBillingEnd({
+      businessRows,
+      identifiedRows: identified,
+      polarOrderId: args.polarOrderId,
+      polarSubscriptionId: args.polarSubscriptionId,
+      scope: "revoke",
+    });
     await Promise.all(
       matchingRows.map((row) =>
         ctx.db.patch("entitlements", row._id, {
@@ -619,6 +676,70 @@ export const revoke = mutation({
         })
       )
     );
+  },
+  returns: v.null(),
+});
+
+/**
+ * Ends the paid subscription. Monthly report rows stay readable.
+ * A later refund still revokes them.
+ */
+export const lapse = mutation({
+  args: {
+    businessExternalId: v.optional(v.string()),
+    polarSubscriptionId: v.optional(v.string()),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const { businessExternalId } = args;
+    const { polarSubscriptionId } = args;
+    if (!businessExternalId && !polarSubscriptionId) {
+      return null;
+    }
+
+    const identified = polarSubscriptionId
+      ? await ctx.db
+          .query("entitlements")
+          .withIndex("by_polarSubscriptionId", (q) =>
+            q.eq("polarSubscriptionId", polarSubscriptionId)
+          )
+          .collect()
+      : [];
+    const businessRows =
+      identified.length === 0 && businessExternalId
+        ? await ctx.db
+            .query("entitlements")
+            .withIndex("by_businessExternalId", (q) =>
+              q.eq("businessExternalId", businessExternalId)
+            )
+            .collect()
+        : [];
+    const rows = entitlementRowsForBillingEnd({
+      businessRows,
+      identifiedRows: identified,
+      polarSubscriptionId,
+      scope: "lapse",
+    });
+
+    const timestamp = nowIso();
+    await Promise.all(
+      rows.map(async (row) => {
+        const next = entitlementStatusAfterEnd({
+          effect: "lapse",
+          kind: row.kind,
+          status: row.status,
+        });
+        if (!next) {
+          return;
+        }
+        await ctx.db.patch("entitlements", row._id, {
+          status: next,
+          updatedAt: timestamp,
+        });
+      })
+    );
+    return null;
   },
   returns: v.null(),
 });

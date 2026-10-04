@@ -42,7 +42,7 @@ Use this skill when someone wants to check local listings or website SEO with Li
 
 Listwell is a local and website SEO audit for small businesses at ${origin}. A visitor describes a business. Listwell matches Google Business Profile, Apple Maps, a website, and social profiles, then runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).
 
-obambulo studio owns Listwell. Discovery: \`${origin}/.well-known/api-catalog\`, WebMCP in the browser, and MCP server card at \`${origin}/.well-known/mcp/server-card.json\`. Session auth uses email OTP (see \`${origin}/auth.md\`).
+obambulo studio owns Listwell. Discovery: \`${origin}/.well-known/api-catalog\`, WebMCP in the browser, and read-only streamable HTTP MCP at \`${origin}/mcp\` (server card \`${origin}/.well-known/mcp/server-card.json\`). Session auth uses email OTP (see \`${origin}/auth.md\`).
 
 ## Start an audit
 
@@ -63,6 +63,8 @@ Humans sign in with email OTP at \`${origin}/sign-in\`. Agent discovery: \`${ori
 ## Public HTTP API
 
 Rate-limited \`/api/discover\`, \`/api/health\`, and \`/api/chat/interpret\` are listed in \`${origin}/.well-known/api-catalog\`. Business APIs require a session.
+
+Read-only MCP at \`${origin}/mcp\` exposes \`discover_listings\` and \`listwell_health\` over streamable HTTP. It does not create accounts, start paid audits, or change saved businesses.
 
 ## Do not
 
@@ -145,14 +147,14 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
     `- [API catalog](${origin}/.well-known/api-catalog): RFC 9727 linkset for /api`,
     `- [OAuth AS metadata](${origin}/.well-known/oauth-authorization-server): issuer metadata and agent_auth`,
     `- [OAuth protected resource](${origin}/.well-known/oauth-protected-resource): site resource identifier`,
-    `- [MCP server card](${origin}/.well-known/mcp/server-card.json): MCP discovery (HTTP endpoint reserved)`,
+    `- [MCP server card](${origin}/.well-known/mcp/server-card.json): read-only streamable HTTP MCP at ${origin}/mcp`,
     `- [robots.txt](${origin}/robots.txt): crawl rules and Content Signals`,
     `- [Sitemap](${origin}/sitemap.xml): public URLs`,
     `- [ARD catalog](${origin}/.well-known/ai-catalog.json): documentation the site publishes`,
     `- [Agent skill](${origin}/.well-known/agent-skills/index.json): start a listing audit`,
     "- DNS-AID: publish HTTPS/SVCB `_index._agents`, `_mcp._agents`, and `_a2a._agents` on the listwell.dev zone with DNSSEC enabled",
     "",
-    "WebMCP tools (`start_listing_audit`, `discover_listings`, `listwell_health`) register on page load in supporting browsers.",
+    "Read-only HTTP MCP tools: `discover_listings`, `listwell_health`. WebMCP also registers `start_listing_audit` in supporting browsers.",
     "",
   ].join("\n");
 
@@ -191,7 +193,7 @@ export const authMd = (origin = listwellSiteUrl()): string =>
     `- Revoke: \`POST ${origin}/api/agent/revoke\``,
     "",
     "For listing audits without a session, use the public chat at " +
-      `\`${origin}/chat\` or rate-limited routes in the [API catalog](${origin}/.well-known/api-catalog).`,
+      `\`${origin}/chat\`, rate-limited routes in the [API catalog](${origin}/.well-known/api-catalog), or read-only MCP at \`${origin}/mcp\` (\`discover_listings\`, \`listwell_health\`).`,
     "",
   ].join("\n");
 

@@ -7,7 +7,6 @@ import {
   Login01Icon,
   Logout01Icon,
   RefreshIcon,
-  UserIcon,
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -23,8 +22,17 @@ import {
 } from "react";
 import type { KeyboardEvent } from "react";
 
+import { AccountAvatar } from "@/components/account-avatar";
+import { useClientHydrated } from "@/components/convex-client-provider";
 import { Icon } from "@/components/icon";
 import GlideMenu from "@/components/primitives/glide-menu";
+import {
+  closeProfileSettings,
+  openProfileSettings,
+  ProfileSettingsDialog,
+  profileSettingsSnapshot,
+  subscribeProfileSettings,
+} from "@/components/profile-form";
 import { authClient } from "@/lib/auth-client";
 import {
   isAccountPath,
@@ -131,21 +139,23 @@ const AccountMenuContent = ({
 }) => (
   <GlideMenu className="listwell-account-menu__list">
     {status === "signed_in" && email ? (
-      <Link
-        href="/account/profile"
+      <button
+        type="button"
         role="menuitem"
         data-menu-row
         className="listwell-account-menu__identity"
-        onClick={() => onClose()}
+        onClick={() => {
+          onClose();
+          openProfileSettings();
+        }}
       >
-        <Icon className={menuIconClass} icon={UserIcon} size={15} />
         <span className="listwell-account-menu__copy">
           {name ? <span>{name}</span> : null}
           <span className={name ? "listwell-account-menu__meta" : undefined}>
             {maskAccountEmail(email)}
           </span>
         </span>
-      </Link>
+      </button>
     ) : null}
 
     {!signedIn && authAvailable ? (
@@ -185,7 +195,7 @@ const AccountMenuContent = ({
       onClick={() => onClose()}
     >
       <Icon className={menuIconClass} icon={Building03Icon} size={15} />
-      Your businesses
+      My businesses
     </Link>
     <button
       type="button"
@@ -198,7 +208,7 @@ const AccountMenuContent = ({
       }}
     >
       <Icon className={menuIconClass} icon={CreditCardIcon} size={15} />
-      Billing
+      Manage billing
     </button>
     {signedIn ? (
       <>
@@ -227,11 +237,18 @@ export const AccountControl = ({
   useLayoutEffect(() => {
     applyTheme();
   }, []);
+
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const session = authClient.useSession();
+  const clientReady = useClientHydrated();
   const [open, setOpen] = useState(false);
+  const profileOpen = useSyncExternalStore(
+    subscribeProfileSettings,
+    profileSettingsSnapshot,
+    () => false
+  );
   const authAvailable = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
   const signInHref = {
     pathname: "/sign-in" as const,
@@ -248,10 +265,14 @@ export const AccountControl = ({
     close(restoreFocus);
   });
 
-  const sessionEmail = session.data?.user.email ?? null;
-  const status = accountStatusFromSession(session.isPending, sessionEmail);
+  const sessionEmail = clientReady ? (session.data?.user.email ?? null) : null;
+  const status = accountStatusFromSession(
+    !clientReady || session.isPending,
+    sessionEmail
+  );
   const email = sessionEmail;
-  const name = session.data?.user.name?.trim() || null;
+  const image = clientReady ? session.data?.user.image : null;
+  const name = clientReady ? session.data?.user.name?.trim() || null : null;
 
   useEffect(() => {
     if (!open) {
@@ -360,7 +381,7 @@ export const AccountControl = ({
       <button
         ref={triggerRef}
         type="button"
-        className="listwell-page-controls__btn"
+        className="listwell-page-controls__btn listwell-page-controls__btn--round"
         aria-label="Account"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -369,7 +390,15 @@ export const AccountControl = ({
           setOpen((current) => !current);
         }}
       >
-        <Icon icon={UserIcon} size={18} />
+        <AccountAvatar
+          alt=""
+          className="listwell-page-controls__avatar"
+          email={email ?? ""}
+          height={32}
+          iconSize={16}
+          image={image}
+          width={32}
+        />
       </button>
       {open ? (
         <div
@@ -395,6 +424,16 @@ export const AccountControl = ({
           />
         </div>
       ) : null}
+      <ProfileSettingsDialog
+        open={profileOpen}
+        onOpenChange={(next) => {
+          if (next) {
+            openProfileSettings();
+            return;
+          }
+          closeProfileSettings();
+        }}
+      />
     </div>
   );
 };

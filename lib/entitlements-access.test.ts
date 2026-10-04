@@ -1,13 +1,29 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activeReportEntitlement,
+  businessClaimAllowed,
+  cancelledMonthlyEntitlement,
+  entitlementRowsForBillingEnd,
+  entitlementStatusAfterEnd,
+  grantReusesEntitlementRow,
+  researchReportEntitlement,
+} from "../convex/lib/reportEntitlements";
+import {
   entitlementCheckoutRetryPath,
   entitlementIsPurchaserBound,
   fixStepsWithoutPayment,
   isPaymentsIntentionallyDisabled,
+  monthlyResearchVisible,
   ownerCanRescan,
   reportCanManagePlan,
+  reportPeerComparisonOffered,
+  reportPeerComparisonUnlocked,
+  reportPeerComparisonVisible,
   reportResearchChrome,
+  reportResearchOffered,
+  reportResearchUnlocked,
+  storedPeerComparisonVisible,
   reportSessionRequired,
   reportShowsFixSteps,
   reportShowsPurchasePrices,
@@ -227,6 +243,19 @@ describe(ownerCanRescan, () => {
         isOwner: true,
       })
     ).toBeTruthy();
+  });
+
+  it("hides rescan after a monthly plan is cancelled", () => {
+    expect(
+      ownerCanRescan({
+        access: access({
+          kind: "report_monthly",
+          monthlyCancelled: true,
+          unlocked: true,
+        }),
+        isOwner: true,
+      })
+    ).toBeFalsy();
   });
 
   it("allows one rescan on a one-off report while it is still available", () => {
@@ -480,14 +509,107 @@ describe(reportResearchChrome, () => {
     expect(
       reportResearchChrome({
         isOwner: false,
-        researchVisible: true,
+        peerComparisonOffered: true,
+        peerComparisonUnlocked: true,
+        researchOffered: true,
+        researchUnlocked: true,
         showFixSteps: reportShowsFixSteps(viewer),
       })
     ).toStrictEqual({
       fixSteps: false,
+      nearby: true,
+      nearbyUnlocked: true,
       phrasesEditor: false,
       research: true,
+      researchUnlocked: true,
     });
+  });
+});
+
+describe(reportPeerComparisonOffered, () => {
+  it("offers a locked nearby tab on an unpaid owner report", () => {
+    expect(
+      reportPeerComparisonOffered(access({ unlocked: false }), true)
+    ).toBeTruthy();
+  });
+
+  it("does not tease nearby on a shared preview without a paid report", () => {
+    expect(
+      reportPeerComparisonOffered(access({ unlocked: false }), false)
+    ).toBeFalsy();
+  });
+});
+
+describe(reportResearchOffered, () => {
+  it("offers a locked over-time tab before purchase", () => {
+    expect(
+      reportResearchOffered({
+        access: access({ unlocked: false }),
+        isOwner: true,
+        monthlyResearchStored: false,
+      })
+    ).toBeTruthy();
+  });
+
+  it("unlocks research for a paid owner with stored monthly data", () => {
+    expect(
+      reportResearchUnlocked({
+        access: access({ unlocked: true }),
+        monthlyResearchStored: true,
+      })
+    ).toBeTruthy();
+  });
+});
+
+describe(reportPeerComparisonUnlocked, () => {
+  it("matches reportPeerComparisonVisible", () => {
+    const locked = access({ unlocked: false });
+    expect(reportPeerComparisonUnlocked(locked)).toBe(
+      reportPeerComparisonVisible(locked)
+    );
+  });
+});
+
+describe(reportPeerComparisonVisible, () => {
+  it("hides nearby on a free preview", () => {
+    expect(
+      reportPeerComparisonVisible(access({ unlocked: false }))
+    ).toBeFalsy();
+  });
+
+  it("shows nearby on an unlocked report", () => {
+    expect(
+      reportPeerComparisonVisible(access({ unlocked: true }))
+    ).toBeTruthy();
+  });
+
+  it("hides nearby until the purchaser verifies their session", () => {
+    expect(
+      reportPeerComparisonVisible(
+        access({ sessionRequired: true, unlocked: true })
+      )
+    ).toBeFalsy();
+  });
+});
+
+describe(storedPeerComparisonVisible, () => {
+  it("shows nearby on shared one-off and monthly reports", () => {
+    expect(
+      storedPeerComparisonVisible({ kind: "report_once", status: "active" })
+    ).toBeTruthy();
+    expect(
+      storedPeerComparisonVisible({
+        kind: "report_monthly",
+        status: "cancelled",
+      })
+    ).toBeTruthy();
+  });
+
+  it("hides nearby when there is no paid report", () => {
+    expect(storedPeerComparisonVisible(null)).toBeFalsy();
+    expect(
+      storedPeerComparisonVisible({ kind: "report_once", status: "revoked" })
+    ).toBeFalsy();
   });
 });
 
@@ -496,5 +618,235 @@ describe(entitlementCheckoutRetryPath, () => {
     expect(entitlementCheckoutRetryPath("chk_1", "biz_1")).toBe(
       "/api/auth/checkout/chk_1/biz_1"
     );
+  });
+});
+
+describe(monthlyResearchVisible, () => {
+  it("shows stored research for an active or cancelled monthly plan", () => {
+    expect(
+      monthlyResearchVisible({ kind: "report_monthly", status: "active" })
+    ).toBeTruthy();
+    expect(
+      monthlyResearchVisible({ kind: "report_monthly", status: "cancelled" })
+    ).toBeTruthy();
+  });
+
+  it("hides research after a refund", () => {
+    expect(
+      monthlyResearchVisible({ kind: "report_monthly", status: "revoked" })
+    ).toBeFalsy();
+    expect(monthlyResearchVisible(null)).toBeFalsy();
+  });
+});
+
+describe(entitlementStatusAfterEnd, () => {
+  it("keeps a monthly plan readable when the subscription ends", () => {
+    expect(
+      entitlementStatusAfterEnd({
+        effect: "lapse",
+        kind: "report_monthly",
+        status: "active",
+      })
+    ).toBe("cancelled");
+  });
+
+  it("leaves an already cancelled monthly plan alone", () => {
+    expect(
+      entitlementStatusAfterEnd({
+        effect: "lapse",
+        kind: "report_monthly",
+        status: "cancelled",
+      })
+    ).toBeNull();
+  });
+
+  it("revokes a refunded monthly plan, including one already cancelled", () => {
+    expect(
+      entitlementStatusAfterEnd({
+        effect: "revoke",
+        kind: "report_monthly",
+        status: "cancelled",
+      })
+    ).toBe("revoked");
+  });
+
+  it("does not restore a revoked plan", () => {
+    expect(
+      entitlementStatusAfterEnd({
+        effect: "lapse",
+        kind: "report_monthly",
+        status: "revoked",
+      })
+    ).toBeNull();
+  });
+});
+
+const monthlyEntitlementRow = (
+  status: "active" | "cancelled" | "revoked",
+  updatedAt: string
+): {
+  kind: "report_monthly";
+  status: "active" | "cancelled" | "revoked";
+  updatedAt: string;
+} => ({
+  kind: "report_monthly",
+  status,
+  updatedAt,
+});
+
+describe(grantReusesEntitlementRow, () => {
+  it("adds analytics beside an existing report plan", () => {
+    expect(
+      grantReusesEntitlementRow({
+        existingKind: "report_monthly",
+        grantKind: "analytics_10k",
+        polarSubscriptionId: "sub_report",
+        rowSubscriptionId: "sub_report",
+      })
+    ).toBeFalsy();
+  });
+
+  it("keeps a report plan when analytics is granted on another order", () => {
+    expect(
+      grantReusesEntitlementRow({
+        existingKind: "report_once",
+        grantKind: "analytics_100k",
+        polarOrderId: "ord_analytics",
+        rowOrderId: "ord_report",
+      })
+    ).toBeFalsy();
+  });
+
+  it("reuses the analytics row when the band changes on the same subscription", () => {
+    expect(
+      grantReusesEntitlementRow({
+        existingKind: "analytics_10k",
+        grantKind: "analytics_100k",
+        polarSubscriptionId: "sub_analytics",
+        rowSubscriptionId: "sub_analytics",
+      })
+    ).toBeTruthy();
+  });
+
+  it("reuses a report row of the same kind", () => {
+    expect(
+      grantReusesEntitlementRow({
+        existingKind: "report_monthly",
+        grantKind: "report_monthly",
+      })
+    ).toBeTruthy();
+  });
+});
+
+describe(businessClaimAllowed, () => {
+  it("lets the owner claim a business that already has their plan", () => {
+    expect(
+      businessClaimAllowed(
+        [
+          { status: "active", userId: null },
+          { status: "active", userId: "user_1" },
+        ],
+        "user_1"
+      )
+    ).toBeTruthy();
+  });
+
+  it("lets the owner claim when analytics is theirs and the report plan is already attached", () => {
+    expect(
+      businessClaimAllowed(
+        [
+          { status: "active", userId: "user_1" },
+          { status: "active", userId: "user_1" },
+        ],
+        "user_1"
+      )
+    ).toBeTruthy();
+  });
+
+  it("still claims a business with no plan", () => {
+    expect(
+      businessClaimAllowed([{ status: "revoked", userId: "user_2" }], "user_1")
+    ).toBeTruthy();
+  });
+
+  it("leaves a plan owned by another account", () => {
+    expect(
+      businessClaimAllowed([{ status: "active", userId: "user_2" }], "user_1")
+    ).toBeFalsy();
+  });
+
+  it("leaves an unassigned purchase for the email link", () => {
+    expect(
+      businessClaimAllowed([{ status: "active", userId: null }], "user_1")
+    ).toBeFalsy();
+  });
+});
+
+describe(entitlementRowsForBillingEnd, () => {
+  it("ends analytics without removing the report plan on the same business", () => {
+    const analytics = {
+      kind: "analytics_10k",
+      polarSubscriptionId: "sub_analytics",
+      status: "active" as const,
+    };
+    const report = {
+      kind: "report_monthly",
+      polarSubscriptionId: "sub_report",
+      status: "active" as const,
+    };
+    expect(
+      entitlementRowsForBillingEnd({
+        businessRows: [report, analytics],
+        identifiedRows: [analytics],
+        polarSubscriptionId: "sub_analytics",
+        scope: "lapse",
+      })
+    ).toStrictEqual([analytics]);
+  });
+
+  it("refunds one order without revoking the other plan", () => {
+    const report = {
+      kind: "report_once",
+      status: "active" as const,
+    };
+    expect(
+      entitlementRowsForBillingEnd({
+        businessRows: [report],
+        identifiedRows: [],
+        polarOrderId: "ord_analytics",
+        scope: "revoke",
+      })
+    ).toStrictEqual([]);
+  });
+});
+
+describe(researchReportEntitlement, () => {
+  it("prefers an active monthly plan", () => {
+    const active = monthlyEntitlementRow("active", "2026-01-01T00:00:00.000Z");
+    expect(
+      researchReportEntitlement([
+        monthlyEntitlementRow("cancelled", "2026-02-01T00:00:00.000Z"),
+        active,
+      ])
+    ).toBe(active);
+  });
+
+  it("falls back to the latest cancelled monthly plan", () => {
+    const latest = monthlyEntitlementRow(
+      "cancelled",
+      "2026-03-01T00:00:00.000Z"
+    );
+    const rows = [
+      monthlyEntitlementRow("cancelled", "2026-01-01T00:00:00.000Z"),
+      {
+        kind: "report_once",
+        status: "active",
+        updatedAt: "2026-04-01T00:00:00.000Z",
+      },
+      latest,
+    ];
+    expect(researchReportEntitlement(rows)).toBe(latest);
+    expect(activeReportEntitlement(rows)?.kind).toBe("report_once");
+    expect(cancelledMonthlyEntitlement(rows)).toBe(latest);
   });
 });

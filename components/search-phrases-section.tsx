@@ -1,6 +1,7 @@
 "use client";
 
 import { useReducer } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/atoms/button";
 import { PrimaryButton, QuietButton } from "@/components/listwell/actions";
@@ -130,6 +131,7 @@ export const SearchPhrasesSection = ({
     try {
       const saved = await savePhrases(businessId, current, next);
       dispatch({ phrases: saved, type: "saved" });
+      toast.success("Search phrases saved");
     } catch (saveError) {
       dispatch({
         message:
@@ -213,6 +215,7 @@ export const SearchPhrasesSection = ({
           <>
             <PrimaryButton
               disabled={pending || !phraseDraftChanged(current, draft)}
+              loading={pending}
               type="button"
               onClick={() => {
                 void persist(
@@ -244,6 +247,7 @@ export const SearchPhrasesSection = ({
         {!editing && phrasesAreSuggested(current) ? (
           <PrimaryButton
             disabled={pending}
+            loading={pending}
             type="button"
             onClick={() => {
               void persist(acceptedPhraseDraft(current));

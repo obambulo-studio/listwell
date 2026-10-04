@@ -14,11 +14,13 @@ export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY =
 export const LISTWELL_CHAT_SESSION_EVENT = "listwell:chat-session";
 
 export interface AccountBackgroundScanState {
+  businessId?: string;
   businessName: string;
   status: "running";
 }
 
 const accountBackgroundScanSchema = z.object({
+  businessId: z.string().min(1).optional(),
   businessName: z.string().min(1),
   status: z.literal("running"),
 });
@@ -134,6 +136,35 @@ export const isRestorableChatSession = (
 export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT =
   "listwell:account-background-scan";
 
+export const LISTWELL_ACCOUNT_SCAN_COMPLETE_EVENT =
+  "listwell:account-scan-complete";
+
+const accountScanCompleteDetailSchema = z.object({
+  businessId: z.string().min(1),
+});
+
+export const notifyAccountScanComplete = (businessId: string): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const trimmed = businessId.trim();
+  if (!trimmed) {
+    return;
+  }
+  window.dispatchEvent(
+    new CustomEvent(LISTWELL_ACCOUNT_SCAN_COMPLETE_EVENT, {
+      detail: accountScanCompleteDetailSchema.parse({ businessId: trimmed }),
+    })
+  );
+};
+
+export const parseAccountScanCompleteDetail = (
+  detail: unknown
+): { businessId: string } | null => {
+  const parsed = accountScanCompleteDetailSchema.safeParse(detail);
+  return parsed.success ? parsed.data : null;
+};
+
 export const readAccountBackgroundScan =
   (): AccountBackgroundScanState | null => {
     if (typeof window === "undefined") {
@@ -169,6 +200,26 @@ export const startAccountBackgroundScan = (businessName: string): void => {
   window.sessionStorage.setItem(
     LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY,
     JSON.stringify(state)
+  );
+  window.dispatchEvent(new Event(LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT));
+};
+
+export const noteAccountBackgroundScanBusiness = (businessId: string): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const current = readAccountBackgroundScan();
+  const trimmed = businessId.trim();
+  if (!current || !trimmed || current.businessId === trimmed) {
+    return;
+  }
+  const next: AccountBackgroundScanState = {
+    ...current,
+    businessId: trimmed,
+  };
+  window.sessionStorage.setItem(
+    LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY,
+    JSON.stringify(next)
   );
   window.dispatchEvent(new Event(LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT));
 };

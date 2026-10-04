@@ -78,7 +78,7 @@ const RootLayout = async ({ children }: { children: ReactNode }) => {
         <ConvexClientProvider initialToken={token}>
           <ListwellWebMcp />
           <AppShell>{children}</AppShell>
-          <Toaster position="top-center" richColors closeButton />
+          <Toaster />
         </ConvexClientProvider>
       </body>
     </html>

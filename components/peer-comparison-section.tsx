@@ -690,15 +690,17 @@ const PeerList = ({
 
 export const usePeerAudit = (
   businessId: string,
-  peerAuditOverride?: PeerAuditJob
+  peerAuditOverride: PeerAuditJob | undefined,
+  fetchEnabled: boolean
 ): {
   error: unknown;
   isLoading: boolean;
   job: PeerAuditJob | undefined;
   refresh: () => Promise<PeerAuditJob | undefined>;
 } => {
+  const shouldFetch = fetchEnabled && !peerAuditOverride;
   const { data, error, isLoading, mutate } = useSWR(
-    peerAuditOverride ? null : (["peer-audit", businessId] as const),
+    shouldFetch ? (["peer-audit", businessId] as const) : null,
     ([, id]) => startPeerAudit(id),
     { revalidateOnFocus: false }
   );
@@ -751,22 +753,56 @@ const updateCompetitors = async (
   }
 };
 
+const PeerComparisonStatusLines = ({
+  error,
+  isLoading,
+  job,
+  message,
+  stillRunning,
+}: {
+  error: unknown;
+  isLoading: boolean;
+  job: PeerAuditJob | undefined;
+  message: string | null;
+  stillRunning: boolean;
+}) => (
+  <>
+    {job?.placeTypeLabel ? (
+      <p className="listwell-panel__fine">{peerAuditHeading(job)}</p>
+    ) : null}
+    {(isLoading && !job) || stillRunning ? (
+      <p className="listwell-panel__fine" aria-live="polite">
+        Comparing nearby businesses.
+      </p>
+    ) : null}
+    {error && !job ? (
+      <p className="listwell-panel__error" role="alert">
+        Nearby comparison could not be loaded. Try refreshing the page.
+      </p>
+    ) : null}
+    {message ? <p className="listwell-panel__fine">{message}</p> : null}
+  </>
+);
+
 export const PeerComparisonSection = ({
   businessId,
   businessName,
   canManageCompetitors = false,
+  fetchEnabled = true,
   peerAuditOverride,
   subjectChecks,
 }: {
   businessId: string;
   businessName: string;
   canManageCompetitors?: boolean;
+  fetchEnabled?: boolean;
   peerAuditOverride?: PeerAuditJob;
   subjectChecks: SubjectCheck[];
 }) => {
   const { error, isLoading, job, refresh } = usePeerAudit(
     businessId,
-    peerAuditOverride
+    peerAuditOverride,
+    fetchEnabled
   );
   const [saving, setSaving] = useState(false);
   const [manageError, setManageError] = useState<string | null>(null);
@@ -815,20 +851,13 @@ export const PeerComparisonSection = ({
         <p className="listwell-panel__note" id="peer-comparison-caption">
           {job ? peerAuditCaption(job) : PEER_ORDER_CAPTION}
         </p>
-        {job?.placeTypeLabel ? (
-          <p className="listwell-panel__fine">{peerAuditHeading(job)}</p>
-        ) : null}
-        {(isLoading && !job) || stillRunning ? (
-          <p className="listwell-panel__fine" aria-live="polite">
-            Comparing nearby businesses.
-          </p>
-        ) : null}
-        {error && !job ? (
-          <p className="listwell-panel__error" role="alert">
-            Nearby comparison could not be loaded. Try refreshing the page.
-          </p>
-        ) : null}
-        {message ? <p className="listwell-panel__fine">{message}</p> : null}
+        <PeerComparisonStatusLines
+          error={error}
+          isLoading={isLoading}
+          job={job}
+          message={message}
+          stillRunning={stillRunning}
+        />
         {canManage ? (
           <div className="print:hidden">
             <PlaceSearch
@@ -868,14 +897,16 @@ export const PeerComparisonSection = ({
 
 export const NextFixSection = ({
   businessId,
+  fetchEnabled = true,
   peerAuditOverride,
   subjectChecks,
 }: {
   businessId: string;
+  fetchEnabled?: boolean;
   peerAuditOverride?: PeerAuditJob;
   subjectChecks: SubjectCheck[];
 }) => {
-  const { job } = usePeerAudit(businessId, peerAuditOverride);
+  const { job } = usePeerAudit(businessId, peerAuditOverride, fetchEnabled);
   const peers = job ? peersForList(job) : [];
   const choice = pickNextFix(
     subjectChecks.map((check) => ({

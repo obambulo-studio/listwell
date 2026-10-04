@@ -23,9 +23,11 @@ import {
   useState,
 } from "react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 import { z } from "zod";
 
+import { AccountBusinessUpgradeDialog } from "@/components/account-business-upgrade";
 import { Button } from "@/components/atoms/button";
 import {
   BusinessNameHeading,
@@ -39,6 +41,7 @@ import { FixGuide } from "@/components/check-body";
 import { Icon } from "@/components/icon";
 import { ListingReviewSection } from "@/components/listing-review-section";
 import { PrimaryButton, QuietButton } from "@/components/listwell/actions";
+import { LoadingSpinner } from "@/components/listwell/loading-spinner";
 import { CheckStatusMark } from "@/components/listwell/report-ui";
 import { EditListingsDialog } from "@/components/new-audit-form";
 import {
@@ -53,6 +56,7 @@ import { ResearchSections } from "@/components/research-sections";
 import { SearchPhrasesSection } from "@/components/search-phrases-section";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { upgradeCatalogFromEntitlement } from "@/lib/account-row-upgrade";
 import { CHANNEL_CONFIG } from "@/lib/channel";
 import {
   scorePercent,
@@ -67,7 +71,10 @@ import {
   entitlementCheckoutRetryPath,
   ownerCanRescan,
   reportCanManagePlan,
+  reportPeerComparisonOffered,
   reportResearchChrome,
+  reportResearchOffered,
+  reportResearchUnlocked,
   reportShowsFixSteps,
   reportShowsPurchasePrices,
 } from "@/lib/entitlements-access";
@@ -559,17 +566,22 @@ const UnlockCodeForm = ({
         ) : null}
       </div>
       <div className="listwell-panel__foot">
-        <PrimaryButton type="submit" disabled={state.busy !== null}>
-          {state.busy === "verify" ? "Checking…" : "Unlock report"}
+        <PrimaryButton
+          type="submit"
+          disabled={state.busy !== null}
+          loading={state.busy === "verify"}
+        >
+          Unlock report
         </PrimaryButton>
         <QuietButton
           type="button"
           disabled={state.busy !== null || state.email.trim().length === 0}
+          loading={state.busy === "resend"}
           onClick={() => {
             void resendUnlockCode();
           }}
         >
-          {state.busy === "resend" ? "Sending…" : "Send a new code"}
+          Send a new code
         </QuietButton>
       </div>
     </form>
@@ -587,6 +599,34 @@ const PaywallPanel = ({
     <PanelHead id="report-paywall" title="Full report with fix steps" />
     <div className="listwell-panel__body">{children}</div>
     {foot ? <div className="listwell-panel__foot">{foot}</div> : null}
+  </section>
+);
+
+const ReportLockedFeaturePanel = ({
+  description,
+  id,
+  onUpgrade,
+  title,
+}: {
+  description: string;
+  id: string;
+  onUpgrade: () => void;
+  title: string;
+}) => (
+  <section className="listwell-panel" aria-labelledby={id}>
+    <PanelHead id={id} title={title} />
+    <div className="listwell-panel__body">
+      <p className="listwell-panel__text">{description}</p>
+      <p className="listwell-panel__note">
+        <button
+          type="button"
+          className="listwell-panel__action listwell-report__locked-upgrade"
+          onClick={onUpgrade}
+        >
+          Unlock full report
+        </button>
+      </p>
+    </div>
   </section>
 );
 
@@ -638,10 +678,9 @@ const ReportPriceActions = ({
           onClick={() => onCheckout(checkoutPlanSchema.parse("monthly"))}
         >
           <ReportActionLabel
-            title={redirecting === "monthly" ? "Redirecting…" : "Monthly scans"}
-            caption={
-              redirecting === "monthly" ? undefined : REPORT_MONTHLY_PRICE
-            }
+            caption={REPORT_MONTHLY_PRICE}
+            loading={redirecting === "monthly"}
+            title="Monthly scans"
           />
         </Button>
       ) : null}
@@ -654,12 +693,9 @@ const ReportPriceActions = ({
             onClick={() => onCheckout(checkoutPlanSchema.parse("yearly"))}
           >
             <ReportActionLabel
-              title={redirecting === "yearly" ? "Redirecting…" : "Best value"}
-              caption={
-                redirecting === "yearly"
-                  ? undefined
-                  : `${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`
-              }
+              caption={`${REPORT_YEARLY_PRICE}, ${REPORT_YEARLY_VALUE_NOTE}`}
+              loading={redirecting === "yearly"}
+              title="Best value"
             />
           </PrimaryButton>
         ) : null}
@@ -675,10 +711,9 @@ const ReportPriceActions = ({
           onClick={() => onCheckout(checkoutPlanSchema.parse("once"))}
         >
           <ReportActionLabel
-            title={redirecting === "once" ? "Redirecting…" : "Full report"}
-            caption={
-              redirecting === "once" ? undefined : `${REPORT_ONCE_PRICE} once`
-            }
+            caption={`${REPORT_ONCE_PRICE} once`}
+            loading={redirecting === "once"}
+            title="Full report"
           />
         </Button>
       </div>
@@ -767,11 +802,13 @@ const ReportRescanButton = ({
 }) => (
   <button
     type="button"
-    className="listwell-panel__action shrink-0"
+    className="listwell-panel__action inline-flex shrink-0 items-center gap-2"
     disabled={busy}
+    aria-busy={busy || undefined}
     onClick={onRescan}
   >
-    {busy ? "Rescanning…" : "Rescan"}
+    {busy ? <LoadingSpinner size="sm" /> : null}
+    Rescan
   </button>
 );
 
@@ -888,8 +925,6 @@ const ScanHistorySection = ({
   );
 };
 
-const FIX_COPY_RESET_MS = 2000;
-
 const CopyFixStepsButton = ({
   className,
   text,
@@ -897,33 +932,14 @@ const CopyFixStepsButton = ({
   className?: string;
   text: string;
 }) => {
-  const [copied, setCopied] = useState(false);
-  const resetTimer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (resetTimer.current !== null) {
-        window.clearTimeout(resetTimer.current);
-      }
-    },
-    []
-  );
-
   const copySteps = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      if (resetTimer.current !== null) {
-        window.clearTimeout(resetTimer.current);
-      }
-      resetTimer.current = window.setTimeout(() => {
-        setCopied(false);
-        resetTimer.current = null;
-      }, FIX_COPY_RESET_MS);
+      toast.success("Fix steps copied");
     } catch {
-      setCopied(false);
+      toast.error("Could not copy fix steps");
     }
   };
 
@@ -934,7 +950,7 @@ const CopyFixStepsButton = ({
         "listwell-panel__action listwell-fix-copy print:hidden",
         className
       )}
-      aria-label={copied ? "Copied fix steps" : "Copy fix steps"}
+      aria-label="Copy fix steps"
       onClick={(event) => {
         void copySteps(event);
       }}
@@ -942,7 +958,7 @@ const CopyFixStepsButton = ({
         event.stopPropagation();
       }}
     >
-      {copied ? "Copied" : "Copy"}
+      Copy
     </button>
   );
 };
@@ -1811,17 +1827,22 @@ const ReportHeaderShareMenu = ({
                   data-menu-row
                   className="listwell-account-menu__item"
                   disabled={aiExportBusy}
+                  aria-busy={aiExportBusy || undefined}
                   onClick={() => {
                     close();
                     void exportAiInstructions("copy");
                   }}
                 >
-                  <Icon
-                    className={shareMenuIconClass}
-                    icon={Copy01Icon}
-                    size={15}
-                  />
-                  {aiExportBusy ? "Preparing…" : "Copy AI instructions"}
+                  {aiExportBusy ? (
+                    <LoadingSpinner className={shareMenuIconClass} size="sm" />
+                  ) : (
+                    <Icon
+                      className={shareMenuIconClass}
+                      icon={Copy01Icon}
+                      size={15}
+                    />
+                  )}
+                  Copy AI instructions
                 </button>
                 <button
                   type="button"
@@ -2021,6 +2042,7 @@ const ReportHeader = ({
   onRename: (name: string) => void;
   onShare: () => void;
 }) => {
+  const [renameDraftKey, setRenameDraftKey] = useState(0);
   const [renameOpen, setRenameOpen] = useState(false);
   const canManagePlan = reportCanManagePlan(access, isOwner);
 
@@ -2035,6 +2057,7 @@ const ReportHeader = ({
             <ReportHeaderEditMenu
               canManagePlan={canManagePlan}
               onRename={() => {
+                setRenameDraftKey((key) => key + 1);
                 setRenameOpen(true);
               }}
             />
@@ -2062,10 +2085,15 @@ const ReportHeader = ({
             showRenameButton={false}
             onRenamed={onRename}
           />
-          {isOwner && access.kind === "report_monthly" ? (
+          {isOwner &&
+          access.kind === "report_monthly" &&
+          !access.monthlyCancelled ? (
             <span className="listwell-pill listwell-pill--green">
               Monthly scans active
             </span>
+          ) : null}
+          {isOwner && access.monthlyCancelled ? (
+            <span className="listwell-pill">Monthly scans cancelled</span>
           ) : null}
         </div>
         <div className="flex flex-col gap-2">
@@ -2099,12 +2127,8 @@ const ReportHeader = ({
       {upsell}
       {isOwner && allowOwnerActions ? (
         <BusinessNameRenameDialog
-          key={
-            renameOpen
-              ? `${businessId}-rename-open`
-              : `${businessId}-rename-closed`
-          }
           businessId={businessId}
+          draftKey={renameDraftKey}
           name={businessName}
           open={renameOpen}
           onOpenChange={setRenameOpen}
@@ -2113,6 +2137,55 @@ const ReportHeader = ({
       ) : null}
     </header>
   );
+};
+
+const reportPaidSegments = (input: {
+  access: EntitlementState;
+  isOwner: boolean;
+  monthlyResearchStored: boolean;
+  peerAuditOverride: PeerAuditJob | undefined;
+  peerComparisonVisible: boolean;
+  researchVisible: boolean;
+  showFixSteps: boolean;
+}): {
+  chrome: ReturnType<typeof reportResearchChrome>;
+  lockedSegments: Partial<Record<ReportSegment, boolean>>;
+  peerComparisonUnlocked: boolean;
+} => {
+  const peerComparisonUnlocked =
+    input.peerComparisonVisible || input.peerAuditOverride !== undefined;
+  const peerComparisonOffered = input.isOwner
+    ? reportPeerComparisonOffered(input.access, true)
+    : peerComparisonUnlocked;
+  const researchContentUnlocked = input.isOwner
+    ? reportResearchUnlocked({
+        access: input.access,
+        monthlyResearchStored: input.monthlyResearchStored,
+      })
+    : input.researchVisible;
+  const researchOffered = input.isOwner
+    ? reportResearchOffered({
+        access: input.access,
+        isOwner: true,
+        monthlyResearchStored: input.monthlyResearchStored,
+      })
+    : input.researchVisible;
+  const chrome = reportResearchChrome({
+    isOwner: input.isOwner,
+    peerComparisonOffered,
+    peerComparisonUnlocked,
+    researchOffered,
+    researchUnlocked: researchContentUnlocked,
+    showFixSteps: input.showFixSteps,
+  });
+  return {
+    chrome,
+    lockedSegments: {
+      nearby: chrome.nearby && !chrome.nearbyUnlocked,
+      research: chrome.research && !chrome.researchUnlocked,
+    },
+    peerComparisonUnlocked,
+  };
 };
 
 const ContinuedReportsUpsellSection = ({
@@ -2146,7 +2219,10 @@ const ReportClientMain = ({
   listingsEditorOpen,
   listingReviewOverride,
   liveChecks,
+  monthlyResearchStored,
+  onUpgradeClick,
   peerAuditOverride,
+  peerComparisonVisible,
   pickedId,
   research,
   researchVisible,
@@ -2164,7 +2240,10 @@ const ReportClientMain = ({
   listingsEditorOpen: boolean;
   listingReviewOverride?: ListingReviewResult;
   liveChecks: LiveCheck[];
+  monthlyResearchStored: boolean;
+  onUpgradeClick: () => void;
   peerAuditOverride?: PeerAuditJob;
+  peerComparisonVisible: boolean;
   pickedId: ReportUiState["pickedId"];
   research: ResearchView | null;
   researchVisible: boolean;
@@ -2194,11 +2273,17 @@ const ReportClientMain = ({
     dispatch({ id: expandedId === id ? null : id, type: "set-picked-id" });
   };
 
-  const chrome = reportResearchChrome({
-    isOwner,
-    researchVisible,
-    showFixSteps,
-  });
+  const { chrome, lockedSegments, peerComparisonUnlocked } = reportPaidSegments(
+    {
+      access,
+      isOwner,
+      monthlyResearchStored,
+      peerAuditOverride,
+      peerComparisonVisible,
+      researchVisible,
+      showFixSteps,
+    }
+  );
   const canManageCompetitors =
     isOwner && access.unlocked && !access.sessionRequired;
 
@@ -2210,9 +2295,12 @@ const ReportClientMain = ({
     <>
       <div className="listwell-report__body">
         <ReportSegmentNav
+          lockedSegments={lockedSegments}
           segment={segment}
+          showNearby={chrome.nearby}
           showResearch={chrome.research}
           onChange={(next) => dispatch({ segment: next, type: "set-segment" })}
+          onLockedSegmentClick={onUpgradeClick}
         />
 
         <div className="listwell-report__segment" hidden={segment !== "jobs"}>
@@ -2264,40 +2352,72 @@ const ReportClientMain = ({
           />
         </div>
 
-        <div className="listwell-report__segment" hidden={segment !== "nearby"}>
-          {canManageCompetitors ? (
-            <NextFixSection
-              businessId={business.id}
-              peerAuditOverride={peerAuditOverride}
-              subjectChecks={subjectChecks}
-            />
-          ) : null}
-          <PeerComparisonSection
-            businessId={business.id}
-            businessName={businessName}
-            canManageCompetitors={canManageCompetitors}
-            peerAuditOverride={peerAuditOverride}
-            subjectChecks={subjectChecks}
-          />
-        </div>
+        {chrome.nearby ? (
+          <div
+            className="listwell-report__segment"
+            hidden={segment !== "nearby"}
+          >
+            {chrome.nearbyUnlocked ? (
+              <>
+                {canManageCompetitors ? (
+                  <NextFixSection
+                    businessId={business.id}
+                    fetchEnabled={peerComparisonUnlocked}
+                    peerAuditOverride={peerAuditOverride}
+                    subjectChecks={subjectChecks}
+                  />
+                ) : null}
+                <PeerComparisonSection
+                  businessId={business.id}
+                  businessName={businessName}
+                  canManageCompetitors={canManageCompetitors}
+                  fetchEnabled={peerComparisonUnlocked}
+                  peerAuditOverride={peerAuditOverride}
+                  subjectChecks={subjectChecks}
+                />
+              </>
+            ) : (
+              <ReportLockedFeaturePanel
+                description="See how nearby businesses score on the same checks and where you stand out or fall behind."
+                id="report-nearby-locked"
+                title="Compare"
+                onUpgrade={onUpgradeClick}
+              />
+            )}
+          </div>
+        ) : null}
 
         {chrome.research ? (
           <div
             className="listwell-report__segment"
             hidden={segment !== "research"}
           >
-            {chrome.phrasesEditor ? (
-              <SearchPhrasesSection
-                businessId={business.id}
-                phrases={business.searchPhrases}
+            {chrome.researchUnlocked ? (
+              <>
+                {chrome.phrasesEditor ? (
+                  <SearchPhrasesSection
+                    businessId={business.id}
+                    phrases={business.searchPhrases}
+                  />
+                ) : null}
+                <div className="listwell-report__research">
+                  <ResearchSections view={research} />
+                </div>
+                {research ? (
+                  <ResearchHistory
+                    businessName={businessName}
+                    view={research}
+                  />
+                ) : null}
+              </>
+            ) : (
+              <ReportLockedFeaturePanel
+                description="Track search phrases, ranking shifts, and visibility trends with monthly scans."
+                id="report-research-locked"
+                title="Over time"
+                onUpgrade={onUpgradeClick}
               />
-            ) : null}
-            <div className="listwell-report__research">
-              <ResearchSections view={research} />
-            </div>
-            {research ? (
-              <ResearchHistory businessName={businessName} view={research} />
-            ) : null}
+            )}
           </div>
         ) : null}
       </div>
@@ -2310,6 +2430,164 @@ const ReportClientMain = ({
     </>
   );
 };
+
+const redirectReportCheckout = async (input: {
+  businessId: string;
+  onError: (message: string) => void;
+  onRedirecting: (plan: CheckoutPlan | null) => void;
+  plan: CheckoutPlan;
+}): Promise<void> => {
+  input.onRedirecting(input.plan);
+  try {
+    const url = await requestCheckoutUrl(input.businessId, input.plan);
+    window.location.assign(url);
+  } catch (error) {
+    input.onRedirecting(null);
+    input.onError(error instanceof Error ? error.message : "Checkout failed");
+  }
+};
+
+const useReportOwnerCheckout = (
+  businessId: string,
+  dispatch: (action: ReportUiAction) => void
+) => {
+  const monthlyPlan = checkoutPlanSchema.parse("monthly");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeResetKey, setUpgradeResetKey] = useState(0);
+
+  const reportCheckoutError = useCallback(
+    (message: string) => {
+      dispatch({ error: message, type: "set-error" });
+    },
+    [dispatch]
+  );
+
+  const startCheckout = useCallback(
+    async (plan: CheckoutPlan) => {
+      if (plan === monthlyPlan) {
+        dispatch({ type: "clear-error" });
+        dispatch({ open: true, type: "set-monthly-upgrade-open" });
+        return;
+      }
+      dispatch({ type: "clear-error" });
+      await redirectReportCheckout({
+        businessId,
+        onError: reportCheckoutError,
+        onRedirecting: (next) => {
+          dispatch({ plan: next, type: "set-redirecting" });
+        },
+        plan,
+      });
+    },
+    [businessId, dispatch, monthlyPlan, reportCheckoutError]
+  );
+
+  const confirmMonthlyCheckout = useCallback(async () => {
+    dispatch({ type: "clear-error" });
+    await redirectReportCheckout({
+      businessId,
+      onError: reportCheckoutError,
+      onRedirecting: (next) => {
+        dispatch({ plan: next, type: "set-redirecting" });
+      },
+      plan: monthlyPlan,
+    });
+  }, [businessId, dispatch, monthlyPlan, reportCheckoutError]);
+
+  const openUpgradeDialog = useCallback(() => {
+    setUpgradeResetKey((current) => current + 1);
+    setUpgradeOpen(true);
+  }, []);
+
+  return {
+    confirmMonthlyCheckout,
+    monthlyPlan,
+    openUpgradeDialog,
+    setUpgradeOpen,
+    startCheckout,
+    upgradeOpen,
+    upgradeResetKey,
+  };
+};
+
+const ReportOwnerDialogs = ({
+  business,
+  businessName,
+  checkoutError,
+  confirmMonthlyCheckout,
+  listingsEditorOpen,
+  listingsFormSession,
+  monthlyPlan,
+  monthlyUpgradeOpen,
+  redirecting,
+  showUpgradeDialog,
+  upgradeCatalog,
+  upgradeOpen,
+  upgradeResetKey,
+  onCloseListingsEditor,
+  onListingsSaved,
+  onMonthlyUpgradeOpenChange,
+  onUpgradeOpenChange,
+}: {
+  business: Business;
+  businessName: string;
+  checkoutError: string | null;
+  confirmMonthlyCheckout: () => Promise<void>;
+  listingsEditorOpen: boolean;
+  listingsFormSession: number;
+  monthlyPlan: CheckoutPlan;
+  monthlyUpgradeOpen: boolean;
+  redirecting: CheckoutPlan | null;
+  showUpgradeDialog: boolean;
+  upgradeCatalog: ReturnType<typeof upgradeCatalogFromEntitlement>;
+  upgradeOpen: boolean;
+  upgradeResetKey: number;
+  onCloseListingsEditor: () => void;
+  onListingsSaved: () => Promise<void>;
+  onMonthlyUpgradeOpenChange: (open: boolean) => void;
+  onUpgradeOpenChange: (open: boolean) => void;
+}) => (
+  <>
+    <MonthlyScansUpgradeDialog
+      busy={redirecting === monthlyPlan}
+      error={monthlyUpgradeOpen ? checkoutError : null}
+      open={monthlyUpgradeOpen}
+      onConfirm={() => {
+        void confirmMonthlyCheckout();
+      }}
+      onOpenChange={onMonthlyUpgradeOpenChange}
+    />
+    {showUpgradeDialog ? (
+      <AccountBusinessUpgradeDialog
+        businessId={business.id}
+        businessName={businessName}
+        catalog={upgradeCatalog}
+        open={upgradeOpen}
+        resetKey={upgradeResetKey}
+        onOpenChange={onUpgradeOpenChange}
+      />
+    ) : null}
+    <EditListingsDialog
+      businessName={businessName}
+      categoryId={business.category}
+      categoryLabel={business.categoryLabel}
+      existingId={business.id}
+      formKey={listingsFormSession}
+      initialAddress={
+        business.locations.find((location) => location.address)?.address ??
+        undefined
+      }
+      initialProfiles={businessToProfiles(business)}
+      open={listingsEditorOpen}
+      onOpenChange={(open) => {
+        if (!open) {
+          onCloseListingsEditor();
+        }
+      }}
+      onSaved={onListingsSaved}
+    />
+  </>
+);
 
 const ReportLeadPrices = ({
   access,
@@ -2366,6 +2644,8 @@ export const ReportClient = ({
   scanHistoryOverride,
   research = null,
   researchVisible = false,
+  peerComparisonVisible = false,
+  monthlyResearchStored = false,
   openListingsEditor = false,
   staticPreview = false,
 }: {
@@ -2391,6 +2671,9 @@ export const ReportClient = ({
   /** Stored research for a continued report. Null when it could not be loaded. */
   research?: ResearchView | null;
   researchVisible?: boolean;
+  peerComparisonVisible?: boolean;
+  /** Monthly research row exists (may still be locked on a free owner report). */
+  monthlyResearchStored?: boolean;
   openListingsEditor?: boolean;
   /** Public sample report — fixture data only, no account or checkout APIs. */
   staticPreview?: boolean;
@@ -2455,6 +2738,20 @@ export const ReportClient = ({
   const visibilityScore = scorePercent(counts);
   const showPrices =
     isMutableOwner && !purchasePending && reportShowsPurchasePrices(access);
+  const showUpgradeDialog = isMutableOwner && reportShowsPurchasePrices(access);
+  const {
+    confirmMonthlyCheckout,
+    monthlyPlan,
+    openUpgradeDialog,
+    setUpgradeOpen,
+    startCheckout,
+    upgradeOpen,
+    upgradeResetKey,
+  } = useReportOwnerCheckout(business.id, dispatch);
+  const upgradeCatalog = useMemo(
+    () => upgradeCatalogFromEntitlement(access),
+    [access]
+  );
   const fixPlan = useMemo(
     () =>
       planNextActions({
@@ -2464,43 +2761,6 @@ export const ReportClient = ({
       }),
     [business.category, liveChecks, summary.nextActions]
   );
-  const monthlyPlan = checkoutPlanSchema.parse("monthly");
-
-  const startCheckout = async (plan: CheckoutPlan) => {
-    if (plan === monthlyPlan) {
-      dispatch({ type: "clear-error" });
-      dispatch({ open: true, type: "set-monthly-upgrade-open" });
-      return;
-    }
-    dispatch({ type: "clear-error" });
-    dispatch({ plan, type: "set-redirecting" });
-    try {
-      const url = await requestCheckoutUrl(business.id, plan);
-      window.location.assign(url);
-    } catch (error) {
-      dispatch({ plan: null, type: "set-redirecting" });
-      dispatch({
-        error: error instanceof Error ? error.message : "Checkout failed",
-        type: "set-error",
-      });
-    }
-  };
-
-  const confirmMonthlyCheckout = async () => {
-    dispatch({ type: "clear-error" });
-    dispatch({ plan: monthlyPlan, type: "set-redirecting" });
-    try {
-      const url = await requestCheckoutUrl(business.id, monthlyPlan);
-      window.location.assign(url);
-    } catch (error) {
-      dispatch({ plan: null, type: "set-redirecting" });
-      dispatch({
-        error: error instanceof Error ? error.message : "Checkout failed",
-        type: "set-error",
-      });
-    }
-  };
-
   return (
     <article className="listwell-page listwell-report">
       {canManageShare ? (
@@ -2511,41 +2771,30 @@ export const ReportClient = ({
         />
       ) : null}
       {isMutableOwner ? (
-        <>
-          <MonthlyScansUpgradeDialog
-            busy={redirecting === monthlyPlan}
-            error={monthlyUpgradeOpen ? checkoutError : null}
-            open={monthlyUpgradeOpen}
-            onConfirm={() => {
-              void confirmMonthlyCheckout();
-            }}
-            onOpenChange={(open) => {
-              dispatch({ open, type: "set-monthly-upgrade-open" });
-            }}
-          />
-          <EditListingsDialog
-            businessName={businessName}
-            categoryId={business.category}
-            categoryLabel={business.categoryLabel}
-            existingId={business.id}
-            formKey={listingsFormSession}
-            initialAddress={
-              business.locations.find((location) => location.address)
-                ?.address ?? undefined
-            }
-            initialProfiles={businessToProfiles(business)}
-            open={listingsEditorOpen}
-            onOpenChange={(open) => {
-              if (!open) {
-                closeListingsEditor();
-              }
-            }}
-            onSaved={async () => {
-              await refresh();
-              closeListingsEditor();
-            }}
-          />
-        </>
+        <ReportOwnerDialogs
+          business={business}
+          businessName={businessName}
+          checkoutError={checkoutError}
+          confirmMonthlyCheckout={confirmMonthlyCheckout}
+          listingsEditorOpen={listingsEditorOpen}
+          listingsFormSession={listingsFormSession}
+          monthlyPlan={monthlyPlan}
+          monthlyUpgradeOpen={monthlyUpgradeOpen}
+          redirecting={redirecting}
+          showUpgradeDialog={showUpgradeDialog}
+          upgradeCatalog={upgradeCatalog}
+          upgradeOpen={upgradeOpen}
+          upgradeResetKey={upgradeResetKey}
+          onCloseListingsEditor={closeListingsEditor}
+          onListingsSaved={async () => {
+            await refresh();
+            closeListingsEditor();
+          }}
+          onMonthlyUpgradeOpenChange={(open) => {
+            dispatch({ open, type: "set-monthly-upgrade-open" });
+          }}
+          onUpgradeOpenChange={setUpgradeOpen}
+        />
       ) : null}
       <div className="listwell-report__layout">
         <div className="listwell-report__notices">
@@ -2623,13 +2872,16 @@ export const ReportClient = ({
           listingsEditorOpen={listingsEditorOpen}
           listingReviewOverride={listingReviewOverride}
           liveChecks={liveChecks}
+          monthlyResearchStored={monthlyResearchStored}
           peerAuditOverride={peerAuditOverride}
+          peerComparisonVisible={peerComparisonVisible}
           pickedId={pickedId}
           research={research}
           researchVisible={researchVisible}
           segment={segment}
           showEditLink={isMutableOwner}
           showFixSteps={showFixSteps}
+          onUpgradeClick={openUpgradeDialog}
         />
       </div>
     </article>

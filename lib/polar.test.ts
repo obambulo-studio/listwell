@@ -13,6 +13,8 @@ import {
   entitlementActionFromPolarEvent,
   entitlementKindFromCheckout,
   entitlementKindFromPolarData,
+  polarSubscriptionIdFromEvent,
+  subscriptionIdsMatchingBusiness,
   polarWebhookEventSchema,
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
@@ -205,6 +207,12 @@ describe(checkoutReturnPathFromMetadata, () => {
     ).toBe("/account/analytics/biz_1");
   });
 
+  it("uses account return path from metadata", () => {
+    expect(
+      checkoutReturnPathFromMetadata({ returnPath: "/account" }, "biz_1")
+    ).toBe("/account");
+  });
+
   it("falls back to the report path", () => {
     expect(checkoutReturnPathFromMetadata({}, "biz_1")).toBe("/biz_1");
   });
@@ -298,6 +306,28 @@ describe(entitlementActionFromPolarEvent, () => {
     });
   });
 
+  it("reads the subscription id from a subscription event", () => {
+    expect(
+      polarSubscriptionIdFromEvent(
+        event("subscription.active", {
+          id: "sub_1",
+          metadata: { businessId: "biz_1" },
+        })
+      )
+    ).toBe("sub_1");
+  });
+
+  it("reads the subscription id from an order", () => {
+    expect(
+      polarSubscriptionIdFromEvent(
+        event("order.paid", {
+          id: "ord_1",
+          subscription_id: "sub_1",
+        })
+      )
+    ).toBe("sub_1");
+  });
+
   it("grants on subscription.active", () => {
     expect(
       entitlementActionFromPolarEvent(
@@ -357,10 +387,25 @@ describe(entitlementActionFromPolarEvent, () => {
     });
   });
 
-  it("revokes on subscription.revoked using the subscription id", () => {
+  it("keeps history when a subscription ends", () => {
     expect(
       entitlementActionFromPolarEvent(
         event("subscription.revoked", {
+          id: "sub_1",
+          metadata: { businessId: "biz_1" },
+        })
+      )
+    ).toStrictEqual({
+      businessId: "biz_1",
+      polarSubscriptionId: "sub_1",
+      type: "lapse",
+    });
+  });
+
+  it("revokes on subscription.paused", () => {
+    expect(
+      entitlementActionFromPolarEvent(
+        event("subscription.paused", {
           id: "sub_1",
           metadata: { businessId: "biz_1" },
         })
@@ -389,6 +434,23 @@ describe(entitlementActionFromPolarEvent, () => {
     });
   });
 
+  it("grants the subscription id when subscription.active omits subscription_id", () => {
+    expect(
+      entitlementActionFromPolarEvent(
+        event("subscription.active", {
+          id: "sub_year",
+          metadata: { businessId: "biz_1", plan: "yearly" },
+          product_id: "prod_year",
+        }),
+        polarProducts
+      )
+    ).toMatchObject({
+      kind: "report_monthly",
+      polarSubscriptionId: "sub_year",
+      type: "grant",
+    });
+  });
+
   it("ignores unrelated events", () => {
     expect(
       entitlementActionFromPolarEvent(
@@ -397,6 +459,59 @@ describe(entitlementActionFromPolarEvent, () => {
     ).toStrictEqual({
       type: "ignore",
     });
+  });
+});
+
+describe(subscriptionIdsMatchingBusiness, () => {
+  it("keeps open subscriptions for this business", () => {
+    expect(
+      subscriptionIdsMatchingBusiness(
+        [
+          {
+            id: "sub_month",
+            metadata: { businessId: "biz_1" },
+            status: "active",
+          },
+          {
+            id: "sub_cancel",
+            metadata: { businessId: "biz_1" },
+            status: "canceled",
+          },
+          {
+            id: "sub_other",
+            metadata: { businessId: "biz_2" },
+            status: "active",
+          },
+          {
+            id: "sub_done",
+            metadata: { businessId: "biz_1" },
+            status: "incomplete_expired",
+          },
+        ],
+        "biz_1"
+      )
+    ).toStrictEqual(["sub_month", "sub_cancel"]);
+  });
+
+  it("can skip account analytics subscriptions on business removal", () => {
+    expect(
+      subscriptionIdsMatchingBusiness(
+        [
+          {
+            id: "sub_month",
+            metadata: { businessId: "biz_1", plan: "monthly" },
+            status: "active",
+          },
+          {
+            id: "sub_analytics",
+            metadata: { businessId: "biz_1", plan: "analytics_10k" },
+            status: "active",
+          },
+        ],
+        "biz_1",
+        { excludeAccountAnalytics: true }
+      )
+    ).toStrictEqual(["sub_month"]);
   });
 });
 

@@ -70,7 +70,7 @@ const mcpServerCardSchema = z.object({
   url: z.url(),
 });
 
-const LISTWELL_MCP_VERSION = "1.0.0";
+export const LISTWELL_MCP_VERSION = "1.0.0";
 
 const listwellAuthIssuer = (origin: string): string => origin;
 
@@ -271,7 +271,7 @@ export const mcpServerCard = (origin = listwellSiteUrl()) =>
       tools: true,
     },
     description:
-      "Listwell listing and website SEO audits for small businesses. Prefer WebMCP tools in the browser; streamable HTTP MCP is reserved for future automation.",
+      "Read-only Listwell tools over streamable HTTP: public listing search and audit-engine health. Does not create accounts, start paid audits, or change saved businesses.",
     serverInfo: {
       name: "Listwell",
       version: LISTWELL_MCP_VERSION,

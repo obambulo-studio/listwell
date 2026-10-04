@@ -4,6 +4,7 @@ import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
 import { ResourceNotFound } from "@polar-sh/sdk/models/errors/resourcenotfound";
 import { z } from "zod";
 
+import { reportCheckoutAvailabilityFromPolarProducts } from "./account-row-upgrade";
 import { isAnalyticsEntitlementKind } from "./analytics-pricing";
 import { getExecutionContext, getCloudflareEnv } from "./audit-env";
 import {
@@ -28,6 +29,7 @@ import {
   findUserIdByEmail,
   getActiveEntitlementOwner,
   grantEntitlement,
+  lapseEntitlements,
   revokeEntitlements,
 } from "./data";
 import {
@@ -49,13 +51,19 @@ import {
   entitlementKindFromCheckout,
   parsePolarCustomerPortalUrl,
   polarCheckoutSchema,
+  subscriptionIdsMatchingBusiness,
 } from "./polar";
 import type { PolarProductIds, PolarWebhookEvent } from "./polar";
 import { resolveCheckoutProduct } from "./polar-checkout-plan";
 import { schedulePurchaseReceipt } from "./purchase-email";
 import { startBaselineScan } from "./scans";
 import { checkoutPlanSchema, entitlementStateSchema } from "./schema";
-import type { CheckoutPlan, EntitlementKind, EntitlementState } from "./schema";
+import type {
+  CheckoutPlan,
+  CheckoutReturnTo,
+  EntitlementKind,
+  EntitlementState,
+} from "./schema";
 import { ensureSuggestedSearchPhrases } from "./suggest-search-phrases";
 
 const optionalString = z.string().min(1).optional();
@@ -200,6 +208,9 @@ export const getSharedReportViewerAccess =
       );
     }
 
+    const checkoutAvailability =
+      reportCheckoutAvailabilityFromPolarProducts(config);
+
     return sharedViewerEntitlementState(
       entitlementStateSchema.parse({
         authEnabled,
@@ -207,10 +218,11 @@ export const getSharedReportViewerAccess =
         fixStepsWithoutPayment: waived,
         kind: null,
         maskedEmail: null,
-        monthlyAvailable: Boolean(config.productReportMonthly),
+        monthlyAvailable: checkoutAvailability.monthlyAvailable,
         paymentsEnabled: true,
         sessionRequired: false,
         unlocked: false,
+        yearlyAvailable: checkoutAvailability.yearlyAvailable,
       })
     );
   };
@@ -248,6 +260,7 @@ const loadReportAccessContext = async (businessId: string) => {
   const { backendAvailable } = owner;
   const unlocked = backendAvailable ? owner.unlocked : false;
   const kind = backendAvailable ? owner.kind : null;
+  const monthlyCancelled = backendAvailable ? owner.monthlyCancelled : false;
   const ownerEmail = backendAvailable ? owner.ownerEmail : null;
   const ownerUserId = backendAvailable ? owner.ownerUserId : null;
   const polarOrderId = backendAvailable ? owner.polarOrderId : null;
@@ -287,12 +300,12 @@ const loadReportAccessContext = async (businessId: string) => {
     config,
     kind,
     maskedEmail,
-    monthlyAvailable: Boolean(config?.productReportMonthly),
+    monthlyCancelled,
     purchaserBound,
     sessionRequired,
     unlocked,
     waived,
-    yearlyAvailable: Boolean(config?.productReportYearly),
+    ...reportCheckoutAvailabilityFromPolarProducts(config),
   };
 };
 
@@ -309,6 +322,7 @@ export const getReportAccess = async (
       kind: context.kind,
       maskedEmail: context.maskedEmail,
       monthlyAvailable: false,
+      monthlyCancelled: context.monthlyCancelled,
       paymentsEnabled: false,
       sessionRequired: context.purchaserBound ? context.sessionRequired : false,
       unlocked: context.unlocked,
@@ -323,6 +337,7 @@ export const getReportAccess = async (
     kind: context.kind,
     maskedEmail: context.maskedEmail,
     monthlyAvailable: context.monthlyAvailable,
+    monthlyCancelled: context.monthlyCancelled,
     paymentsEnabled: true,
     sessionRequired: context.sessionRequired,
     unlocked: context.unlocked,
@@ -460,20 +475,24 @@ const subscriptionAlreadyRevoked = (error: unknown): boolean => {
   return error instanceof PolarError && error.statusCode === 404;
 };
 
-/** Cancels billing that this removal will delete. Does nothing when there is no subscription. */
-export const revokeSubscriptionsForBusinessRemoval = async (
+const MAX_SUBSCRIPTION_PAGES = 10;
+
+const polarSubscriptionPageSchema = z.object({
+  result: z.object({
+    items: z.array(
+      z.object({
+        id: z.string(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+        status: z.string(),
+      })
+    ),
+  }),
+});
+
+const revokeSubscriptionIds = async (
+  client: Polar,
   subscriptionIds: readonly string[]
 ): Promise<void> => {
-  if (subscriptionIds.length === 0) {
-    return;
-  }
-  const config = await getPolarConfig();
-  if (!config) {
-    throw new SubscriptionRevokeError(
-      "Billing is not configured, so this business cannot be removed"
-    );
-  }
-  const client = polarClient(config);
   await Promise.all(
     subscriptionIds.map(async (id) => {
       try {
@@ -488,6 +507,133 @@ export const revokeSubscriptionsForBusinessRemoval = async (
       }
     })
   );
+};
+
+const polarCustomerIdSchema = z.object({
+  id: z.string().min(1),
+});
+
+const polarCustomerListSchema = z.object({
+  result: z.object({
+    items: z.array(polarCustomerIdSchema),
+  }),
+});
+
+const polarCustomerIdByEmail = async (
+  config: PolarConfig,
+  email: string
+): Promise<string | null> => {
+  const page = await polarClient(config).customers.list({
+    email,
+    limit: 1,
+  });
+  const listed = polarCustomerListSchema.safeParse(page);
+  if (!listed.success) {
+    throw new Error("Unexpected billing customer list");
+  }
+  return listed.data.result.items[0]?.id ?? null;
+};
+
+interface SubscriptionPage {
+  next: () => Promise<SubscriptionPage> | null;
+}
+
+const listedSubscriptionsForCustomer = async (
+  client: Polar,
+  customerId: string
+): Promise<
+  { id: string; metadata?: Record<string, unknown>; status: string }[]
+> => {
+  const items: {
+    id: string;
+    metadata?: Record<string, unknown>;
+    status: string;
+  }[] = [];
+  let page: SubscriptionPage = await client.subscriptions.list({
+    customerId,
+    limit: 100,
+  });
+  for (let index = 0; index < MAX_SUBSCRIPTION_PAGES; index += 1) {
+    const parsed = polarSubscriptionPageSchema.parse(page);
+    for (const item of parsed.result.items) {
+      items.push(item);
+    }
+    // eslint-disable-next-line no-await-in-loop -- each Polar page follows the previous page
+    const next = await page.next();
+    if (!next) {
+      return items;
+    }
+    page = next;
+  }
+  throw new SubscriptionRevokeError(
+    "Could not cancel billing for this business"
+  );
+};
+
+const customerIdForRemoval = async (
+  config: PolarConfig,
+  input: { polarCustomerId: string | null; purchaserEmail: string | null }
+): Promise<string | null> => {
+  const stored = input.polarCustomerId?.trim();
+  if (stored) {
+    return stored;
+  }
+  const email = input.purchaserEmail
+    ? normalizeEmail(input.purchaserEmail)
+    : undefined;
+  if (!email) {
+    return null;
+  }
+  return await polarCustomerIdByEmail(config, email);
+};
+
+/** Stops Polar billing for this business. Does nothing when nothing renews. */
+export const revokeSubscriptionsForBusinessRemoval = async (input: {
+  businessId: string;
+  polarCustomerId: string | null;
+  purchaserEmail: string | null;
+  recurring: boolean;
+  subscriptionIds: readonly string[];
+}): Promise<void> => {
+  const storedIds = input.subscriptionIds.flatMap((id) => {
+    const trimmed = id.trim();
+    return trimmed.length > 0 ? [trimmed] : [];
+  });
+  if (!input.recurring && storedIds.length === 0) {
+    return;
+  }
+  const config = await getPolarConfig();
+  if (!config) {
+    if (storedIds.length === 0 && (await readPaymentsDisabledFlag())) {
+      return;
+    }
+    throw new SubscriptionRevokeError(
+      "Billing is not configured, so this business cannot be removed"
+    );
+  }
+  try {
+    const client = polarClient(config);
+    const customerId = await customerIdForRemoval(config, input);
+    const listed = customerId
+      ? await listedSubscriptionsForCustomer(client, customerId)
+      : [];
+    const ids = [
+      ...new Set([
+        ...storedIds,
+        ...subscriptionIdsMatchingBusiness(listed, input.businessId, {
+          excludeAccountAnalytics: true,
+        }),
+      ]),
+    ];
+    await revokeSubscriptionIds(client, ids);
+  } catch (error) {
+    if (error instanceof SubscriptionRevokeError) {
+      throw error;
+    }
+    throw new SubscriptionRevokeError(
+      "Could not cancel billing for this business"
+    );
+  }
 };
 
 const allowedOrigins = (): string[] => {
@@ -615,6 +761,7 @@ export const createPolarCheckout = async (input: {
   plan: CheckoutPlan;
   origin: string;
   customerIpAddress?: string;
+  returnTo?: CheckoutReturnTo;
 }): Promise<{ url: string }> => {
   const config = await getPolarConfig();
   if (!config) {
@@ -622,11 +769,12 @@ export const createPolarCheckout = async (input: {
   }
 
   const plan = checkoutPlanSchema.parse(input.plan);
-  const { productId, returnPath } = resolveCheckoutProduct(
+  const { productId, returnPath: planReturnPath } = resolveCheckoutProduct(
     config,
     plan,
     input.businessId
   );
+  const returnPath = input.returnTo === "account" ? "/account" : planReturnPath;
 
   const logContext = { businessId: input.businessId, plan };
 
@@ -666,31 +814,6 @@ export type PolarCustomerPortal =
   | { status: "ready"; url: string }
   | { status: "unconfigured" }
   | { status: "missing" };
-
-const polarCustomerIdSchema = z.object({
-  id: z.string().min(1),
-});
-
-const polarCustomerListSchema = z.object({
-  result: z.object({
-    items: z.array(polarCustomerIdSchema),
-  }),
-});
-
-const polarCustomerIdByEmail = async (
-  config: PolarConfig,
-  email: string
-): Promise<string | null> => {
-  const page = await polarClient(config).customers.list({
-    email,
-    limit: 1,
-  });
-  const listed = polarCustomerListSchema.safeParse(page);
-  if (!listed.success) {
-    throw new Error("Unexpected billing customer list");
-  }
-  return listed.data.result.items[0]?.id ?? null;
-};
 
 export const createPolarCustomerPortalUrl = async (input: {
   email: string;
@@ -778,6 +901,7 @@ export const confirmPolarCheckout = async (
       email,
       kind,
       polarCustomerId: customerIdFromPolarData(parsed),
+      polarSubscriptionId: parsed.subscriptionId ?? undefined,
     });
     return polarCheckoutConfirmSchema.parse({
       businessId,
@@ -867,6 +991,13 @@ export const applyPolarWebhookEvent = async (
       kind: action.kind,
       polarCustomerId: action.polarCustomerId,
       polarOrderId: action.polarOrderId,
+      polarSubscriptionId: action.polarSubscriptionId,
+    });
+    return;
+  }
+  if (action.type === "lapse") {
+    await lapseEntitlements({
+      businessId: action.businessId,
       polarSubscriptionId: action.polarSubscriptionId,
     });
     return;

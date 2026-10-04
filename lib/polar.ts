@@ -13,7 +13,12 @@ import {
   entitlementKindSchema,
   entitlementStateSchema,
 } from "./schema";
-import type { CheckoutPlan, EntitlementKind, EntitlementState } from "./schema";
+import type {
+  CheckoutPlan,
+  CheckoutReturnTo,
+  EntitlementKind,
+  EntitlementState,
+} from "./schema";
 
 export const polarWebhookHeadersSchema = z.object({
   id: z.string().min(1),
@@ -369,7 +374,7 @@ export const checkoutReturnPathFromMetadata = (
   if (typeof raw === "string") {
     const trimmed = raw.trim();
     if (
-      trimmed.startsWith("/account/analytics/") &&
+      (trimmed === "/account" || trimmed.startsWith("/account/analytics/")) &&
       !trimmed.includes("//") &&
       trimmed.length <= 256
     ) {
@@ -403,6 +408,11 @@ export type PolarEntitlementAction =
       email: string | undefined;
     }
   | {
+      type: "lapse";
+      businessId: string | undefined;
+      polarSubscriptionId: string | undefined;
+    }
+  | {
       type: "revoke";
       businessId: string | undefined;
       polarOrderId: string | undefined;
@@ -410,12 +420,68 @@ export type PolarEntitlementAction =
     }
   | { type: "ignore" };
 
+/** Subscription events identify the subscription as `data.id`. Orders use `subscription_id`. */
+export const polarSubscriptionIdFromEvent = (
+  event: PolarWebhookEvent
+): string | undefined => {
+  const raw = event.type.startsWith("subscription.")
+    ? event.data.id
+    : event.data.subscription_id;
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const id = raw.trim();
+  return id.length > 0 ? id : undefined;
+};
+
+const revocableSubscriptionStatusSchema = z.enum([
+  "incomplete",
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "unpaid",
+  "paused",
+]);
+
+/** Open Polar subscriptions whose checkout metadata belongs to this business. */
+export const subscriptionIdsMatchingBusiness = (
+  subscriptions: readonly {
+    id: string;
+    metadata?: Record<string, unknown>;
+    status: string;
+  }[],
+  businessId: string,
+  options?: { excludeAccountAnalytics?: boolean }
+): string[] => {
+  const ids = new Set<string>();
+  for (const row of subscriptions) {
+    if (!revocableSubscriptionStatusSchema.safeParse(row.status).success) {
+      continue;
+    }
+    if (businessIdFromMetadata(row.metadata) !== businessId) {
+      continue;
+    }
+    if (options?.excludeAccountAnalytics) {
+      const plan = row.metadata?.plan;
+      if (typeof plan === "string" && isAnalyticsCheckoutPlan(plan)) {
+        continue;
+      }
+    }
+    const id = row.id.trim();
+    if (id.length > 0) {
+      ids.add(id);
+    }
+  }
+  return [...ids];
+};
+
 export const entitlementActionFromPolarEvent = (
   event: PolarWebhookEvent,
   products: PolarProductIds = {}
 ): PolarEntitlementAction => {
   const businessId = businessIdFromMetadata(event.data.metadata);
-  const polarSubscriptionId = event.data.subscription_id ?? undefined;
+  const polarSubscriptionId = polarSubscriptionIdFromEvent(event);
   const polarOrderId = event.type.startsWith("order.")
     ? event.data.id
     : undefined;
@@ -436,17 +502,19 @@ export const entitlementActionFromPolarEvent = (
     };
   }
 
-  if (
-    event.type === "order.refunded" ||
-    event.type === "subscription.revoked" ||
-    event.type === "subscription.paused"
-  ) {
+  if (event.type === "subscription.revoked") {
+    return {
+      businessId,
+      polarSubscriptionId,
+      type: "lapse",
+    };
+  }
+
+  if (event.type === "order.refunded" || event.type === "subscription.paused") {
     return {
       businessId,
       polarOrderId,
-      polarSubscriptionId: event.type.startsWith("subscription.")
-        ? event.data.id
-        : polarSubscriptionId,
+      polarSubscriptionId,
       type: "revoke",
     };
   }
@@ -537,10 +605,17 @@ export const verifyPolarSignature = async (
 
 export const requestCheckoutUrl = async (
   businessId: string,
-  plan: CheckoutPlan = "once"
+  plan: CheckoutPlan = "once",
+  options?: { returnTo?: CheckoutReturnTo }
 ): Promise<string> => {
   const response = await fetch("/api/checkout", {
-    body: JSON.stringify(checkoutRequestSchema.parse({ businessId, plan })),
+    body: JSON.stringify(
+      checkoutRequestSchema.parse({
+        businessId,
+        plan,
+        returnTo: options?.returnTo,
+      })
+    ),
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     method: "POST",

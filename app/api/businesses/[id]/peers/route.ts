@@ -3,6 +3,7 @@ import { ZodError, z } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { getBusiness, getResearchEntitlement } from "@/lib/data";
+import { reportPeerComparisonVisible } from "@/lib/entitlements-access";
 import {
   ensurePeerAudit,
   googlePlaceIdFromLocations,
@@ -27,21 +28,29 @@ const querySchema = z.object({
 const missingBusiness = () =>
   NextResponse.json({ error: "Business not found" }, { status: 404 });
 
-/** Free previews stay nearby-only. Continued reports add the map pack. Pins stay on unlocked reports. */
+/** Paid reports compare peers. Continued monthly reports add map-pack leaders and pins. */
 const comparisonMode = async (
   businessId: string
-): Promise<{ includeMapPack: boolean; preview: boolean }> => {
+): Promise<
+  { includeMapPack: boolean; preview: boolean } | { forbidden: true }
+> => {
   const [access, entitlement] = await Promise.all([
     getReportAccess(businessId),
     getResearchEntitlement(businessId),
   ]);
+  if (!reportPeerComparisonVisible(access)) {
+    return { forbidden: true };
+  }
   const continued =
     entitlement?.kind === "report_monthly" && entitlement.status === "active";
   return {
     includeMapPack: continued,
-    preview: !access.unlocked && !continued,
+    preview: false,
   };
 };
+
+const forbiddenPeerComparison = () =>
+  NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
 export const GET = async (
   request: Request,
@@ -58,6 +67,9 @@ export const GET = async (
       Object.fromEntries(new URL(request.url).searchParams)
     );
     const mode = await comparisonMode(business.id);
+    if ("forbidden" in mode) {
+      return forbiddenPeerComparison();
+    }
     const placeId = googlePlaceIdFromLocations(business.locations);
     const selectionKey = await peerSelectionKeyForAudit(business, mode);
     const job = query.jobId
@@ -103,6 +115,9 @@ export const POST = async (
       return missingBusiness();
     }
     const mode = await comparisonMode(business.id);
+    if ("forbidden" in mode) {
+      return forbiddenPeerComparison();
+    }
     const job = await ensurePeerAudit(business, {
       includeMapPack: mode.includeMapPack,
       preview: mode.preview,

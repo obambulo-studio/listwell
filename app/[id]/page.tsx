@@ -14,7 +14,10 @@ import {
   hasAuditKv,
   probeConvexBusinesses,
 } from "@/lib/data";
-import { monthlyResearchVisible } from "@/lib/entitlements-access";
+import {
+  monthlyResearchVisible,
+  reportPeerComparisonVisible,
+} from "@/lib/entitlements-access";
 import { getReportAccess } from "@/lib/polar-server";
 import { loadResearchView } from "@/lib/research-load";
 import { isFileLikePathId } from "@/lib/site-metadata";
@@ -132,9 +135,10 @@ const ReportPage = async ({
     completedChecks.length === 0 ? "no_completed_checks" : "ai_binding_missing"
   );
   const entitlement = await getResearchEntitlement(id);
-  const researchVisible =
-    monthlyResearchVisible(entitlement) && access.unlocked;
+  const monthlyResearchStored = monthlyResearchVisible(entitlement);
+  const researchVisible = monthlyResearchStored && access.unlocked;
   const research = researchVisible ? await loadResearchView(business) : null;
+  const peerComparisonVisible = reportPeerComparisonVisible(access);
 
   return (
     <ReportClient
@@ -152,6 +156,8 @@ const ReportPage = async ({
       openListingsEditor={searchFlag(search.listings)}
       research={research}
       researchVisible={researchVisible}
+      monthlyResearchStored={monthlyResearchStored}
+      peerComparisonVisible={peerComparisonVisible}
       variant={reportVariant}
     />
   );

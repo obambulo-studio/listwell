@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { MutationCtx } from "./_generated/server";
 import { linkPurchasedBusinesses } from "./entitlements";
 import { authedMutation } from "./lib/customFunctions";
+import { businessClaimAllowed } from "./lib/reportEntitlements";
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -17,11 +18,7 @@ const entitlementAllowsClaim = async (
       q.eq("businessExternalId", businessExternalId)
     )
     .collect();
-  const active = entitlements.find((row) => row.status === "active");
-  if (!active) {
-    return true;
-  }
-  return active.userId === userId;
+  return businessClaimAllowed(entitlements, userId);
 };
 
 export const claim = authedMutation({

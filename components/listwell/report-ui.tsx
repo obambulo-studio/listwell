@@ -6,6 +6,7 @@ import {
 import type { IconSvgElement } from "@hugeicons/react";
 
 import { Icon } from "@/components/icon";
+import { LoadingSpinner } from "@/components/listwell/loading-spinner";
 import type { CheckStatus } from "@/lib/chat-onboarding";
 
 export const checkStatusText = (status: CheckStatus): string => {
@@ -66,10 +67,7 @@ export const CheckStatusMark = ({ status }: { status: CheckStatus }) => {
       {icon ? (
         <Icon absoluteStrokeWidth icon={icon} size={12} strokeWidth={1.6} />
       ) : (
-        <span
-          className="border-line border-t-ink-3 size-4 animate-spin rounded-full border-2"
-          aria-hidden
-        />
+        <LoadingSpinner size="md" tone="muted" />
       )}
     </span>
   );

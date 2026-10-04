@@ -2,6 +2,7 @@
 
 import { MultiplicationSignIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { useId, useReducer, useRef, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import { Button } from "@/components/atoms/button";
@@ -12,6 +13,8 @@ import {
   PrimaryButton,
   QuietButton,
 } from "@/components/listwell/actions";
+import { ButtonBusyLabel } from "@/components/listwell/button-busy-label";
+import { LoadingSpinner } from "@/components/listwell/loading-spinner";
 import { Alert, AlertDescription } from "@/components/reui/alert";
 import { Button as UiButton } from "@/components/ui/button";
 import {
@@ -228,6 +231,7 @@ export const BusinessNameHeading = ({
     try {
       const saved = await saveBusinessName(businessId, next);
       dispatch({ type: "saved" });
+      toast.success("Name saved");
       onRenamed(saved);
     } catch (saveError) {
       dispatch({
@@ -293,14 +297,15 @@ export const BusinessNameHeading = ({
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
-              className="listwell-panel__action"
+              className="listwell-panel__action inline-flex items-center gap-2"
               disabled={
                 pending ||
                 normalizeBusinessName(draft).length === 0 ||
                 isSameBusinessName(draft, name)
               }
+              aria-busy={pending || undefined}
             >
-              {pending ? "Saving" : "Save"}
+              <ButtonBusyLabel busy={pending}>Save</ButtonBusyLabel>
             </button>
             <button
               type="button"
@@ -334,7 +339,6 @@ interface ReportSummaryProps {
 
 const buildCtaLabel = (
   access: EntitlementState,
-  redirecting: CheckoutPlan | null,
   sessionRequired: boolean
 ): string => {
   if (sessionRequired) {
@@ -344,9 +348,6 @@ const buildCtaLabel = (
     return access.kind === "report_monthly"
       ? "Monthly scans active"
       : "View full report";
-  }
-  if (redirecting === "once") {
-    return "Redirecting…";
   }
   return "Full report";
 };
@@ -422,13 +423,18 @@ const offerRowClass =
 
 export const ReportActionLabel = ({
   caption,
+  loading,
   title,
 }: {
   caption?: string;
+  loading?: boolean;
   title: string;
 }) => (
   <span className="flex flex-col items-center gap-0.5">
-    <span>{title}</span>
+    <span className="inline-flex items-center justify-center gap-2">
+      {loading ? <LoadingSpinner size="sm" /> : null}
+      {title}
+    </span>
     {caption ? (
       <span className="text-[11px] leading-none font-normal opacity-70">
         {caption}
@@ -439,15 +445,20 @@ export const ReportActionLabel = ({
 
 const OfferChoice = ({
   detail,
+  loading,
   price,
   title,
 }: {
   detail?: string;
+  loading?: boolean;
   price?: string;
   title: string;
 }) => (
   <span className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5">
-    <span className="col-start-1 row-start-1">{title}</span>
+    <span className="col-start-1 row-start-1 inline-flex items-center gap-2">
+      {loading ? <LoadingSpinner size="sm" /> : null}
+      {title}
+    </span>
     {price ? (
       <span className="col-start-2 row-start-1 text-right tabular-nums">
         {price}
@@ -487,6 +498,7 @@ const ReportUnlockActions = ({
       type="button"
       disabled={ctaDisabled}
       className={offerRowClass}
+      loading={redirecting === "once"}
       onClick={() => {
         onUnlock(checkoutPlanSchema.parse("once"));
       }}
@@ -511,11 +523,10 @@ const ReportUnlockActions = ({
         }}
       >
         <OfferChoice
-          detail={
-            redirecting === "yearly" ? undefined : REPORT_YEARLY_VALUE_NOTE
-          }
-          price={redirecting === "yearly" ? undefined : REPORT_YEARLY_PRICE}
-          title={redirecting === "yearly" ? "Redirecting…" : "Best value"}
+          detail={REPORT_YEARLY_VALUE_NOTE}
+          loading={redirecting === "yearly"}
+          price={REPORT_YEARLY_PRICE}
+          title="Best value"
         />
       </Button>
     ) : null}
@@ -530,8 +541,9 @@ const ReportUnlockActions = ({
         }}
       >
         <OfferChoice
-          price={redirecting === "monthly" ? undefined : REPORT_MONTHLY_PRICE}
-          title={redirecting === "monthly" ? "Redirecting…" : "Monthly scans"}
+          loading={redirecting === "monthly"}
+          price={REPORT_MONTHLY_PRICE}
+          title="Monthly scans"
         />
       </Button>
     ) : null}
@@ -541,16 +553,18 @@ const ReportUnlockActions = ({
 /** Rename dialog for the report Edit menu and the account row menu. */
 export const BusinessNameRenameDialog = ({
   businessId,
+  draftKey,
   name,
   open,
   onOpenChange,
   onRenamed,
 }: {
   businessId: string;
+  draftKey: number;
   name: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRenamed: (name: string) => void;
+  onRenamed?: (name: string) => void;
 }) => {
   const inputId = useId();
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -558,6 +572,14 @@ export const BusinessNameRenameDialog = ({
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [appliedDraftKey, setAppliedDraftKey] = useState(draftKey);
+
+  if (draftKey !== appliedDraftKey) {
+    setAppliedDraftKey(draftKey);
+    setDraft(name);
+    setError(null);
+    setPending(false);
+  }
 
   const save = async () => {
     const next = normalizeBusinessName(draft);
@@ -574,7 +596,8 @@ export const BusinessNameRenameDialog = ({
     try {
       const saved = await saveBusinessName(businessId, next);
       setPending(false);
-      onRenamed(saved);
+      toast.success("Name saved");
+      onRenamed?.(saved);
       onOpenChange(false);
     } catch (saveError) {
       setPending(false);
@@ -640,9 +663,10 @@ export const BusinessNameRenameDialog = ({
                 normalizeBusinessName(draft).length === 0 ||
                 isSameBusinessName(draft, name)
               }
+              loading={pending}
               type="submit"
             >
-              {pending ? "Saving" : "Save"}
+              Save
             </PrimaryButton>
           </FormActions>
         </form>
@@ -656,6 +680,7 @@ export const BusinessRemoveDialog = ({
   open,
   busy,
   error,
+  removesRecord = true,
   onOpenChange,
   onConfirm,
 }: {
@@ -663,6 +688,7 @@ export const BusinessRemoveDialog = ({
   open: boolean;
   busy: boolean;
   error: string | null;
+  removesRecord?: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) => (
@@ -678,9 +704,9 @@ export const BusinessRemoveDialog = ({
       <DialogHeader>
         <DialogTitle>Remove business</DialogTitle>
         <DialogDescription className="text-foreground leading-relaxed">
-          {businessName} will leave your account. Past scans, scores, and share
-          links for this business are deleted and cannot be restored. Active
-          billing for this business stops when it is removed.
+          {removesRecord
+            ? `${businessName} will leave your account. Past scans, scores, and share links for this business are deleted and cannot be restored. Active billing for this business stops when it is removed.`
+            : `${businessName} will leave your account. Active billing for this business stops. The report stays with its owner.`}
         </DialogDescription>
       </DialogHeader>
       {error ? (
@@ -700,9 +726,10 @@ export const BusinessRemoveDialog = ({
           disabled={busy}
           type="button"
           variant="destructive"
+          aria-busy={busy || undefined}
           onClick={onConfirm}
         >
-          {busy ? "Removing…" : "Remove business"}
+          <ButtonBusyLabel busy={busy}>Remove business</ButtonBusyLabel>
         </UiButton>
       </FormActions>
     </DialogContent>
@@ -751,8 +778,13 @@ export const MonthlyScansUpgradeDialog = ({
         >
           Not now
         </QuietButton>
-        <PrimaryButton disabled={busy} type="button" onClick={onConfirm}>
-          {busy ? "Redirecting…" : "Continue to checkout"}
+        <PrimaryButton
+          disabled={busy}
+          loading={busy}
+          type="button"
+          onClick={onConfirm}
+        >
+          Continue to checkout
         </PrimaryButton>
       </FormActions>
     </DialogContent>
@@ -783,7 +815,7 @@ export const ReportSummary = ({
 
   const sessionRequired = Boolean(access.unlocked && access.sessionRequired);
   const ctaDisabled = isCtaDisabled(businessId, access, redirecting);
-  const ctaLabel = buildCtaLabel(access, redirecting, sessionRequired);
+  const ctaLabel = buildCtaLabel(access, sessionRequired);
   const note = buildAccessNote(access, businessId);
 
   const startCheckout = async (plan: CheckoutPlan) => {

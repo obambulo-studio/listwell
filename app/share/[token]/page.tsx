@@ -8,7 +8,10 @@ import { businessForPublicView } from "@/lib/business-public";
 import { checksForCategory } from "@/lib/checks/registry";
 import { pointsFor } from "@/lib/checks/types";
 import { getBusiness, getResearchEntitlement } from "@/lib/data";
-import { monthlyResearchVisible } from "@/lib/entitlements-access";
+import {
+  monthlyResearchVisible,
+  storedPeerComparisonVisible,
+} from "@/lib/entitlements-access";
 import { getSharedReportViewerAccess } from "@/lib/polar-server";
 import { getReportShareByToken } from "@/lib/report-share";
 import { loadResearchView } from "@/lib/research-load";
@@ -92,8 +95,10 @@ const SharedReportPage = async ({
     completedChecks.length === 0 ? "no_completed_checks" : "ai_binding_missing"
   );
   const entitlement = await getResearchEntitlement(share.businessId);
-  const researchVisible = monthlyResearchVisible(entitlement);
+  const monthlyResearchStored = monthlyResearchVisible(entitlement);
+  const researchVisible = monthlyResearchStored;
   const research = researchVisible ? await loadResearchView(business) : null;
+  const peerComparisonVisible = storedPeerComparisonVisible(entitlement);
 
   return (
     <ReportClient
@@ -111,6 +116,8 @@ const SharedReportPage = async ({
       shareExpiresAt={share.expiresAt}
       research={research}
       researchVisible={researchVisible}
+      monthlyResearchStored={monthlyResearchStored}
+      peerComparisonVisible={peerComparisonVisible}
     />
   );
 };

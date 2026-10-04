@@ -179,6 +179,7 @@ export default defineSchema({
   webAnalyticsSites: defineTable({
     businessExternalId: v.string(),
     createdAt: v.string(),
+    enabled: v.optional(v.boolean()),
     ingestKey: v.string(),
     updatedAt: v.string(),
   }).index("by_businessExternalId_and_ingestKey", [
@@ -187,9 +188,12 @@ export default defineSchema({
   ]),
 
   webAnalyticsUsage: defineTable({
-    businessExternalId: v.string(),
+    businessExternalId: v.optional(v.string()),
     eventCount: v.number(),
     month: v.string(),
     updatedAt: v.string(),
-  }).index("by_businessExternalId_and_month", ["businessExternalId", "month"]),
+    userId: v.optional(v.string()),
+  })
+    .index("by_businessExternalId_and_month", ["businessExternalId", "month"])
+    .index("by_userId_and_month", ["userId", "month"]),
 });

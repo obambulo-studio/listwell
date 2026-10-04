@@ -426,5 +426,10 @@ describe("spend decisions", () => {
         { kind: "report_once", status: "active" },
       ])
     ).toBeFalsy();
+    expect(
+      entitlementAllowsResearch([
+        { kind: "report_monthly", status: "cancelled" },
+      ])
+    ).toBeFalsy();
   });
 });

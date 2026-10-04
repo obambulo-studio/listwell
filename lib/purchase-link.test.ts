@@ -59,4 +59,10 @@ describe(activePurchaseLinksToUser, () => {
       activePurchaseLinksToUser({ status: "revoked" }, "user_1")
     ).toBeFalsy();
   });
+
+  it("ignores a cancelled monthly plan", () => {
+    expect(
+      activePurchaseLinksToUser({ status: "cancelled" }, "user_1")
+    ).toBeFalsy();
+  });
 });

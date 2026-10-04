@@ -30,6 +30,6 @@ export const GET = async (
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const rows = await listScansForBusiness(id);
+  const rows = await listScansForBusiness(id, 50);
   return NextResponse.json(scansResponseSchema.parse({ scans: rows }));
 };

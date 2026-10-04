@@ -20,27 +20,27 @@ const healthResponseSchema = z.object({
   }),
 });
 
-export const GET = async () => {
+export const readListwellHealth = async () => {
   const [convex, auditKv, env] = await Promise.all([
     probeConvexBusinesses(),
     hasAuditKv(),
     getAuditEngineEnv(),
   ]);
   const lookups = lookupProvidersFromEnv(env);
-  return NextResponse.json(
-    healthResponseSchema.parse({
-      convex,
-      lookups,
-      ok: auditKv && lookups.osm,
-      storage: {
-        auditKv,
-        d1: false,
-      },
-    }),
-    {
-      headers: {
-        "Cache-Control": "public, max-age=30, stale-while-revalidate=60",
-      },
-    }
-  );
+  return healthResponseSchema.parse({
+    convex,
+    lookups,
+    ok: auditKv && lookups.osm,
+    storage: {
+      auditKv,
+      d1: false,
+    },
+  });
 };
+
+export const GET = async () =>
+  NextResponse.json(await readListwellHealth(), {
+    headers: {
+      "Cache-Control": "public, max-age=30, stale-while-revalidate=60",
+    },
+  });

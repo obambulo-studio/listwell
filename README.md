@@ -162,7 +162,7 @@ Payments and email:
 
 - `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` - Polar API and webhooks
 - `POLAR_PRODUCT_REPORT_ONCE`, `POLAR_PRODUCT_REPORT_MONTHLY`, `POLAR_PRODUCT_REPORT_YEARLY` - Polar product IDs (create products in Polar at the amounts in `lib/polar.ts`; IDs are not hardcoded in the app). Yearly checkout is hidden when `POLAR_PRODUCT_REPORT_YEARLY` is unset.
-- `POLAR_PRODUCT_ANALYTICS_10K`, `POLAR_PRODUCT_ANALYTICS_100K`, `POLAR_PRODUCT_ANALYTICS_1M` - monthly web analytics add-on bands (GST-inclusive AUD amounts in `lib/analytics-pricing.ts`). Separate from report plans.
+- `POLAR_PRODUCT_ANALYTICS_10K`, `POLAR_PRODUCT_ANALYTICS_100K`, `POLAR_PRODUCT_ANALYTICS_1M` - account-wide web analytics bands after the free 5,000 events (GST-inclusive AUD amounts in `lib/analytics-pricing.ts`). Separate from report plans.
 - `POLAR_SERVER` - `sandbox` or `production`
 - `USESEND_API_KEY`, `USESEND_FROM` - sign-in codes (Convex) and Worker mail: purchase receipts and optional monthly scan emails (set as Worker secrets via `bun run cf:sync-secrets` / dashboard)
 - `USESEND_BASE_URL` - optional, default `https://app.usesend.com`
@@ -282,21 +282,22 @@ Set the Polar webhook to `POST /api/webhook/polar` on your public site URL.
 
 After checkout, Listwell emails a sign-in code so the buyer can open the report. It also emails a receipt: a once-off purchase includes the report PDF and a link; a monthly or yearly purchase includes the link only. Renewals do not send another receipt.
 
-### Web analytics add-on
+### Web analytics
 
-Lightweight first-party pageview counting per business. Not included in the report or monthly scan plans.
+Lightweight first-party pageview counting for the account. Turn it on per site from the business menu. Enabled sites add to one monthly total. The first 5,000 events each month are free. After that, the account pays the band that covers its usage. Not included in the report or monthly scan plans.
 
 Event bands (change list prices in `lib/analytics-pricing.ts`, then create matching monthly products in Polar):
 
 | Band | List price (GST inclusive) | Env var |
 | --- | --- | --- |
+| 5,000 events / month | Free | — |
 | 10,000 events / month | A$9 | `POLAR_PRODUCT_ANALYTICS_10K` |
 | 100,000 events / month | A$19 | `POLAR_PRODUCT_ANALYTICS_100K` |
 | 1,000,000 events / month | A$49 | `POLAR_PRODUCT_ANALYTICS_1M` |
 
-Account owners open **Web analytics** from the business menu on `/account`, choose a band, and paste the install snippet on their site. The script is served from `/lw-analytics.js` and sends pageviews to `GET /api/analytics/collect`.
+Account owners open **Web analytics** from the business menu on `/account`, turn counting on for that site, and paste the install snippet. The script is served from `/lw-analytics.js` and sends pageviews to `GET /api/analytics/collect`. Counting pauses when the account reaches its allowance until a higher band is purchased.
 
-Example snippet (values come from the account page after purchase):
+Example snippet (values come from the account page after the site is turned on):
 
 ```html
 <script

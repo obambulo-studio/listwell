@@ -34,6 +34,7 @@ const SampleReportPage = () => {
         showKvExpiryNotice={false}
         kvExpiryDays={7}
         peerAuditOverride={uiFixturePeerAudit()}
+        peerComparisonVisible
       />
     </>
   );

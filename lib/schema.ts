@@ -118,7 +118,11 @@ export const entitlementKindSchema = z.enum([
 ]);
 export type EntitlementKind = z.infer<typeof entitlementKindSchema>;
 
-export const entitlementStatusSchema = z.enum(["active", "revoked"]);
+export const entitlementStatusSchema = z.enum([
+  "active",
+  "cancelled",
+  "revoked",
+]);
 export type EntitlementStatus = z.infer<typeof entitlementStatusSchema>;
 
 export const entitlementRowSchema = z.object({
@@ -224,6 +228,7 @@ export const entitlementStateSchema = z.object({
   kind: entitlementKindSchema.nullable().default(null),
   maskedEmail: z.string().nullable().default(null),
   monthlyAvailable: z.boolean().default(false),
+  monthlyCancelled: z.boolean().default(false),
   onceRescan: onceRescanStateSchema.optional(),
   paymentsEnabled: z.boolean(),
   sessionRequired: z.boolean().default(false),
@@ -269,6 +274,10 @@ const accountReportLastScanSchema = z
   }));
 
 export const accountReportSchema = z.object({
+  analyticsKind: z
+    .enum(["analytics_10k", "analytics_100k", "analytics_1m"])
+    .nullable()
+    .default(null),
   id: z.string(),
   lastScan: accountReportLastScanSchema.nullable(),
   name: z.string(),
@@ -300,9 +309,13 @@ export const checkoutPlanSchema = z.enum([
 ]);
 export type CheckoutPlan = z.infer<typeof checkoutPlanSchema>;
 
+export const checkoutReturnToSchema = z.literal("account");
+export type CheckoutReturnTo = z.infer<typeof checkoutReturnToSchema>;
+
 export const checkoutRequestSchema = z.object({
   businessId: z.string().min(1),
   plan: checkoutPlanSchema.default("once"),
+  returnTo: checkoutReturnToSchema.optional(),
 });
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
 

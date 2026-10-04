@@ -2,6 +2,7 @@ import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { CheckoutAnalyticsRequiresMonthlyScansError } from "./checkout-analytics-requires-monthly-error";
 import {
   CheckoutPlanNotConfiguredError,
   checkoutCreateFailureLog,
@@ -10,6 +11,16 @@ import {
 import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 
 describe(checkoutCreateHttpError, () => {
+  it("maps analytics without monthly scans to 400", () => {
+    const result = checkoutCreateHttpError(
+      new CheckoutAnalyticsRequiresMonthlyScansError()
+    );
+    expect(result.status).toBe(400);
+    expect(result.message).toBe(
+      "Web analytics is available with monthly scans only."
+    );
+  });
+
   it("maps missing monthly plan config to 503", () => {
     const result = checkoutCreateHttpError(
       new CheckoutPlanNotConfiguredError("monthly")

@@ -11,7 +11,6 @@ import {
   UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useEffect,
   useEffectEvent,
@@ -23,8 +22,10 @@ import {
 } from "react";
 import type { Dispatch, KeyboardEvent, RefObject } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { z } from "zod";
 
+import { WebAnalyticsManageDialog } from "@/components/account-web-analytics";
 import { BusinessGuestAccessDialog } from "@/components/business-guest-access-dialog";
 import {
   BusinessNameRenameDialog,
@@ -34,7 +35,10 @@ import {
 import { Icon } from "@/components/icon";
 import GlideMenu from "@/components/primitives/glide-menu";
 import { removeOwnedBusiness } from "@/lib/account-business-remove";
+import { accountUpgradeCatalogSchema } from "@/lib/account-row-upgrade";
 import { accountScanMenuFlags } from "@/lib/account-scan-menu";
+import { webAnalyticsMenuAction } from "@/lib/account-web-analytics-menu";
+import type { AnalyticsBandId } from "@/lib/analytics-pricing";
 import { requestCheckoutUrl } from "@/lib/polar";
 import { accountPlanSchema, checkoutPlanSchema } from "@/lib/schema";
 
@@ -73,6 +77,7 @@ const rowMenuItems = (menu: HTMLElement | null): HTMLElement[] => {
 };
 
 interface AccountBusinessRowMenuDialogState {
+  analyticsManageOpen: boolean;
   checkoutError: string | null;
   guestOpen: boolean;
   monthlyOpen: boolean;
@@ -80,10 +85,12 @@ interface AccountBusinessRowMenuDialogState {
   removeError: string | null;
   removeOpen: boolean;
   removing: boolean;
+  renameDraftKey: number;
   renameOpen: boolean;
 }
 
 type AccountBusinessRowMenuDialogAction =
+  | { open: boolean; type: "analytics-manage-open" }
   | { error: string; type: "monthly-failed" }
   | { open: boolean; type: "monthly-open" }
   | { type: "monthly-start" }
@@ -100,6 +107,7 @@ type AccountBusinessRowMenuDialogAction =
 
 const initialAccountBusinessRowMenuDialogState: AccountBusinessRowMenuDialogState =
   {
+    analyticsManageOpen: false,
     checkoutError: null,
     guestOpen: false,
     monthlyOpen: false,
@@ -107,6 +115,7 @@ const initialAccountBusinessRowMenuDialogState: AccountBusinessRowMenuDialogStat
     removeError: null,
     removeOpen: false,
     removing: false,
+    renameDraftKey: 0,
     renameOpen: false,
   };
 
@@ -115,7 +124,11 @@ const accountBusinessRowMenuDialogReducer = (
   action: AccountBusinessRowMenuDialogAction
 ): AccountBusinessRowMenuDialogState => {
   if (action.type === "open-rename") {
-    return { ...state, renameOpen: true };
+    return {
+      ...state,
+      renameDraftKey: state.renameDraftKey + 1,
+      renameOpen: true,
+    };
   }
   if (action.type === "open-guest") {
     return { ...state, guestOpen: true };
@@ -125,6 +138,9 @@ const accountBusinessRowMenuDialogReducer = (
   }
   if (action.type === "rename-open") {
     return { ...state, renameOpen: action.open };
+  }
+  if (action.type === "analytics-manage-open") {
+    return { ...state, analyticsManageOpen: action.open };
   }
   if (action.type === "open-monthly") {
     return { ...state, checkoutError: null, monthlyOpen: true };
@@ -169,6 +185,8 @@ interface AccountBusinessRowMenuPanelProps {
   onGuestAccess: () => void;
   onRemove: () => void;
   onRename: () => void;
+  onWebAnalytics: () => void;
+  showWebAnalytics: boolean;
 }
 
 const AccountBusinessRowMenuPanel = ({
@@ -184,6 +202,8 @@ const AccountBusinessRowMenuPanel = ({
   onGuestAccess,
   onRemove,
   onRename,
+  onWebAnalytics,
+  showWebAnalytics,
 }: AccountBusinessRowMenuPanelProps) => {
   const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (
@@ -266,15 +286,13 @@ const AccountBusinessRowMenuPanel = ({
             Rename
           </button>
         ) : null}
-        {canRemove ? (
-          <Link
-            href={`/account/analytics/${businessId}`}
+        {showWebAnalytics ? (
+          <button
+            type="button"
             role="menuitem"
             data-menu-row
             className="listwell-account-menu__item"
-            onClick={() => {
-              onClose();
-            }}
+            onClick={onWebAnalytics}
           >
             <Icon
               className={menuIconClass}
@@ -282,7 +300,7 @@ const AccountBusinessRowMenuPanel = ({
               size={15}
             />
             Web analytics
-          </Link>
+          </button>
         ) : null}
         {canRemove ? (
           <button
@@ -293,7 +311,7 @@ const AccountBusinessRowMenuPanel = ({
             onClick={onGuestAccess}
           >
             <Icon className={menuIconClass} icon={UserMultipleIcon} size={15} />
-            Guest access
+            Team access
           </button>
         ) : null}
         {canAddMonthlyScans ? (
@@ -323,27 +341,24 @@ const AccountBusinessRowMenuPanel = ({
             Manage plan
           </a>
         ) : null}
-        {canRemove ? (
-          <>
-            <div className="listwell-account-menu__rule" aria-hidden="true" />
-            <button
-              type="button"
-              role="menuitem"
-              data-menu-row
-              className="listwell-account-menu__item listwell-account-menu__item--logout"
-              onClick={onRemove}
-            >
-              <Icon className={menuIconClass} icon={Delete02Icon} size={15} />
-              Remove business
-            </button>
-          </>
-        ) : null}
+        <div className="listwell-account-menu__rule" aria-hidden="true" />
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-row
+          className="listwell-account-menu__item listwell-account-menu__item--logout"
+          onClick={onRemove}
+        >
+          <Icon className={menuIconClass} icon={Delete02Icon} size={15} />
+          Remove business
+        </button>
       </GlideMenu>
     </div>
   );
 };
 
 interface AccountBusinessRowMenuDialogsProps {
+  analyticsBands: AnalyticsBandId[];
   businessId: string;
   businessName: string;
   canAddMonthlyScans: boolean;
@@ -352,10 +367,13 @@ interface AccountBusinessRowMenuDialogsProps {
   dispatchDialog: Dispatch<AccountBusinessRowMenuDialogAction>;
   onConfirmMonthly: () => void;
   onConfirmRemove: () => void;
-  onRenamed: () => void;
+  paymentsEnabled: boolean;
+  showWebAnalytics: boolean;
+  siteOrigin: string;
 }
 
 const AccountBusinessRowMenuDialogs = ({
+  analyticsBands,
   businessId,
   businessName,
   canAddMonthlyScans,
@@ -364,7 +382,9 @@ const AccountBusinessRowMenuDialogs = ({
   dispatchDialog,
   onConfirmMonthly,
   onConfirmRemove,
-  onRenamed,
+  paymentsEnabled,
+  showWebAnalytics,
+  siteOrigin,
 }: AccountBusinessRowMenuDialogsProps) => (
   <>
     {canRemove ? (
@@ -379,18 +399,26 @@ const AccountBusinessRowMenuDialogs = ({
     ) : null}
     {canRemove ? (
       <BusinessNameRenameDialog
-        key={
-          dialogs.renameOpen
-            ? `${businessId}-rename-open`
-            : `${businessId}-rename-closed`
-        }
         businessId={businessId}
+        draftKey={dialogs.renameDraftKey}
         name={businessName}
         open={dialogs.renameOpen}
         onOpenChange={(open) => {
           dispatchDialog({ open, type: "rename-open" });
         }}
-        onRenamed={onRenamed}
+      />
+    ) : null}
+    {showWebAnalytics ? (
+      <WebAnalyticsManageDialog
+        availableBands={analyticsBands}
+        businessId={businessId}
+        businessName={businessName}
+        open={dialogs.analyticsManageOpen}
+        paymentsEnabled={paymentsEnabled}
+        siteOrigin={siteOrigin}
+        onOpenChange={(open) => {
+          dispatchDialog({ open, type: "analytics-manage-open" });
+        }}
       />
     ) : null}
     {canAddMonthlyScans ? (
@@ -404,18 +432,17 @@ const AccountBusinessRowMenuDialogs = ({
         }}
       />
     ) : null}
-    {canRemove ? (
-      <BusinessRemoveDialog
-        businessName={businessName}
-        busy={dialogs.removing}
-        error={dialogs.removeError}
-        open={dialogs.removeOpen}
-        onConfirm={onConfirmRemove}
-        onOpenChange={(open) => {
-          dispatchDialog({ open, type: "remove-open" });
-        }}
-      />
-    ) : null}
+    <BusinessRemoveDialog
+      businessName={businessName}
+      busy={dialogs.removing}
+      error={dialogs.removeError}
+      open={dialogs.removeOpen}
+      removesRecord={canRemove}
+      onConfirm={onConfirmRemove}
+      onOpenChange={(open) => {
+        dispatchDialog({ open, type: "remove-open" });
+      }}
+    />
   </>
 );
 
@@ -423,8 +450,11 @@ const accountBusinessRowMenuPropsSchema = z.object({
   businessId: z.string().min(1),
   businessName: z.string(),
   canRemove: z.boolean(),
+  catalog: accountUpgradeCatalogSchema,
   monthlyScansAvailable: z.boolean(),
+  paymentsEnabled: z.boolean(),
   plan: accountPlanSchema,
+  siteOrigin: z.string().min(1),
 });
 
 export type AccountBusinessRowMenuProps = z.infer<
@@ -433,14 +463,21 @@ export type AccountBusinessRowMenuProps = z.infer<
 
 export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
   const parsed = accountBusinessRowMenuPropsSchema.parse(input);
-  const { businessId, businessName, canRemove, monthlyScansAvailable, plan } =
-    parsed;
+  const {
+    businessId,
+    businessName,
+    canRemove,
+    catalog,
+    monthlyScansAvailable,
+    paymentsEnabled,
+    plan,
+    siteOrigin,
+  } = parsed;
 
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { refresh } = useRouter();
   const [open, setOpen] = useState(false);
   const [dialogs, dispatchDialog] = useReducer(
     accountBusinessRowMenuDialogReducer,
@@ -451,7 +488,13 @@ export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
     monthlyScansAvailable,
     plan,
   });
-
+  const showWebAnalytics = canRemove;
+  const analyticsBands = catalog.availableAnalyticsBands;
+  const webAnalyticsAction = showWebAnalytics
+    ? webAnalyticsMenuAction({
+        owned: canRemove,
+      })
+    : null;
   const close = (restoreFocus = false) => {
     setOpen(false);
     if (restoreFocus) {
@@ -565,13 +608,20 @@ export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
     dispatchDialog({ type: "open-remove" });
   };
 
+  const openWebAnalytics = () => {
+    close();
+    if (webAnalyticsAction === "manage-analytics") {
+      dispatchDialog({ open: true, type: "analytics-manage-open" });
+    }
+  };
+
   const confirmRemove = () => {
     void (async () => {
       dispatchDialog({ type: "remove-start" });
       try {
         await removeOwnedBusiness(businessId);
         dispatchDialog({ type: "remove-succeeded" });
-        refresh();
+        toast.success("Business removed");
       } catch (error) {
         dispatchDialog({
           error:
@@ -621,11 +671,14 @@ export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
               onGuestAccess={openGuestAccess}
               onRemove={openRemove}
               onRename={openRename}
+              onWebAnalytics={openWebAnalytics}
+              showWebAnalytics={showWebAnalytics}
             />,
             document.body
           )
         : null}
       <AccountBusinessRowMenuDialogs
+        analyticsBands={analyticsBands}
         businessId={businessId}
         businessName={businessName}
         canAddMonthlyScans={canAddMonthlyScans}
@@ -634,9 +687,9 @@ export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
         dispatchDialog={dispatchDialog}
         onConfirmMonthly={startMonthlyCheckout}
         onConfirmRemove={confirmRemove}
-        onRenamed={() => {
-          refresh();
-        }}
+        paymentsEnabled={paymentsEnabled}
+        showWebAnalytics={showWebAnalytics}
+        siteOrigin={siteOrigin}
       />
     </>
   );

@@ -6,15 +6,19 @@ export type HomepageCheckGridIcon =
   | "ai-visibility"
   | "brand-consistency"
   | "competitor-comparison"
+  | "emails"
   | "food-delivery"
   | "google-business"
   | "local-search-research"
   | "on-page-seo"
   | "reviews-reputation"
+  | "seo-research"
   | "social"
   | "structured-data"
+  | "team-access"
   | "technical"
-  | "trends-monitoring";
+  | "trends-monitoring"
+  | "web-analytics";
 
 export interface HomepageCheckGridGroup {
   description: string;
@@ -83,7 +87,7 @@ const HOMEPAGE_CHECK_GRID_GROUPS: HomepageCheckGridGroup[] = [
   },
   {
     description:
-      "Up to four local peers, side-by-side checks, and where they pass first.",
+      "Up to four local peers on full and monthly reports and where they pass checks first.",
     icon: "competitor-comparison",
     id: "competitor-comparison",
     title: "Nearby competitor comparison",
@@ -108,6 +112,34 @@ const HOMEPAGE_CHECK_GRID_GROUPS: HomepageCheckGridGroup[] = [
     icon: "ai-visibility",
     id: "ai-visibility",
     title: "AI visibility",
+  },
+  {
+    description:
+      "Volume, backlinks, domain estimate, AI citations, review gap, and listing posts on continued reports.",
+    icon: "seo-research",
+    id: "seo-research",
+    title: "SEO research",
+  },
+  {
+    description:
+      "First-party pageview counting. Turn it on per site. The first 5,000 events each month are free, then you pay for the account band you use.",
+    icon: "web-analytics",
+    id: "web-analytics",
+    title: "Web analytics",
+  },
+  {
+    description:
+      "Optional notifications when monthly scans finish, with scores, trends, and links to reports.",
+    icon: "emails",
+    id: "emails",
+    title: "Email reports",
+  },
+  {
+    description:
+      "Invite team members to view one business report without billing or your other listings.",
+    icon: "team-access",
+    id: "team-access",
+    title: "Team access",
   },
 ];
 

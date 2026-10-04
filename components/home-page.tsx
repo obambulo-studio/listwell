@@ -3,8 +3,11 @@
 import {
   AiBrowserIcon,
   BadgeCheckIcon,
+  ChartAnalysisIcon,
+  ChartBarLineIcon,
   ChartIncreaseIcon,
   DeliveryTruck01Icon,
+  Mail01Icon,
   MatchesIcon,
   RankingIcon,
   SeoIcon,
@@ -13,6 +16,7 @@ import {
   StoreLocation01Icon,
   Structure02Icon,
   Tick02Icon,
+  UserGroupIcon,
   UserMultipleIcon,
   WebValidationIcon,
 } from "@hugeicons/core-free-icons";
@@ -24,6 +28,7 @@ import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 
 import { HomeFooter } from "@/components/home-footer";
 import { Icon } from "@/components/icon";
+import { ANALYTICS_HOME_ADDON_PRICING } from "@/lib/analytics-pricing";
 import { authClient } from "@/lib/auth-client";
 import {
   getHomepageCheckGridGroups,
@@ -50,15 +55,19 @@ const homepageGroupIcons: Record<HomepageCheckGridIcon, IconSvgElement> = {
   "ai-visibility": AiBrowserIcon,
   "brand-consistency": MatchesIcon,
   "competitor-comparison": UserMultipleIcon,
+  emails: Mail01Icon,
   "food-delivery": DeliveryTruck01Icon,
   "google-business": StoreLocation01Icon,
   "local-search-research": RankingIcon,
   "on-page-seo": SeoIcon,
   "reviews-reputation": StarIcon,
+  "seo-research": ChartAnalysisIcon,
   social: Share01Icon,
   "structured-data": Structure02Icon,
+  "team-access": UserGroupIcon,
   technical: WebValidationIcon,
   "trends-monitoring": ChartIncreaseIcon,
+  "web-analytics": ChartBarLineIcon,
 };
 
 type BillingPeriod = "monthly" | "yearly";
@@ -341,6 +350,10 @@ const HomePricing = ({
                         month-on-month change
                       </span>
                     </HomePricingFeature>
+                    <HomePricingFeature>
+                      SEO research: keywords, backlinks, review gap, and AI
+                      Overview
+                    </HomePricingFeature>
                   </ul>
                 </div>
                 <button
@@ -353,6 +366,51 @@ const HomePricing = ({
               </div>
             </div>
           </article>
+        </div>
+        <div className="home-pricing__addons-row">
+          <header className="home-pricing__addons-head">
+            <p className="home-pricing__addons-label">Add-ons</p>
+            <p className="home-pricing__addons-lede">
+              Optional pageview tracking for your account.
+            </p>
+          </header>
+          <div className="home-pricing__addons-grid">
+            <article className="home-pricing__tier home-pricing__tier--addon">
+              <header className="home-pricing__tier-head">
+                <h3 className="home-pricing__tier-name">
+                  {ANALYTICS_HOME_ADDON_PRICING.name}
+                </h3>
+                <p className="home-pricing__tier-lede">
+                  {ANALYTICS_HOME_ADDON_PRICING.lede}
+                </p>
+              </header>
+              <p className="home-pricing__price home-pricing__price--unit">
+                <span className="home-pricing__price-amount">
+                  {ANALYTICS_HOME_ADDON_PRICING.priceFrom}
+                </span>
+                <span className="home-pricing__price-cadence">
+                  {ANALYTICS_HOME_ADDON_PRICING.priceCadence}
+                </span>
+              </p>
+              <p className="home-pricing__price-note">
+                {ANALYTICS_HOME_ADDON_PRICING.priceNote}
+              </p>
+              <ul className="home-pricing__features">
+                {ANALYTICS_HOME_ADDON_PRICING.features.map((feature) => (
+                  <HomePricingFeature key={feature}>
+                    {feature}
+                  </HomePricingFeature>
+                ))}
+              </ul>
+              <button
+                className="home-button home-button--wash home-pricing__cta"
+                onClick={onStartCheck}
+                type="button"
+              >
+                Start free
+              </button>
+            </article>
+          </div>
         </div>
       </div>
     </section>

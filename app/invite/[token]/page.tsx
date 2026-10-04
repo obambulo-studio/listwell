@@ -38,7 +38,7 @@ const InvitePage = async ({
     <section className="listwell-page">
       <div className="listwell-panel">
         <div className="listwell-panel__head">
-          <h1 className="listwell-panel__title">Guest access invite</h1>
+          <h1 className="listwell-panel__title">Team access invite</h1>
         </div>
         <div className="listwell-panel__body">
           <p className="listwell-panel__text">

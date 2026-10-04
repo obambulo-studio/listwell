@@ -89,3 +89,62 @@ export const isAnalyticsCheckoutPlan = (
 
 export const formatEventLimit = (limit: number): string =>
   new Intl.NumberFormat("en-AU").format(limit);
+
+/** Included on every account before a paid band is required. */
+export const ANALYTICS_FREE_EVENTS_PER_MONTH = 5000;
+
+/** Free allowance, or the active band cap. Paid caps are the account total, not extra on top of the free events. */
+export const analyticsMonthlyAllowance = (
+  kind: AnalyticsEntitlementKind | null
+): number =>
+  kind
+    ? analyticsBandByEntitlementKind(kind).eventLimitPerMonth
+    : ANALYTICS_FREE_EVENTS_PER_MONTH;
+
+export const highestAnalyticsEntitlementKind = (
+  kinds: readonly AnalyticsEntitlementKind[]
+): AnalyticsEntitlementKind | null => {
+  let best: AnalyticsEntitlementKind | null = null;
+  for (const kind of kinds) {
+    const parsed = analyticsEntitlementKindSchema.parse(kind);
+    if (
+      !best ||
+      analyticsMonthlyAllowance(parsed) > analyticsMonthlyAllowance(best)
+    ) {
+      best = parsed;
+    }
+  }
+  return best;
+};
+
+export const analyticsEventDecision = (input: {
+  enabled: boolean;
+  eventCount: number;
+  kind: AnalyticsEntitlementKind | null;
+}): "accept" | "disabled" | "over_quota" => {
+  if (!input.enabled) {
+    return "disabled";
+  }
+  const allowance = analyticsMonthlyAllowance(input.kind);
+  if (input.eventCount >= allowance) {
+    return "over_quota";
+  }
+  return "accept";
+};
+
+const analyticsHomeFromBand = analyticsBandById("10k");
+const analyticsHomeToBand = analyticsBandById("1m");
+
+/** Homepage `#pricing` add-on row. List prices stay in {@link ANALYTICS_BANDS}. */
+export const ANALYTICS_HOME_ADDON_PRICING = {
+  features: [
+    "Turn counting on for each site you want included",
+    "Events add up across your account",
+    `First ${formatEventLimit(ANALYTICS_FREE_EVENTS_PER_MONTH)} events each month are free`,
+  ],
+  lede: "Pageview tracking for the sites you turn on. You pay only after the free allowance, for the band that covers your account total.",
+  name: "Web analytics",
+  priceCadence: "events each month, then the band you use",
+  priceFrom: `${formatEventLimit(ANALYTICS_FREE_EVENTS_PER_MONTH)} free`,
+  priceNote: `Then ${analyticsHomeFromBand.displayPrice}–${analyticsHomeToBand.displayPrice}, GST inclusive`,
+} as const;

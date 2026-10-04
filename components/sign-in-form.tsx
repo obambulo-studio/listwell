@@ -195,8 +195,9 @@ const SignInCodeStep = ({
             }}
           />
           <ComposerSubmit
-            label={state.busy ? "Signing in" : "Sign in"}
+            label="Sign in"
             disabled={state.busy || state.code.length !== 6}
+            loading={state.busy}
           />
         </div>
       </form>
@@ -256,10 +257,11 @@ const SignInEmailStep = ({
             }
           />
           <ComposerSubmit
-            label={state.busy ? "Sending code" : "Send code"}
+            label="Send code"
             disabled={
               state.busy || authServiceDown || state.email.trim() === ""
             }
+            loading={state.busy}
           />
         </div>
       </form>

@@ -4,6 +4,7 @@ import {
   canRemoveOwnedBusiness,
   entitlementBelongsToAnotherUser,
   otherAccountsStillHaveAccessMessage,
+  removalBillingTarget,
   removalBlockedByOtherActiveEntitlement,
   removeOwnedBusiness,
   subscriptionIdsToRevoke,
@@ -13,11 +14,16 @@ import type { RemovalEntitlement } from "./account-business-remove";
 const row = (
   status: RemovalEntitlement["status"],
   userId: string | null,
-  polarSubscriptionId: string | null = null
+  polarSubscriptionId: string | null = null,
+  extras: Partial<RemovalEntitlement> = {}
 ): RemovalEntitlement => ({
+  kind: "report_once",
+  polarCustomerId: null,
   polarSubscriptionId,
+  purchaserEmail: null,
   status,
   userId,
+  ...extras,
 });
 
 describe(canRemoveOwnedBusiness, () => {
@@ -113,6 +119,71 @@ describe(subscriptionIdsToRevoke, () => {
         "user-1"
       )
     ).toStrictEqual([]);
+  });
+});
+
+describe(removalBillingTarget, () => {
+  it("marks monthly as recurring but keeps account analytics subscriptions", () => {
+    expect(
+      removalBillingTarget(
+        [
+          row("active", "user-1", "sub_monthly", {
+            kind: "report_monthly",
+            polarCustomerId: "cus_1",
+            purchaserEmail: "ada@example.com",
+          }),
+          row("active", "user-1", "sub_analytics", {
+            kind: "analytics_10k",
+          }),
+        ],
+        "user-1"
+      )
+    ).toStrictEqual({
+      polarCustomerId: "cus_1",
+      purchaserEmail: "ada@example.com",
+      recurring: true,
+      subscriptionIds: ["sub_monthly"],
+    });
+  });
+
+  it("does not treat analytics-only billing as recurring on removal", () => {
+    expect(
+      removalBillingTarget(
+        [
+          row("active", "user-1", "sub_analytics", {
+            kind: "analytics_10k",
+            polarCustomerId: "cus_1",
+          }),
+        ],
+        "user-1"
+      )
+    ).toStrictEqual({
+      polarCustomerId: "cus_1",
+      purchaserEmail: null,
+      recurring: false,
+      subscriptionIds: [],
+    });
+  });
+
+  it("ignores a one-time purchase and another account's subscription", () => {
+    expect(
+      removalBillingTarget(
+        [
+          row("active", "user-1", null, { kind: "report_once" }),
+          row("active", "user-2", "sub_other", {
+            kind: "report_monthly",
+            polarCustomerId: "cus_other",
+          }),
+          row("revoked", "user-1", "sub_old", { kind: "report_monthly" }),
+        ],
+        "user-1"
+      )
+    ).toStrictEqual({
+      polarCustomerId: null,
+      purchaserEmail: null,
+      recurring: false,
+      subscriptionIds: [],
+    });
   });
 });
 

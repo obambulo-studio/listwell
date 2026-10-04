@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -17,6 +16,8 @@ import {
 import {
   clearAccountBackgroundScan,
   clearChatSession,
+  noteAccountBackgroundScanBusiness,
+  notifyAccountScanComplete,
   readAccountBackgroundScan,
   LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
 } from "@/lib/storage";
@@ -42,7 +43,10 @@ const BackgroundChatRunner = ({
   onDone,
 }: {
   businessName: string;
-  onDone: (outcome: "complete" | "stalled" | "error") => void;
+  onDone: (
+    outcome: "complete" | "stalled" | "error",
+    businessId: string | null
+  ) => void;
 }) => {
   useLayoutEffect(() => {
     clearChatSession();
@@ -58,13 +62,16 @@ const BackgroundChatRunner = ({
     onDoneRef.current = onDone;
   }, [onDone]);
 
-  const finish = useCallback((outcome: "complete" | "stalled" | "error") => {
-    if (finishedRef.current) {
-      return;
-    }
-    finishedRef.current = true;
-    onDoneRef.current(outcome);
-  }, []);
+  const finish = useCallback(
+    (outcome: "complete" | "stalled" | "error", businessId: string | null) => {
+      if (finishedRef.current) {
+        return;
+      }
+      finishedRef.current = true;
+      onDoneRef.current(outcome, businessId);
+    },
+    []
+  );
 
   const { handleListingSubmit, handleSend } = layout;
 
@@ -77,8 +84,15 @@ const BackgroundChatRunner = ({
   }, [businessName, handleSend]);
 
   useEffect(() => {
+    if (!layout.businessId) {
+      return;
+    }
+    noteAccountBackgroundScanBusiness(layout.businessId);
+  }, [layout.businessId]);
+
+  useEffect(() => {
     if (layout.reportStats && layout.businessId) {
-      finish("complete");
+      finish("complete", layout.businessId);
       return;
     }
 
@@ -104,7 +118,7 @@ const BackgroundChatRunner = ({
     }
 
     if (layout.phase === "location") {
-      finish("stalled");
+      finish("stalled", layout.businessId);
     }
   }, [
     finish,
@@ -122,8 +136,8 @@ const BackgroundChatRunner = ({
     if (!layout.showTryAgain) {
       return;
     }
-    finish("error");
-  }, [finish, layout.showTryAgain]);
+    finish("error", layout.businessId);
+  }, [finish, layout.businessId, layout.showTryAgain]);
 
   return (
     <div aria-hidden className="listwell-account-background-scan" inert>
@@ -133,7 +147,6 @@ const BackgroundChatRunner = ({
 };
 
 export const AccountBackgroundScanHost = () => {
-  const { refresh } = useRouter();
   const activeName = useSyncExternalStore(
     subscribeAccountScan,
     activeScanBusinessName,
@@ -148,11 +161,13 @@ export const AccountBackgroundScanHost = () => {
     <BackgroundChatRunner
       key={activeName}
       businessName={activeName}
-      onDone={(outcome) => {
+      onDone={(outcome, businessId) => {
+        if (outcome === "complete" && businessId) {
+          notifyAccountScanComplete(businessId);
+        }
         clearAccountBackgroundScan();
         if (outcome === "complete") {
           toast.success("Basic check finished. Your business is on the list.");
-          refresh();
           return;
         }
         if (outcome === "stalled") {

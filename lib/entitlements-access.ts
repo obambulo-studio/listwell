@@ -43,7 +43,7 @@ export const ownerCanRescan = (input: {
     return false;
   }
   if (input.access.kind === "report_monthly") {
-    return true;
+    return !input.access.monthlyCancelled;
   }
   return (
     input.access.kind === "report_once" &&
@@ -135,23 +135,97 @@ export const reportCanManagePlan = (
   !access.sessionRequired &&
   (access.kind === "report_monthly" || access.kind === "report_once");
 
-/** Continued research stays visible on a share even though the viewer plan is cleared. */
+/**
+ * Stored monthly research stays on the report after cancel.
+ * A refunded or paused plan is revoked and hides it.
+ */
 export const monthlyResearchVisible = (
   entitlement: {
     kind: EntitlementState["kind"];
-    status: "active" | "revoked";
+    status: "active" | "cancelled" | "revoked";
   } | null
 ): boolean =>
-  entitlement?.kind === "report_monthly" && entitlement.status === "active";
+  entitlement?.kind === "report_monthly" &&
+  (entitlement.status === "active" || entitlement.status === "cancelled");
+
+const readablePaidReport = (
+  entitlement: {
+    kind: EntitlementState["kind"];
+    status: "active" | "cancelled" | "revoked";
+  } | null
+): boolean => {
+  if (!entitlement || entitlement.status === "revoked") {
+    return false;
+  }
+  return (
+    entitlement.kind === "report_once" || entitlement.kind === "report_monthly"
+  );
+};
+
+/** Nearby competitor comparison content and peers API (paid or dev waiver). */
+export const reportPeerComparisonUnlocked = (
+  access: EntitlementState
+): boolean =>
+  access.fixStepsWithoutPayment || (access.unlocked && !access.sessionRequired);
+
+/** @alias reportPeerComparisonUnlocked */
+export const reportPeerComparisonVisible = reportPeerComparisonUnlocked;
+
+/** Nearby tab on the owner report before purchase (locked preview). */
+export const reportPeerComparisonOffered = (
+  access: EntitlementState,
+  isOwner: boolean
+): boolean =>
+  reportPeerComparisonUnlocked(access) ||
+  (isOwner && reportShowsPurchasePrices(access));
+
+/** Stored monthly research readable on the report (entitlement row). */
+export const reportResearchUnlocked = (input: {
+  access: EntitlementState;
+  monthlyResearchStored: boolean;
+}): boolean =>
+  input.monthlyResearchStored &&
+  input.access.unlocked &&
+  !input.access.sessionRequired;
+
+/** Over time tab on the owner report before purchase (locked preview). */
+export const reportResearchOffered = (input: {
+  access: EntitlementState;
+  isOwner: boolean;
+  monthlyResearchStored: boolean;
+}): boolean =>
+  reportResearchUnlocked(input) ||
+  (input.isOwner && reportShowsPurchasePrices(input.access));
+
+/** Shared report links inherit a paid report's nearby section. */
+export const storedPeerComparisonVisible = (
+  entitlement: {
+    kind: EntitlementState["kind"];
+    status: "active" | "cancelled" | "revoked";
+  } | null
+): boolean => readablePaidReport(entitlement);
 
 export const reportResearchChrome = (input: {
   isOwner: boolean;
-  researchVisible: boolean;
+  peerComparisonOffered: boolean;
+  peerComparisonUnlocked: boolean;
+  researchOffered: boolean;
+  researchUnlocked: boolean;
   showFixSteps: boolean;
-}): { fixSteps: boolean; phrasesEditor: boolean; research: boolean } => ({
+}): {
+  fixSteps: boolean;
+  nearby: boolean;
+  nearbyUnlocked: boolean;
+  phrasesEditor: boolean;
+  research: boolean;
+  researchUnlocked: boolean;
+} => ({
   fixSteps: input.showFixSteps,
-  phrasesEditor: input.isOwner && input.researchVisible,
-  research: input.researchVisible,
+  nearby: input.peerComparisonOffered,
+  nearbyUnlocked: input.peerComparisonUnlocked,
+  phrasesEditor: input.isOwner && input.researchUnlocked,
+  research: input.researchOffered,
+  researchUnlocked: input.researchUnlocked,
 });
 
 /** Read-only share links never inherit the purchaser's unlock state. */
@@ -163,6 +237,7 @@ export const sharedViewerEntitlementState = (
     backendAvailable: true,
     kind: null,
     maskedEmail: null,
+    monthlyCancelled: false,
     sessionRequired: false,
     unlocked: false,
   });

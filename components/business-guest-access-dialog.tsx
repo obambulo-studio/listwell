@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import {
@@ -31,7 +32,7 @@ const fetchGuests = async (businessId: string): Promise<BusinessGuestList> => {
   });
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(guestApiError(payload, "Could not load guest access"));
+    throw new Error(guestApiError(payload, "Could not load team access"));
   }
   return businessGuestListSchema.parse(payload);
 };
@@ -92,13 +93,13 @@ const GuestAccessList = ({
   onRemove: (guestEmail: string) => void;
 }) => {
   if (isLoading) {
-    return <p className="listwell-panel__text">Loading guests…</p>;
+    return <p className="listwell-panel__text">Loading team…</p>;
   }
   if (guests.length === 0) {
-    return <p className="listwell-panel__note">No guests yet.</p>;
+    return <p className="listwell-panel__note">No team members yet.</p>;
   }
   return (
-    <ul className="listwell-panel__rows" aria-label="Guest access">
+    <ul className="listwell-panel__rows" aria-label="Team access">
       {guests.map((guest) => (
         <li key={guest.id} className="listwell-panel__row">
           <span className="listwell-panel__row-main">
@@ -155,6 +156,7 @@ export const BusinessGuestAccessDialog = ({
         const next = await inviteGuest(businessId, email);
         await mutate(next, { revalidate: false });
         setEmail("");
+        toast.success("Invite sent");
       } catch (inviteError) {
         setError(
           inviteError instanceof Error
@@ -173,6 +175,7 @@ export const BusinessGuestAccessDialog = ({
       try {
         const next = await revokeGuest(businessId, guestEmail);
         await mutate(next, { revalidate: false });
+        toast.success("Access removed");
       } catch (revokeError) {
         setError(
           revokeError instanceof Error
@@ -188,7 +191,7 @@ export const BusinessGuestAccessDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="listwell-dialog">
         <DialogHeader>
-          <DialogTitle>Guest access</DialogTitle>
+          <DialogTitle>Team access</DialogTitle>
           <DialogDescription>
             Invite someone to view the {businessName} report only. They will not
             see your other businesses or billing.
@@ -220,6 +223,7 @@ export const BusinessGuestAccessDialog = ({
         <FormActions>
           <PrimaryButton
             disabled={busy || email.trim().length === 0}
+            loading={busy}
             onClick={sendInvite}
             type="button"
           >

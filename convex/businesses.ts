@@ -3,13 +3,15 @@ import { v } from "convex/values";
 import {
   entitlementBelongsToAnotherUser,
   otherAccountsStillHaveAccessMessage,
+  removalBillingTarget,
   removalBlockedByOtherActiveEntitlement,
-  subscriptionIdsToRevoke,
 } from "../lib/account-business-remove";
+import { isAnalyticsEntitlementKind } from "../lib/analytics-pricing";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
+import { businessClaimAllowed } from "./lib/reportEntitlements";
 import { businessResponseValidator } from "./lib/responseValidators";
 import {
   MAX_COMPETITORS,
@@ -46,11 +48,7 @@ const entitlementAllowsClaim = async (
       q.eq("businessExternalId", businessExternalId)
     )
     .collect();
-  const active = entitlements.find((row) => row.status === "active");
-  if (!active) {
-    return true;
-  }
-  return active.userId === userId;
+  return businessClaimAllowed(entitlements, userId);
 };
 
 const toLocationResponse = (
@@ -315,7 +313,10 @@ const listEntitlements = (
     .collect();
 
 const toRemovalEntitlement = (row: Doc<"entitlements">) => ({
+  kind: row.kind,
+  polarCustomerId: row.polarCustomerId ?? null,
   polarSubscriptionId: row.polarSubscriptionId ?? null,
+  purchaserEmail: row.purchaserEmail ?? null,
   status: row.status,
   userId: row.userId ?? null,
 });
@@ -494,9 +495,37 @@ const deleteRowsForBusiness = async (
       .collect(),
   ]);
 
-  const ownedEntitlements = entitlements.filter(
+  let ownedEntitlements = entitlements.filter(
     (row) => !entitlementBelongsToAnotherUser(row.userId ?? null, ownerId)
   );
+
+  const analyticsToRelocate = ownedEntitlements.filter((row) =>
+    isAnalyticsEntitlementKind(row.kind)
+  );
+  if (analyticsToRelocate.length > 0) {
+    const ownedBusinesses = await ctx.db
+      .query("businesses")
+      .withIndex("by_userId", (q) => q.eq("userId", ownerId))
+      .collect();
+    const target = ownedBusinesses.find(
+      (business) => business.externalId !== businessExternalId
+    );
+    if (target) {
+      const timestamp = nowIso();
+      await Promise.all(
+        analyticsToRelocate.map((row) =>
+          ctx.db.patch("entitlements", row._id, {
+            businessExternalId: target.externalId,
+            updatedAt: timestamp,
+          })
+        )
+      );
+      const relocatedIds = new Set(analyticsToRelocate.map((row) => row._id));
+      ownedEntitlements = ownedEntitlements.filter(
+        (row) => !relocatedIds.has(row._id)
+      );
+    }
+  }
 
   await Promise.all([
     Promise.all(scans.map((row) => ctx.db.delete("scans", row._id))),
@@ -520,23 +549,38 @@ export const removalPreview = authedQuery({
     if (!doc) {
       throw new Error("Business not found");
     }
-    if (doc.userId !== user._id) {
-      throw new Error("Forbidden");
-    }
     const entitlements = await listEntitlements(ctx, args.externalId);
     const rows = entitlements.map(toRemovalEntitlement);
+    const ownsBusiness = doc.userId === user._id;
+    const holdsEntitlement = rows.some((row) => row.userId === user._id);
+    if (!ownsBusiness && !holdsEntitlement) {
+      throw new Error("Forbidden");
+    }
+    const billingRows = ownsBusiness
+      ? rows
+      : rows.filter((row) => row.userId === user._id);
+    const billing = removalBillingTarget(billingRows, user._id);
     return {
-      blocked: removalBlockedByOtherActiveEntitlement(rows, user._id),
-      subscriptionIds: subscriptionIdsToRevoke(rows, user._id),
+      blocked:
+        ownsBusiness && removalBlockedByOtherActiveEntitlement(rows, user._id),
+      deletesBusiness: ownsBusiness,
+      polarCustomerId: billing.polarCustomerId,
+      purchaserEmail: billing.purchaserEmail,
+      recurring: billing.recurring,
+      subscriptionIds: billing.subscriptionIds,
     };
   },
   returns: v.object({
     blocked: v.boolean(),
+    deletesBusiness: v.boolean(),
+    polarCustomerId: v.union(v.string(), v.null()),
+    purchaserEmail: v.union(v.string(), v.null()),
+    recurring: v.boolean(),
     subscriptionIds: v.array(v.string()),
   }),
 });
 
-/** Removes a business the signed-in user owns, including scans and entitlements. */
+/** Removes a business the signed-in user owns, or their access when someone else owns it. */
 export const removeOwned = authedMutation({
   args: { externalId: v.string() },
   handler: async (ctx, args) => {
@@ -545,16 +589,26 @@ export const removeOwned = authedMutation({
     if (!doc) {
       throw new Error("Business not found");
     }
-    if (doc.userId !== user._id) {
+    const entitlements = await listEntitlements(ctx, args.externalId);
+    const ownsBusiness = doc.userId === user._id;
+    const heldEntitlements = entitlements.filter(
+      (row) => row.userId === user._id
+    );
+    if (!ownsBusiness && heldEntitlements.length === 0) {
       throw new Error("Forbidden");
     }
-    const entitlements = await listEntitlements(ctx, args.externalId);
-    assertNoForeignActiveEntitlement(entitlements, user._id);
-    await deleteRowsForBusiness(ctx, args.externalId, user._id);
-    await ctx.db.delete("businesses", doc._id);
-    return { ok: true as const };
+    if (ownsBusiness) {
+      assertNoForeignActiveEntitlement(entitlements, user._id);
+      await deleteRowsForBusiness(ctx, args.externalId, user._id);
+      await ctx.db.delete("businesses", doc._id);
+      return { deletesBusiness: true as const };
+    }
+    await Promise.all(
+      heldEntitlements.map((row) => ctx.db.delete("entitlements", row._id))
+    );
+    return { deletesBusiness: false as const };
   },
-  returns: v.object({ ok: v.literal(true) }),
+  returns: v.object({ deletesBusiness: v.boolean() }),
 });
 
 export const attachOwnerIfUnowned = mutation({

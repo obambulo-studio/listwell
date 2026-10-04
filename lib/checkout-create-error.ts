@@ -7,6 +7,7 @@ import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
 import { ResponseValidationError } from "@polar-sh/sdk/models/errors/responsevalidationerror";
 import { z } from "zod";
 
+import { CheckoutAnalyticsRequiresMonthlyScansError } from "./checkout-analytics-requires-monthly-error";
 import { CheckoutPlanNotConfiguredError } from "./checkout-plan-not-configured-error";
 import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import type { CheckoutPlan } from "./schema";
@@ -77,6 +78,13 @@ export const checkoutCreateFailureLog = (
 export const checkoutCreateHttpError = (
   error: unknown
 ): { message: string; status: number } => {
+  if (error instanceof CheckoutAnalyticsRequiresMonthlyScansError) {
+    return {
+      message: "Web analytics is available with monthly scans only.",
+      status: 400,
+    };
+  }
+
   if (error instanceof CheckoutPlanNotConfiguredError) {
     return {
       message: planNotConfiguredMessage(error.plan),

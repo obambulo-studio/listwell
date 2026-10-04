@@ -253,8 +253,9 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
                   }}
                 />
                 <ComposerSubmit
-                  label={state.accessBusy ? "Checking" : "Enter site"}
+                  label="Enter site"
                   disabled={state.accessBusy || !state.password}
+                  loading={state.accessBusy}
                 />
               </div>
               {state.accessError ? (
@@ -352,8 +353,9 @@ export const SiteGatePage = ({ nextPath }: { nextPath: string }) => {
                   type="submit"
                   className="ml-auto"
                   disabled={state.interestBusy}
+                  loading={state.interestBusy}
                 >
-                  {state.interestBusy ? "Sending…" : "Join the waitlist"}
+                  Join the waitlist
                 </PrimaryButton>
               </div>
             </form>

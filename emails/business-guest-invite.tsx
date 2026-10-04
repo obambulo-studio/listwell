@@ -35,7 +35,7 @@ export const BusinessGuestInviteEmail = (
   const copy = inviteCopy(input);
   return (
     <EmailShell preheader={copy.subject} siteUrl={copy.siteUrl}>
-      <Headline>Guest access to {input.businessName}</Headline>
+      <Headline>Team access to {input.businessName}</Headline>
       <Lede>
         Someone invited you to view this business report on Listwell. Accept to
         see scores and status for this business only.

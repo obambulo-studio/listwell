@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
 
-import {
-  canRemoveOwnedBusiness,
-  otherAccountsStillHaveAccessMessage,
-} from "@/lib/account-business-remove";
+import { otherAccountsStillHaveAccessMessage } from "@/lib/account-business-remove";
 import { getSessionUser } from "@/lib/auth";
 import { fetchAuthMutation, fetchAuthQuery } from "@/lib/auth-server";
 import { api } from "@/lib/convex/server";
-import { getBusinessOwnerId, purgeStoredBusiness } from "@/lib/data";
+import { purgeStoredBusiness } from "@/lib/data";
 import {
   revokeSubscriptionsForBusinessRemoval,
   SubscriptionRevokeError,
@@ -31,22 +28,6 @@ export const DELETE = async (
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownerId = await getBusinessOwnerId(id);
-    if (!ownerId) {
-      return NextResponse.json(
-        { error: "Business not found" },
-        { status: 404 }
-      );
-    }
-    if (
-      !canRemoveOwnedBusiness({
-        ownerId,
-        sessionUserId: sessionUser.id,
-      })
-    ) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const preview = await fetchAuthQuery(api.businesses.removalPreview, {
       externalId: id,
     });
@@ -58,9 +39,19 @@ export const DELETE = async (
     }
 
     // react-doctor-disable-next-line react-doctor/async-parallel
-    await revokeSubscriptionsForBusinessRemoval(preview.subscriptionIds);
-    await fetchAuthMutation(api.businesses.removeOwned, { externalId: id });
-    await purgeStoredBusiness(id);
+    await revokeSubscriptionsForBusinessRemoval({
+      businessId: id,
+      polarCustomerId: preview.polarCustomerId,
+      purchaserEmail: preview.purchaserEmail,
+      recurring: preview.recurring,
+      subscriptionIds: preview.subscriptionIds,
+    });
+    const removed = await fetchAuthMutation(api.businesses.removeOwned, {
+      externalId: id,
+    });
+    if (removed.deletesBusiness) {
+      await purgeStoredBusiness(id);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -1,21 +1,20 @@
 import { v } from "convex/values";
 
+import {
+  analyticsEntitlementKindSchema,
+  analyticsEventDecision,
+  analyticsMonthlyAllowance,
+  highestAnalyticsEntitlementKind,
+} from "../lib/analytics-pricing";
+import type { AnalyticsEntitlementKind } from "../lib/analytics-pricing";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { analyticsMonthUtc } from "./lib/analyticsMonth";
-import { authedQuery } from "./lib/customFunctions";
+import { authedMutation, authedQuery } from "./lib/customFunctions";
 import { requireInternalSecret } from "./lib/internal";
 
-const analyticsEntitlementKinds = [
-  "analytics_10k",
-  "analytics_100k",
-  "analytics_1m",
-] as const;
-
-type AnalyticsEntitlementKind = (typeof analyticsEntitlementKinds)[number];
-
 const isAnalyticsKind = (kind: string): kind is AnalyticsEntitlementKind =>
-  (analyticsEntitlementKinds as readonly string[]).includes(kind);
+  analyticsEntitlementKindSchema.safeParse(kind).success;
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -32,20 +31,84 @@ const randomIngestKey = (): string => {
     .replaceAll("=", "");
 };
 
-const activeAnalyticsKind = async (
+const siteCountsTowardAccount = (site: { enabled?: boolean } | null): boolean =>
+  site !== null && site.enabled !== false;
+
+const accountAnalyticsKind = async (
   ctx: QueryCtx | MutationCtx,
-  businessExternalId: string
+  userId: string
 ): Promise<AnalyticsEntitlementKind | null> => {
   const rows = await ctx.db
     .query("entitlements")
-    .withIndex("by_businessExternalId", (q) =>
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect();
+  const kinds: AnalyticsEntitlementKind[] = [];
+  for (const row of rows) {
+    if (row.status === "active" && isAnalyticsKind(row.kind)) {
+      kinds.push(row.kind);
+    }
+  }
+  return highestAnalyticsEntitlementKind(kinds);
+};
+
+const accountEventCount = async (
+  ctx: QueryCtx | MutationCtx,
+  userId: string,
+  month: string
+): Promise<number> => {
+  const row = await ctx.db
+    .query("webAnalyticsUsage")
+    .withIndex("by_userId_and_month", (q) =>
+      q.eq("userId", userId).eq("month", month)
+    )
+    .unique();
+  return row?.eventCount ?? 0;
+};
+
+const siteForBusiness = async (
+  ctx: QueryCtx | MutationCtx,
+  businessExternalId: string
+) =>
+  await ctx.db
+    .query("webAnalyticsSites")
+    .withIndex("by_businessExternalId_and_ingestKey", (q) =>
       q.eq("businessExternalId", businessExternalId)
     )
-    .collect();
-  const active = rows.find(
-    (row) => row.status === "active" && isAnalyticsKind(row.kind)
-  );
-  return active && isAnalyticsKind(active.kind) ? active.kind : null;
+    .first();
+
+const accountAnalyticsValidator = v.object({
+  activeKind: v.union(
+    v.literal("analytics_10k"),
+    v.literal("analytics_100k"),
+    v.literal("analytics_1m"),
+    v.null()
+  ),
+  allowance: v.number(),
+  enabled: v.boolean(),
+  eventsThisMonth: v.number(),
+  ingestKey: v.union(v.string(), v.null()),
+  month: v.string(),
+});
+
+const accountStateForOwner = async (
+  ctx: QueryCtx | MutationCtx,
+  businessExternalId: string,
+  userId: string
+) => {
+  const month = analyticsMonthUtc();
+  const [site, kind, eventsThisMonth] = await Promise.all([
+    siteForBusiness(ctx, businessExternalId),
+    accountAnalyticsKind(ctx, userId),
+    accountEventCount(ctx, userId, month),
+  ]);
+  return {
+    activeKind: kind,
+    allowance: analyticsMonthlyAllowance(kind),
+    enabled: siteCountsTowardAccount(site),
+    eventsThisMonth,
+    ingestKey: site?.ingestKey ?? null,
+    month,
+  };
 };
 
 export const recordEvent = mutation({
@@ -66,19 +129,40 @@ export const recordEvent = mutation({
       return { accepted: false as const, reason: "invalid_key" as const };
     }
 
-    const kind = await activeAnalyticsKind(ctx, args.businessExternalId);
-    if (!kind) {
-      return { accepted: false as const, reason: "not_subscribed" as const };
+    const business = await ctx.db
+      .query("businesses")
+      .withIndex("by_externalId", (q) =>
+        q.eq("externalId", args.businessExternalId)
+      )
+      .unique();
+    const userId = business?.userId;
+    if (!userId) {
+      return { accepted: false as const, reason: "disabled" as const };
     }
 
     const month = analyticsMonthUtc();
+    const [kind, eventCount] = await Promise.all([
+      accountAnalyticsKind(ctx, userId),
+      accountEventCount(ctx, userId, month),
+    ]);
+    const decision = analyticsEventDecision({
+      enabled: siteCountsTowardAccount(site),
+      eventCount,
+      kind,
+    });
+    if (decision === "disabled") {
+      return { accepted: false as const, reason: "disabled" as const };
+    }
+    if (decision === "over_quota") {
+      return { accepted: false as const, reason: "over_quota" as const };
+    }
+
     const existing = await ctx.db
       .query("webAnalyticsUsage")
-      .withIndex("by_businessExternalId_and_month", (q) =>
-        q.eq("businessExternalId", args.businessExternalId).eq("month", month)
+      .withIndex("by_userId_and_month", (q) =>
+        q.eq("userId", userId).eq("month", month)
       )
       .unique();
-
     const timestamp = nowIso();
     await (existing
       ? ctx.db.patch("webAnalyticsUsage", existing._id, {
@@ -86,10 +170,10 @@ export const recordEvent = mutation({
           updatedAt: timestamp,
         })
       : ctx.db.insert("webAnalyticsUsage", {
-          businessExternalId: args.businessExternalId,
           eventCount: 1,
           month,
           updatedAt: timestamp,
+          userId,
         }));
 
     return { accepted: true as const, reason: null };
@@ -98,7 +182,8 @@ export const recordEvent = mutation({
     accepted: v.boolean(),
     reason: v.union(
       v.literal("invalid_key"),
-      v.literal("not_subscribed"),
+      v.literal("disabled"),
+      v.literal("over_quota"),
       v.null()
     ),
   }),
@@ -106,35 +191,15 @@ export const recordEvent = mutation({
 
 export const getUsageForMonth = query({
   args: {
-    businessExternalId: v.string(),
     month: v.string(),
     secret: v.string(),
+    userId: v.string(),
   },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
-    const row = await ctx.db
-      .query("webAnalyticsUsage")
-      .withIndex("by_businessExternalId_and_month", (q) =>
-        q
-          .eq("businessExternalId", args.businessExternalId)
-          .eq("month", args.month)
-      )
-      .unique();
-    return row?.eventCount ?? 0;
+    return await accountEventCount(ctx, args.userId, args.month);
   },
   returns: v.number(),
-});
-
-const accountAnalyticsValidator = v.object({
-  activeKind: v.union(
-    v.literal("analytics_10k"),
-    v.literal("analytics_100k"),
-    v.literal("analytics_1m"),
-    v.null()
-  ),
-  eventsThisMonth: v.number(),
-  ingestKey: v.union(v.string(), v.null()),
-  month: v.string(),
 });
 
 export const getAccountState = authedQuery({
@@ -149,30 +214,53 @@ export const getAccountState = authedQuery({
     if (!business || business.userId !== ctx.user._id) {
       return null;
     }
+    return await accountStateForOwner(
+      ctx,
+      args.businessExternalId,
+      ctx.user._id
+    );
+  },
+  returns: v.union(accountAnalyticsValidator, v.null()),
+});
 
-    const month = analyticsMonthUtc();
-    const usage = await ctx.db
-      .query("webAnalyticsUsage")
-      .withIndex("by_businessExternalId_and_month", (q) =>
-        q.eq("businessExternalId", args.businessExternalId).eq("month", month)
+export const setSiteEnabled = authedMutation({
+  args: {
+    businessExternalId: v.string(),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const business = await ctx.db
+      .query("businesses")
+      .withIndex("by_externalId", (q) =>
+        q.eq("externalId", args.businessExternalId)
       )
       .unique();
+    if (!business || business.userId !== ctx.user._id) {
+      return null;
+    }
 
-    const site = await ctx.db
-      .query("webAnalyticsSites")
-      .withIndex("by_businessExternalId_and_ingestKey", (q) =>
-        q.eq("businessExternalId", args.businessExternalId)
-      )
-      .first();
+    const existing = await siteForBusiness(ctx, args.businessExternalId);
+    const timestamp = nowIso();
+    if (existing) {
+      await ctx.db.patch("webAnalyticsSites", existing._id, {
+        enabled: args.enabled,
+        updatedAt: timestamp,
+      });
+    } else if (args.enabled) {
+      await ctx.db.insert("webAnalyticsSites", {
+        businessExternalId: args.businessExternalId,
+        createdAt: timestamp,
+        enabled: true,
+        ingestKey: randomIngestKey(),
+        updatedAt: timestamp,
+      });
+    }
 
-    const kind = await activeAnalyticsKind(ctx, args.businessExternalId);
-
-    return {
-      activeKind: kind,
-      eventsThisMonth: usage?.eventCount ?? 0,
-      ingestKey: site?.ingestKey ?? null,
-      month,
-    };
+    return await accountStateForOwner(
+      ctx,
+      args.businessExternalId,
+      ctx.user._id
+    );
   },
   returns: v.union(accountAnalyticsValidator, v.null()),
 });
@@ -184,20 +272,20 @@ export const provisionAfterGrant = mutation({
   },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
-    const existing = await ctx.db
-      .query("webAnalyticsSites")
-      .withIndex("by_businessExternalId_and_ingestKey", (q) =>
-        q.eq("businessExternalId", args.businessExternalId)
-      )
-      .first();
+    const existing = await siteForBusiness(ctx, args.businessExternalId);
+    const timestamp = nowIso();
     if (existing) {
+      await ctx.db.patch("webAnalyticsSites", existing._id, {
+        enabled: true,
+        updatedAt: timestamp,
+      });
       return existing.ingestKey;
     }
-    const timestamp = nowIso();
     const ingestKey = randomIngestKey();
     await ctx.db.insert("webAnalyticsSites", {
       businessExternalId: args.businessExternalId,
       createdAt: timestamp,
+      enabled: true,
       ingestKey,
       updatedAt: timestamp,
     });

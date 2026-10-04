@@ -38,7 +38,7 @@ export const GET = async (
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
     return NextResponse.json(
-      { error: "Could not load guest access" },
+      { error: "Could not load team access" },
       { status: 500 }
     );
   }
@@ -99,7 +99,7 @@ export const DELETE = async (
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
     const message =
-      error instanceof Error ? error.message : "Could not remove guest";
+      error instanceof Error ? error.message : "Could not remove team member";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 };

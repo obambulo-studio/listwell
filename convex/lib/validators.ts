@@ -37,6 +37,7 @@ export const entitlementKindValidator = v.union(
 
 export const entitlementStatusValidator = v.union(
   v.literal("active"),
+  v.literal("cancelled"),
   v.literal("revoked")
 );
 

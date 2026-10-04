@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { toast } from "sonner";
 import useSWR from "swr";
 
 import {
@@ -126,7 +127,6 @@ export const ReportShareDialog = ({
   const [expiryChoice, setExpiryChoice] = useState<"none" | "7" | "30">("none");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const error =
     actionError ?? (loadError instanceof Error ? loadError.message : null);
@@ -134,13 +134,13 @@ export const ReportShareDialog = ({
   const handleCreate = async () => {
     setBusy(true);
     setActionError(null);
-    setCopied(false);
     try {
       const next = await createShare(
         businessId,
         expiryDaysFromChoice(expiryChoice)
       );
       await mutate(next, { revalidate: false });
+      toast.success("Share link created");
     } catch (createError) {
       setActionError(
         createError instanceof Error
@@ -154,10 +154,10 @@ export const ReportShareDialog = ({
   const handleRevoke = async () => {
     setBusy(true);
     setActionError(null);
-    setCopied(false);
     try {
       const next = await revokeShare(businessId);
       await mutate(next, { revalidate: false });
+      toast.success("Share link revoked");
     } catch (revokeError) {
       setActionError(
         revokeError instanceof Error
@@ -174,9 +174,9 @@ export const ReportShareDialog = ({
     }
     try {
       await navigator.clipboard.writeText(state.url);
-      setCopied(true);
+      toast.success("Link copied");
     } catch {
-      setActionError("Could not copy link");
+      toast.error("Could not copy link");
     }
   };
 
@@ -217,13 +217,14 @@ export const ReportShareDialog = ({
                 />
                 <PrimaryButton
                   disabled={busy}
+                  loading={busy}
                   size="sm"
                   type="button"
                   onClick={() => {
                     void handleCopy();
                   }}
                 >
-                  {copied ? "Copied" : "Copy"}
+                  Copy
                 </PrimaryButton>
               </div>
             </Field>
@@ -279,6 +280,7 @@ export const ReportShareDialog = ({
           {state?.active && state.url ? null : (
             <PrimaryButton
               disabled={busy}
+              loading={busy}
               type="button"
               onClick={() => {
                 void handleCreate();

@@ -3,12 +3,34 @@ import { v } from "convex/values";
 import type { QueryCtx } from "./_generated/server";
 import { listGuestReportsForUser } from "./businessGuests";
 import { authedQuery } from "./lib/customFunctions";
-import { reportEntitlementKind } from "./lib/reportEntitlements";
+import {
+  isCancelledMonthly,
+  reportEntitlementKind,
+} from "./lib/reportEntitlements";
 import { accountReportValidator } from "./lib/responseValidators";
 
 type ReportPlan = "preview" | "once" | "monthly";
 
+type AnalyticsEntitlementKind =
+  | "analytics_10k"
+  | "analytics_100k"
+  | "analytics_1m";
+
+const analyticsEntitlementKind = (
+  kind: string
+): AnalyticsEntitlementKind | null => {
+  if (
+    kind === "analytics_10k" ||
+    kind === "analytics_100k" ||
+    kind === "analytics_1m"
+  ) {
+    return kind;
+  }
+  return null;
+};
+
 interface AccountReportRow {
+  analyticsKind: AnalyticsEntitlementKind | null;
   id: string;
   lastScan: {
     finishedAt: string | null;
@@ -76,24 +98,29 @@ const buildPrimaryReports = async (
     },
     activeKind: "report_once" | "report_monthly" | null,
     nextScanAt: string | null,
-    owned: boolean
+    owned: boolean,
+    keepsHistory: boolean
   ) => {
     const plan = planFromKind(activeKind);
     const existing = byExternalId.get(business.externalId);
     if (!existing) {
       byExternalId.set(business.externalId, {
+        analyticsKind: null,
         id: business.externalId,
         lastScan: null,
         name: business.name,
         nextScanAt: activeKind === "report_monthly" ? nextScanAt : null,
         owned,
         plan,
-        unlocked: activeKind !== null,
+        unlocked: activeKind !== null || keepsHistory,
       });
       return;
     }
     if (owned) {
       existing.owned = true;
+    }
+    if (keepsHistory) {
+      existing.unlocked = true;
     }
     if (activeKind) {
       existing.unlocked = true;
@@ -107,7 +134,7 @@ const buildPrimaryReports = async (
     .withIndex("by_userId", (q) => q.eq("userId", userId))
     .collect();
   for (const business of owned) {
-    upsert(business, null, null, true);
+    upsert(business, null, null, true, false);
   }
 
   const entitled = await ctx.db
@@ -139,8 +166,18 @@ const buildPrimaryReports = async (
       business,
       activeKind,
       entitlement.status === "active" ? (entitlement.nextScanAt ?? null) : null,
-      business.userId === userId
+      business.userId === userId,
+      isCancelledMonthly(entitlement)
     );
+    if (entitlement.status === "active") {
+      const analyticsKind = analyticsEntitlementKind(entitlement.kind);
+      if (analyticsKind) {
+        const row = byExternalId.get(business.externalId);
+        if (row) {
+          row.analyticsKind = analyticsKind;
+        }
+      }
+    }
   }
 
   return [...byExternalId.values()].toSorted((left, right) =>

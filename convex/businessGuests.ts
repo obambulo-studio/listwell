@@ -197,7 +197,7 @@ export const revoke = authedMutation({
     const { user } = ctx;
     const inviteeEmail = normalizeInviteEmail(args.email);
     if (!inviteeEmail) {
-      throw new Error("Guest not found");
+      throw new Error("Team member not found");
     }
     const rows = await ctx.db
       .query("businessGuests")
@@ -212,7 +212,7 @@ export const revoke = authedMutation({
         candidate.status === "pending" || candidate.status === "active"
     );
     if (!row) {
-      throw new Error("Guest not found");
+      throw new Error("Team member not found");
     }
     const owned = await businessOwnedByUser(
       ctx,
@@ -372,25 +372,25 @@ const guestPlanFromKind = (
   return "preview";
 };
 
+interface GuestAccountReportRow {
+  analyticsKind: "analytics_10k" | "analytics_100k" | "analytics_1m" | null;
+  id: string;
+  lastScan: {
+    finishedAt: string | null;
+    previousScore: number | null;
+    score: number | null;
+  } | null;
+  name: string;
+  nextScanAt: string | null;
+  owned: boolean;
+  plan: "preview" | "once" | "monthly";
+  unlocked: boolean;
+}
+
 const upsertGuestReport = async (
   ctx: Pick<QueryCtx, "db">,
   businessExternalId: string,
-  byExternalId: Map<
-    string,
-    {
-      id: string;
-      name: string;
-      owned: boolean;
-      unlocked: boolean;
-      plan: "preview" | "once" | "monthly";
-      lastScan: {
-        score: number | null;
-        finishedAt: string | null;
-        previousScore: number | null;
-      } | null;
-      nextScanAt: string | null;
-    }
-  >
+  byExternalId: Map<string, GuestAccountReportRow>
 ) => {
   const business = await ctx.db
     .query("businesses")
@@ -422,6 +422,7 @@ const upsertGuestReport = async (
     return;
   }
   byExternalId.set(businessExternalId, {
+    analyticsKind: null,
     id: businessExternalId,
     lastScan: null,
     name: business.name,
@@ -434,20 +435,6 @@ const upsertGuestReport = async (
     unlocked: activeKind !== null,
   });
 };
-
-interface GuestAccountReportRow {
-  id: string;
-  lastScan: {
-    finishedAt: string | null;
-    previousScore: number | null;
-    score: number | null;
-  } | null;
-  name: string;
-  nextScanAt: string | null;
-  owned: boolean;
-  plan: "preview" | "once" | "monthly";
-  unlocked: boolean;
-}
 
 /** Guest businesses for the account page shared list. */
 export const listGuestReportsForUser = async (

@@ -28,7 +28,7 @@ const SEGMENT_LABEL: Record<ReportSegment, string> = {
   checks: "All checks",
   jobs: "Jobs to do",
   listing: "Your listing",
-  nearby: "Nearby businesses",
+  nearby: "Compare",
   research: "Over time",
 };
 
@@ -220,36 +220,76 @@ export const ReportJobs = ({
   );
 };
 
-const visibleReportSegments = (showResearch: boolean): ReportSegment[] => {
+const emptyLockedSegments: Partial<Record<ReportSegment, boolean>> = {};
+
+const visibleReportSegments = (input: {
+  showNearby: boolean;
+  showResearch: boolean;
+}): ReportSegment[] => {
   const segments: ReportSegment[] = [];
   for (const item of REPORT_SEGMENTS) {
-    if (showResearch || item !== "research") {
-      segments.push(item);
+    if (!input.showResearch && item === "research") {
+      continue;
     }
+    if (!input.showNearby && item === "nearby") {
+      continue;
+    }
+    segments.push(item);
   }
   return segments;
 };
 
+const segmentLocked = (
+  item: ReportSegment,
+  lockedSegments: Partial<Record<ReportSegment, boolean>>
+): boolean => lockedSegments[item] === true;
+
 export const ReportSegmentNav = ({
+  lockedSegments = emptyLockedSegments,
   segment,
+  showNearby,
   showResearch,
   onChange,
+  onLockedSegmentClick,
 }: {
+  lockedSegments?: Partial<Record<ReportSegment, boolean>>;
   segment: ReportSegment;
+  showNearby: boolean;
   showResearch: boolean;
   onChange: (segment: ReportSegment) => void;
+  onLockedSegmentClick?: () => void;
 }) => (
   <nav className="listwell-report__segments" aria-label="Report sections">
-    {visibleReportSegments(showResearch).map((item) => (
-      <button
-        key={item}
-        type="button"
-        className="listwell-panel__action"
-        aria-pressed={segment === item}
-        onClick={() => onChange(item)}
-      >
-        {SEGMENT_LABEL[item]}
-      </button>
-    ))}
+    {visibleReportSegments({ showNearby, showResearch }).map((item) => {
+      const locked = segmentLocked(item, lockedSegments);
+      return (
+        <button
+          key={item}
+          type="button"
+          className="listwell-panel__action"
+          aria-pressed={segment === item}
+          aria-describedby={locked ? `segment-${item}-locked` : undefined}
+          data-locked={locked ? "true" : undefined}
+          onClick={() => {
+            if (locked) {
+              onLockedSegmentClick?.();
+            }
+            onChange(item);
+          }}
+        >
+          <span className="listwell-report__segment-label">
+            {SEGMENT_LABEL[item]}
+          </span>
+          {locked ? (
+            <span
+              className="listwell-pill listwell-report__segment-lock"
+              id={`segment-${item}-locked`}
+            >
+              Locked
+            </span>
+          ) : null}
+        </button>
+      );
+    })}
   </nav>
 );

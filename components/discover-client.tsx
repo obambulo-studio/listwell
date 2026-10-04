@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import useSWR from "swr";
 
+import { LoadingSpinner } from "@/components/listwell/loading-spinner";
 import { ListingChoices } from "@/components/place-search";
 import { CATEGORY_CONFIG } from "@/lib/category";
 import type { CategoryId } from "@/lib/category";
@@ -292,12 +293,7 @@ export const DiscoverClient = ({
           className="listwell-panel__text flex items-center gap-2.5"
           aria-live="polite"
         >
-          {working ? (
-            <span
-              className="border-line-strong border-t-ink size-4 shrink-0 animate-spin rounded-full border-2"
-              aria-hidden
-            />
-          ) : null}
+          {working ? <LoadingSpinner /> : null}
           {status}.
         </p>
       </div>

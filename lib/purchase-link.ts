@@ -18,7 +18,7 @@ export const normalizePurchaserEmail = (email?: string): string | undefined => {
 /** An active purchase with no owner, or already owned by this user, can be linked. */
 export const activePurchaseLinksToUser = (
   row: {
-    status: "active" | "revoked";
+    status: "active" | "cancelled" | "revoked";
     userId?: string;
   },
   userId: string

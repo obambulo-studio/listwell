@@ -218,11 +218,12 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* radii — chips 6, controls 8, cards 10, windows 14, pills 999 */
-  --radius-chip: 6px;
-  --radius-control: 8px;
-  --radius-card: 10px;
+  /* radii — window (14px) is canonical; inset for 4px-padded nests; chip compact; pills 999 */
   --radius-window: 14px;
+  --radius-card: var(--radius-window);
+  --radius-control: var(--radius-window);
+  --radius-inset: calc(var(--radius-window) - 4px);
+  --radius-chip: 6px;
 
   /* easing — strong curves; built-ins are too weak */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
@@ -386,7 +387,6 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 input:focus-visible,
@@ -538,7 +538,7 @@ a:focus-visible .animated-underline::after {
   gap: 12px;
   padding: 5px 9px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--tooltip-fg);
   background: var(--tooltip-bg);
   box-shadow: var(--shadow-overlay);

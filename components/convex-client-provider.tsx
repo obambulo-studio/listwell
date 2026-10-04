@@ -4,6 +4,7 @@ import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import type { AuthClient } from "@convex-dev/better-auth/react";
 import { ConvexReactClient } from "convex/react";
 import type { ReactNode } from "react";
+import { useSyncExternalStore } from "react";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
@@ -28,6 +29,20 @@ const authClientSchema = z.custom<AuthClient>((value) => {
 });
 
 const resolvedAuthClient = authClientSchema.parse(authClient);
+
+const subscribeClientHydrated =
+  (_listener: () => void): (() => void) =>
+  () => {
+    void _listener;
+  };
+
+/** True after the browser has hydrated; false on SSR and the first client pass. */
+export const useClientHydrated = (): boolean =>
+  useSyncExternalStore(
+    subscribeClientHydrated,
+    () => true,
+    () => false
+  );
 
 export const ConvexClientProvider = ({
   children,
