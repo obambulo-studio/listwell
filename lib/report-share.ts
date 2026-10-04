@@ -1,6 +1,11 @@
 import { getCloudflareEnv } from "./audit-env";
 import { runConvexRead } from "./convex-read";
-import { api, convexMutation, convexPublicQuery } from "./convex/server";
+import {
+  api,
+  convexMutation,
+  convexPublicQuery,
+  convexQuery,
+} from "./convex/server";
 import { BUSINESS_KV_TTL_SECONDS } from "./data";
 import {
   createReportShareRequestSchema,
@@ -213,7 +218,7 @@ const readActiveShareFromConvex = async (
   businessId: string
 ): Promise<ReportShareRecord | null> => {
   const result = await runConvexRead(() =>
-    convexPublicQuery(api.reportShares.getActiveForBusiness, {
+    convexQuery(api.reportShares.getActiveForBusiness, {
       businessExternalId: businessId,
     })
   );
