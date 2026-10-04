@@ -817,6 +817,23 @@ button:focus-visible {
   transform: scale(0.98);
 }
 
+.listwell-chat__starter-sample {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.listwell-chat__starter-sample a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.listwell-chat__starter-sample a:hover {
+  color: var(--ink);
+}
+
 .listwell-about {
   width: min(22rem, calc(100% - 32px));
   margin: auto;
@@ -3159,6 +3176,16 @@ div.listwell-panel__row:hover {
   color: var(--home-faint);
   font-size: 15px;
   text-align: center;
+}
+
+.home-stage__sample-link {
+  color: var(--home-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.home-stage__sample-link:hover {
+  opacity: 0.85;
 }
 
 .home-section {

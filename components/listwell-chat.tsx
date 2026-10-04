@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 import {
@@ -90,6 +91,7 @@ import {
   lookupResponseSchema,
 } from "@/lib/discover";
 import type { PlaceCandidate } from "@/lib/discover";
+import { SAMPLE_REPORT_PATH } from "@/lib/listwell-routes";
 import { withDiscoveryPin } from "@/lib/place-pin";
 import {
   REPORT_MONTHLY_PRICE,
@@ -761,6 +763,9 @@ const PromptCard = ({
         </div>
         {card}
       </div>
+      <p className="listwell-chat__starter-sample">
+        <Link href={SAMPLE_REPORT_PATH}>See a sample report</Link>
+      </p>
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );

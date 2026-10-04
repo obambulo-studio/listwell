@@ -81,6 +81,7 @@ describe("site metadata", () => {
       expect(sitemapEntries().map((entry) => entry.url)).toStrictEqual([
         "https://listwell.dev/",
         "https://listwell.dev/chat",
+        "https://listwell.dev/example",
         "https://listwell.dev/discover",
         "https://listwell.dev/new",
         "https://listwell.dev/sign-in",

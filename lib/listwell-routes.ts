@@ -1,11 +1,15 @@
 /** In-app chat audit flow. */
 export const LISTWELL_CHAT_PATH = "/chat" as const;
 
+/** Public demo report (Sample Cafe fixture). */
+export const SAMPLE_REPORT_PATH = "/example" as const;
+
 const STATIC_APP_PATHS = new Set([
   "",
   "account",
   "chat",
   "discover",
+  "example",
   "gate",
   "new",
   "sign-in",
