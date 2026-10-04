@@ -31,6 +31,7 @@ import {
   grantEntitlement,
   revokeEntitlements,
 } from "./data";
+import { isActiveBusinessGuest } from "./business-guest-access";
 import {
   entitlementIsPurchaserBound,
   fixStepsWithoutPayment,
@@ -213,13 +214,20 @@ export const getReportAccess = async (
       ? purchaserEmail
       : null);
   const maskedEmail = emailToMask ? maskEmail(emailToMask) : null;
-  const sessionRequired = reportSessionRequired({
+  let sessionRequired = reportSessionRequired({
     authEnabled,
     ownerUserId,
     purchaserBound,
     sessionUserId: sessionUser?.id ?? null,
     unlocked,
   });
+  if (
+    sessionRequired &&
+    sessionUser &&
+    (await isActiveBusinessGuest(businessId, sessionUser.id))
+  ) {
+    sessionRequired = false;
+  }
   const monthlyAvailable = Boolean(config?.productReportMonthly);
   const yearlyAvailable = Boolean(config?.productReportYearly);
   const polarConfigured = Boolean(config);

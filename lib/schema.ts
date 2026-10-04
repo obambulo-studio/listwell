@@ -330,3 +330,41 @@ export type ReportShareState = z.infer<typeof reportShareStateSchema>;
 export const apiErrorSchema = z.object({
   error: z.string(),
 });
+
+export const businessGuestStatusSchema = z.enum([
+  "pending",
+  "active",
+  "revoked",
+]);
+export type BusinessGuestStatus = z.infer<typeof businessGuestStatusSchema>;
+
+export const businessGuestRowSchema = z.object({
+  acceptedAt: z.string().nullable(),
+  email: z.string(),
+  id: z.string(),
+  invitedAt: z.string(),
+  status: businessGuestStatusSchema,
+});
+export type BusinessGuestRow = z.infer<typeof businessGuestRowSchema>;
+
+export const businessGuestListSchema = z.object({
+  guests: z.array(businessGuestRowSchema),
+});
+export type BusinessGuestList = z.infer<typeof businessGuestListSchema>;
+
+export const businessGuestInviteRequestSchema = z.object({
+  email: z.string().min(1),
+});
+export type BusinessGuestInviteRequest = z.infer<
+  typeof businessGuestInviteRequestSchema
+>;
+
+export const businessGuestInvitePreviewSchema = z.object({
+  businessExternalId: z.string(),
+  businessName: z.string(),
+  inviteeEmail: z.string(),
+  status: businessGuestStatusSchema,
+});
+export type BusinessGuestInvitePreview = z.infer<
+  typeof businessGuestInvitePreviewSchema
+>;

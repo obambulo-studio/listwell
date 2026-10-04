@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import { mergeGuestBusinessesForUser } from "./businessGuests";
 import { authedQuery } from "./lib/customFunctions";
 import { accountReportValidator } from "./lib/responseValidators";
 
@@ -112,6 +113,8 @@ export const listReports = authedQuery({
         business.userId === user._id
       );
     }
+
+    await mergeGuestBusinessesForUser(ctx, user._id, byExternalId);
 
     const reports = [...byExternalId.values()].toSorted((left, right) =>
       right.name.localeCompare(left.name)

@@ -16,6 +16,30 @@ import {
 } from "./lib/validators";
 
 export default defineSchema({
+  businessGuests: defineTable({
+    acceptedAt: v.optional(v.string()),
+    businessExternalId: v.string(),
+    createdAt: v.string(),
+    guestUserId: v.optional(v.string()),
+    inviteToken: v.string(),
+    inviteeEmail: v.string(),
+    invitedByUserId: v.string(),
+    revokedAt: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("active"),
+      v.literal("revoked")
+    ),
+    updatedAt: v.string(),
+  })
+    .index("by_businessExternalId", ["businessExternalId"])
+    .index("by_guestUserId", ["guestUserId"])
+    .index("by_inviteToken", ["inviteToken"])
+    .index("by_inviteeEmail_and_business", [
+      "inviteeEmail",
+      "businessExternalId",
+    ]),
+
   businesses: defineTable({
     category: v.string(),
     categoryLabel: v.optional(v.string()),
