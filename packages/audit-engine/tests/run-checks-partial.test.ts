@@ -5,7 +5,7 @@ import type { BusinessSnapshot } from "../src/types";
 
 // The Worker bundle resolves this package's `zod` import to the app's Zod 4.
 // Zod 4 `z.record(enum, schema)` requires every enum key. Zod 3 does not.
-vi.mock("zod", async () => import("zod"));
+vi.mock(import("zod"), () => import("zod"));
 
 const services: BusinessSnapshot = {
   category: "services",
