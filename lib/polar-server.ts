@@ -15,10 +15,10 @@ import {
 import { fetchAuthMutation } from "./auth-server";
 import {
   CheckoutPlanNotConfiguredError,
-  CheckoutResponseShapeError,
   checkoutCreateFailureLog,
 } from "./checkout-create-error";
 import { CheckoutGrantError } from "./checkout-grant-error";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import {
   api,
   convexAction,

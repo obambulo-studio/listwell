@@ -21,10 +21,9 @@ const PrivacyPage = () => {
     <LegalPage title="Privacy policy">
       <p className="listwell-legal__lede">
         This policy describes how {LISTWELL_OPERATOR} (trading as Listwell)
-        handles personal information when you use
-        listwell.dev. We aim to meet the Privacy Act 1988 (Cth) and the
-        Australian Privacy Principles (APPs). This page is product copy, not
-        legal advice.
+        handles personal information when you use listwell.dev. We aim to meet
+        the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs).
+        This page is product copy, not legal advice.
       </p>
       <p className="listwell-legal__meta">Last updated: October 2026</p>
 
@@ -47,9 +46,9 @@ const PrivacyPage = () => {
             session data when you sign in with a one-time code.
           </li>
           <li>
-            <strong>Business details you provide:</strong> business name,
-            suburb or location hints, website URL, listing URLs, social profile
-            URLs, and address text used to match the right business.
+            <strong>Business details you provide:</strong> business name, suburb
+            or location hints, website URL, listing URLs, social profile URLs,
+            and address text used to match the right business.
           </li>
           <li>
             <strong>Scan and report data:</strong> check results, scores,
@@ -58,9 +57,9 @@ const PrivacyPage = () => {
           </li>
           <li>
             <strong>Payment-related data:</strong> Polar processes card payments
-            and tax details. Listwell receives order and subscription identifiers,
-            product purchased, and the email Polar associates with the checkout.
-            We do not store full card numbers.
+            and tax details. Listwell receives order and subscription
+            identifiers, product purchased, and the email Polar associates with
+            the checkout. We do not store full card numbers.
           </li>
           <li>
             <strong>Email preferences:</strong> tokens used to manage monthly
@@ -76,8 +75,14 @@ const PrivacyPage = () => {
       <LegalSection title="Why we collect it">
         <ul className="listwell-legal__list">
           <li>To run audits and show reports you request.</li>
-          <li>To save businesses to your account and re-run checks on a schedule for paid plans.</li>
-          <li>To sign you in, send purchase receipts, and send optional scan-ready emails.</li>
+          <li>
+            To save businesses to your account and re-run checks on a schedule
+            for paid plans.
+          </li>
+          <li>
+            To sign you in, send purchase receipts, and send optional scan-ready
+            emails.
+          </li>
           <li>To process payments and honour entitlements through Polar.</li>
           <li>To improve reliability, prevent abuse, and support customers.</li>
         </ul>
@@ -101,9 +106,8 @@ const PrivacyPage = () => {
           analytics vendor.
         </p>
         <p>
-          See also{" "}
-          <Link href="/how-it-works">How it works</Link> for the same list in
-          plain language.
+          See also <Link href="/how-it-works">How it works</Link> for the same
+          list in plain language.
         </p>
       </LegalSection>
 
@@ -145,8 +149,8 @@ const PrivacyPage = () => {
           <a href={LISTWELL_CONTACT_URL} rel="noopener noreferrer">
             {LISTWELL_CONTACT_URL}
           </a>
-          . We will respond within a reasonable time. You can update some account
-          details in Listwell after sign-in.
+          . We will respond within a reasonable time. You can update some
+          account details in Listwell after sign-in.
         </p>
       </LegalSection>
 
@@ -156,8 +160,9 @@ const PrivacyPage = () => {
           <a href={LISTWELL_CONTACT_URL} rel="noopener noreferrer">
             {LISTWELL_CONTACT_URL}
           </a>
-          . If you are not satisfied with our response, you may lodge a complaint
-          with the Office of the Australian Information Commissioner (OAIC) at{" "}
+          . If you are not satisfied with our response, you may lodge a
+          complaint with the Office of the Australian Information Commissioner
+          (OAIC) at{" "}
           <a href="https://www.oaic.gov.au" rel="noopener noreferrer">
             oaic.gov.au
           </a>

@@ -36,14 +36,15 @@ const HowItWorksPage = () => {
         <p>
           Google Places, Apple MapKit, TinyFish Fetch, TypeSafe, and DataForSEO
           only run when the matching API keys are set on the Worker. Without
-          those keys, Listwell falls back to other lookups or skips that feature.
+          those keys, Listwell falls back to other lookups or skips that
+          feature.
         </p>
       </LegalSection>
 
       <LegalSection title="Privacy">
         <p>
-          For what we collect and how these services handle personal information,
-          see the <Link href="/privacy">Privacy policy</Link>.
+          For what we collect and how these services handle personal
+          information, see the <Link href="/privacy">Privacy policy</Link>.
         </p>
       </LegalSection>
     </LegalPage>

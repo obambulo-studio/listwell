@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 
+import { HomeFooter } from "@/components/home-footer";
 import { Icon } from "@/components/icon";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -37,7 +38,6 @@ import {
   REPORT_YEARLY_VALUE_NOTE,
 } from "@/lib/polar";
 import { ONCE_RESCAN_WINDOW_DAYS } from "@/lib/scan-config";
-import { HomeFooter } from "@/components/home-footer";
 import { clearChatSession, LISTWELL_PENDING_BUSINESS_KEY } from "@/lib/storage";
 
 const homepageCheckGridGroups = getHomepageCheckGridGroups();

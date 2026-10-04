@@ -136,20 +136,20 @@ describe(buildFallbackSummary, () => {
     expect({
       available: summary.available,
       degradedReason: summary.degradedReason,
+      listwellBrandOnly: JSON.stringify(summary).match(/visimate/iu) === null,
       nextActionIds: summary.nextActions.map((action) => action.checkIds[0]),
       overviewCheckIds: summary.overview[0]?.checkIds,
       overviewText: summary.overview[0]?.text,
       source: summary.source,
-      listwellBrandOnly: JSON.stringify(summary).match(/visimate/iu) === null,
     }).toStrictEqual({
       available: false,
       degradedReason: "ai_binding_missing",
+      listwellBrandOnly: true,
       nextActionIds: ["website-title", "google-listing-photos"],
       overviewCheckIds: ["website-title", "google-listing-photos"],
       overviewText:
         "2 checks did not pass. Main gaps are Title contains business name and suburb/city and Google listing has photos. 1 other check passed: Website returns a successful status.",
       source: "fallback",
-      listwellBrandOnly: true,
     });
     expect(summary.overview[0]?.text).not.toMatch(/points/iu);
   });

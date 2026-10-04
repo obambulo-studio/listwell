@@ -16,7 +16,9 @@ export const LegalPage = ({
       <div className="listwell-panel__head">
         <h1 className="listwell-panel__title">{title}</h1>
       </div>
-      <div className="listwell-panel__body listwell-legal__body">{children}</div>
+      <div className="listwell-panel__body listwell-legal__body">
+        {children}
+      </div>
     </article>
   </section>
 );

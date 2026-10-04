@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalPage, LegalSection } from "@/components/legal-page";
-import { LISTWELL_CONTACT_URL, LISTWELL_OPERATOR } from "@/lib/listwell-services";
+import {
+  LISTWELL_CONTACT_URL,
+  LISTWELL_OPERATOR,
+} from "@/lib/listwell-services";
 import {
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
@@ -32,8 +35,8 @@ const RefundsPage = () => (
           <strong>Free basic report:</strong> no charge.
         </li>
         <li>
-          <strong>Full report (once):</strong> {REPORT_ONCE_PRICE} for fix
-          steps and a one-off unlock for that business.
+          <strong>Full report (once):</strong> {REPORT_ONCE_PRICE} for fix steps
+          and a one-off unlock for that business.
         </li>
         <li>
           <strong>Continued reports (monthly):</strong> {REPORT_MONTHLY_PRICE}.
@@ -67,9 +70,10 @@ const RefundsPage = () => (
 
     <LegalSection title="Subscriptions">
       <p>
-        Monthly and yearly plans renew through Polar until you cancel. Cancelling
-        stops future charges. You keep access for the period you have already paid
-        for unless Polar or Listwell revokes access after a refund or chargeback.
+        Monthly and yearly plans renew through Polar until you cancel.
+        Cancelling stops future charges. You keep access for the period you have
+        already paid for unless Polar or Listwell revokes access after a refund
+        or chargeback.
       </p>
       <p>
         Manage billing through the Polar customer portal linked from your
@@ -97,8 +101,8 @@ const RefundsPage = () => (
     <LegalSection title="Related pages">
       <p>
         See <Link href="/terms">Terms of use</Link> and{" "}
-        <Link href="/privacy">Privacy policy</Link> for general service terms and
-        data handling.
+        <Link href="/privacy">Privacy policy</Link> for general service terms
+        and data handling.
       </p>
     </LegalSection>
   </LegalPage>

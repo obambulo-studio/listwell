@@ -4,10 +4,10 @@ import { z } from "zod";
 
 import {
   CheckoutPlanNotConfiguredError,
-  CheckoutResponseShapeError,
   checkoutCreateFailureLog,
   checkoutCreateHttpError,
 } from "./checkout-create-error";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 
 describe(checkoutCreateHttpError, () => {
   it("maps missing monthly plan config to 503", () => {
@@ -55,10 +55,10 @@ describe(checkoutCreateHttpError, () => {
 describe(checkoutCreateFailureLog, () => {
   it("logs plan gaps without Polar payloads", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    checkoutCreateFailureLog(
-      new CheckoutPlanNotConfiguredError("yearly"),
-      { businessId: "biz_reports_1", plan: "yearly" }
-    );
+    checkoutCreateFailureLog(new CheckoutPlanNotConfiguredError("yearly"), {
+      businessId: "biz_reports_1",
+      plan: "yearly",
+    });
     expect(warn).toHaveBeenCalledWith(
       "Checkout plan product id missing",
       expect.objectContaining({ plan: "yearly" })
@@ -80,8 +80,8 @@ describe(checkoutCreateFailureLog, () => {
     expect(errorLog).toHaveBeenCalledWith(
       "Polar checkout create failed",
       expect.objectContaining({
-        polarStatus: 422,
         plan: "once",
+        polarStatus: 422,
       })
     );
     const logged = errorLog.mock.calls[0]?.[1];

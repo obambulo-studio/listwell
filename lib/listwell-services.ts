@@ -1,11 +1,11 @@
 /** Third-party services Listwell calls in production code (optional keys noted). */
 
-export type ListwellThirdPartyService = {
+export interface ListwellThirdPartyService {
   /** Shown on the how-it-works page and referenced in the privacy policy when relevant. */
   handlesPersonalInformation: boolean;
   name: string;
   purpose: string;
-};
+}
 
 export const LISTWELL_OPERATOR = "obambulo studio";
 
@@ -27,8 +27,7 @@ export const listwellThirdPartyServices = (): ListwellThirdPartyService[] => [
   {
     handlesPersonalInformation: true,
     name: "Better Auth",
-    purpose:
-      "Runs email one-time code sign-in and session handling on Convex.",
+    purpose: "Runs email one-time code sign-in and session handling on Convex.",
   },
   {
     handlesPersonalInformation: true,
@@ -86,7 +85,8 @@ export const listwellThirdPartyServices = (): ListwellThirdPartyService[] => [
   },
 ];
 
-export const listwellServicesWithPersonalData = (): ListwellThirdPartyService[] =>
-  listwellThirdPartyServices().filter(
-    (service) => service.handlesPersonalInformation
-  );
+export const listwellServicesWithPersonalData =
+  (): ListwellThirdPartyService[] =>
+    listwellThirdPartyServices().filter(
+      (service) => service.handlesPersonalInformation
+    );

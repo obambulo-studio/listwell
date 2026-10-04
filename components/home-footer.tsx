@@ -9,7 +9,10 @@ const footerLinks = [
 
 export const HomeFooter = () => (
   <footer className="home-footer">
-    <nav aria-label="Legal and product information" className="home-footer__nav">
+    <nav
+      aria-label="Legal and product information"
+      className="home-footer__nav"
+    >
       <ul className="home-footer__links">
         {footerLinks.map((link) => (
           <li key={link.href}>
