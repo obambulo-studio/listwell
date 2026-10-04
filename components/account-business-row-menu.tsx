@@ -2,11 +2,13 @@
 
 import {
   Building03Icon,
+  ChartIncreaseIcon,
   CreditCardIcon,
   Delete02Icon,
   MoreVerticalIcon,
   PencilEdit02Icon,
   RefreshIcon,
+  UserMultipleIcon,
 } from "@hugeicons/core-free-icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,6 +25,7 @@ import type { Dispatch, KeyboardEvent, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
+import { BusinessGuestAccessDialog } from "@/components/business-guest-access-dialog";
 import {
   BusinessNameRenameDialog,
   BusinessRemoveDialog,
@@ -71,6 +74,7 @@ const rowMenuItems = (menu: HTMLElement | null): HTMLElement[] => {
 
 interface AccountBusinessRowMenuDialogState {
   checkoutError: string | null;
+  guestOpen: boolean;
   monthlyOpen: boolean;
   redirecting: boolean;
   removeError: string | null;
@@ -86,6 +90,8 @@ type AccountBusinessRowMenuDialogAction =
   | { type: "open-monthly" }
   | { type: "open-remove" }
   | { type: "open-rename" }
+  | { type: "open-guest" }
+  | { open: boolean; type: "guest-open" }
   | { error: string; type: "remove-failed" }
   | { open: boolean; type: "remove-open" }
   | { type: "remove-start" }
@@ -95,6 +101,7 @@ type AccountBusinessRowMenuDialogAction =
 const initialAccountBusinessRowMenuDialogState: AccountBusinessRowMenuDialogState =
   {
     checkoutError: null,
+    guestOpen: false,
     monthlyOpen: false,
     redirecting: false,
     removeError: null,
@@ -109,6 +116,12 @@ const accountBusinessRowMenuDialogReducer = (
 ): AccountBusinessRowMenuDialogState => {
   if (action.type === "open-rename") {
     return { ...state, renameOpen: true };
+  }
+  if (action.type === "open-guest") {
+    return { ...state, guestOpen: true };
+  }
+  if (action.type === "guest-open") {
+    return { ...state, guestOpen: action.open };
   }
   if (action.type === "rename-open") {
     return { ...state, renameOpen: action.open };
@@ -153,6 +166,7 @@ interface AccountBusinessRowMenuPanelProps {
   menuRef: RefObject<HTMLDivElement | null>;
   onAddMonthlyScans: () => void;
   onClose: () => void;
+  onGuestAccess: () => void;
   onRemove: () => void;
   onRename: () => void;
 }
@@ -167,6 +181,7 @@ const AccountBusinessRowMenuPanel = ({
   menuRef,
   onAddMonthlyScans,
   onClose,
+  onGuestAccess,
   onRemove,
   onRename,
 }: AccountBusinessRowMenuPanelProps) => {
@@ -251,6 +266,36 @@ const AccountBusinessRowMenuPanel = ({
             Rename
           </button>
         ) : null}
+        {canRemove ? (
+          <Link
+            href={`/account/analytics/${businessId}`}
+            role="menuitem"
+            data-menu-row
+            className="listwell-account-menu__item"
+            onClick={() => {
+              onClose();
+            }}
+          >
+            <Icon
+              className={menuIconClass}
+              icon={ChartIncreaseIcon}
+              size={15}
+            />
+            Web analytics
+          </Link>
+        ) : null}
+        {canRemove ? (
+          <button
+            type="button"
+            role="menuitem"
+            data-menu-row
+            className="listwell-account-menu__item"
+            onClick={onGuestAccess}
+          >
+            <Icon className={menuIconClass} icon={UserMultipleIcon} size={15} />
+            Guest access
+          </button>
+        ) : null}
         {canAddMonthlyScans ? (
           <button
             type="button"
@@ -322,6 +367,16 @@ const AccountBusinessRowMenuDialogs = ({
   onRenamed,
 }: AccountBusinessRowMenuDialogsProps) => (
   <>
+    {canRemove ? (
+      <BusinessGuestAccessDialog
+        businessId={businessId}
+        businessName={businessName}
+        open={dialogs.guestOpen}
+        onOpenChange={(open) => {
+          dispatchDialog({ open, type: "guest-open" });
+        }}
+      />
+    ) : null}
     {canRemove ? (
       <BusinessNameRenameDialog
         key={
@@ -500,6 +555,11 @@ export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
     dispatchDialog({ type: "open-rename" });
   };
 
+  const openGuestAccess = () => {
+    close();
+    dispatchDialog({ type: "open-guest" });
+  };
+
   const openRemove = () => {
     close();
     dispatchDialog({ type: "open-remove" });
@@ -558,6 +618,7 @@ export const AccountBusinessRowMenu = (input: AccountBusinessRowMenuProps) => {
               onClose={() => {
                 close();
               }}
+              onGuestAccess={openGuestAccess}
               onRemove={openRemove}
               onRename={openRename}
             />,

@@ -58,6 +58,26 @@ export const sitemapEntries = () => {
       url: `${origin}/sign-in`,
     },
     {
+      changeFrequency: "yearly" as const,
+      priority: 0.35,
+      url: `${origin}/privacy`,
+    },
+    {
+      changeFrequency: "yearly" as const,
+      priority: 0.35,
+      url: `${origin}/terms`,
+    },
+    {
+      changeFrequency: "yearly" as const,
+      priority: 0.35,
+      url: `${origin}/refunds`,
+    },
+    {
+      changeFrequency: "yearly" as const,
+      priority: 0.35,
+      url: `${origin}/how-it-works`,
+    },
+    {
       changeFrequency: "monthly" as const,
       priority: 0.4,
       url: `${origin}/llms.txt`,

@@ -4,7 +4,8 @@
     "components/ui/**",
     "components/reui/**",
     "emails/change-email.tsx",
-    "emails/scan-ready-multi.tsx"
+    "emails/scan-ready-multi.tsx",
+    "public/lw-analytics.js"
   ],
   "ignoreDependencies": [
     "@react-email/render",

@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 
+import { HomeFooter } from "@/components/home-footer";
 import { Icon } from "@/components/icon";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -29,7 +30,11 @@ import {
   HOMEPAGE_CHECK_COUNT,
 } from "@/lib/home-checks-display";
 import type { HomepageCheckGridIcon } from "@/lib/home-checks-display";
-import { listwellChatHref, SAMPLE_REPORT_PATH } from "@/lib/listwell-routes";
+import {
+  listwellChatHref,
+  listwellWordmarkHref,
+  SAMPLE_REPORT_PATH,
+} from "@/lib/listwell-routes";
 import {
   REPORT_MONTHLY_PRICE,
   REPORT_ONCE_PRICE,
@@ -412,7 +417,10 @@ export const HomeLanding = ({
       <header className="home-nav">
         <div className="home-nav__inner">
           <div className="home-nav__brand">
-            <Link className="home-nav__product" href="/">
+            <Link
+              className="home-nav__product"
+              href={listwellWordmarkHref(signedIn)}
+            >
               <Icon
                 aria-hidden
                 color="var(--accent)"
@@ -576,6 +584,8 @@ export const HomeLanding = ({
         <section className="home-section">
           <HomeFaq />
         </section>
+
+        <HomeFooter />
       </div>
     </div>
   );

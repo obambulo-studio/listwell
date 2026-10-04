@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { AccountBackgroundScanHost } from "@/components/account-background-scan-host";
 import { Shell } from "@/components/shell";
 import { LISTWELL_CHAT_PATH } from "@/lib/listwell-routes";
 
@@ -22,6 +23,9 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     );
   }
   return (
-    <Shell scrollable={!isFullHeightChatShell(pathname)}>{children}</Shell>
+    <>
+      <AccountBackgroundScanHost />
+      <Shell scrollable={!isFullHeightChatShell(pathname)}>{children}</Shell>
+    </>
   );
 };

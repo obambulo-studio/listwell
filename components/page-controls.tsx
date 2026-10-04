@@ -19,14 +19,24 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type { KeyboardEvent } from "react";
 
 import { Icon } from "@/components/icon";
 import GlideMenu from "@/components/primitives/glide-menu";
 import { authClient } from "@/lib/auth-client";
-import { LISTWELL_CHAT_PATH } from "@/lib/listwell-routes";
-import { clearChatSession } from "@/lib/storage";
+import {
+  isAccountPath,
+  isBusinessReportPath,
+  LISTWELL_CHAT_PATH,
+} from "@/lib/listwell-routes";
+import {
+  clearChatSession,
+  isRestorableChatSession,
+  LISTWELL_CHAT_SESSION_EVENT,
+  loadChatSession,
+} from "@/lib/storage";
 import { applyTheme } from "@/lib/theme";
 
 export const LISTWELL_LOGOUT_EVENT = "listwell:logout";
@@ -389,9 +399,36 @@ export const AccountControl = ({
   );
 };
 
+const subscribeChatSession = (onStoreChange: () => void): (() => void) => {
+  const onChange = () => {
+    onStoreChange();
+  };
+  window.addEventListener(LISTWELL_CHAT_SESSION_EVENT, onChange);
+  window.addEventListener(LISTWELL_RESET_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(LISTWELL_CHAT_SESSION_EVENT, onChange);
+    window.removeEventListener(LISTWELL_RESET_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+};
+
+const chatSessionHasProgress = (): boolean => {
+  const stored = loadChatSession();
+  if (!stored) {
+    return false;
+  }
+  return isRestorableChatSession(stored);
+};
+
 export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
   const { push } = useRouter();
   const pathname = usePathname();
+  const chatInProgress = useSyncExternalStore(
+    subscribeChatSession,
+    chatSessionHasProgress,
+    () => false
+  );
 
   const handleReset = useCallback(() => {
     if (onReset) {
@@ -403,6 +440,16 @@ export const PageControls = ({ onReset }: { onReset?: () => void } = {}) => {
       push(LISTWELL_CHAT_PATH);
     }
   }, [onReset, pathname, push]);
+
+  const showReset =
+    pathname === LISTWELL_CHAT_PATH &&
+    !chatInProgress &&
+    !isAccountPath(pathname) &&
+    !isBusinessReportPath(pathname);
+
+  if (!showReset) {
+    return null;
+  }
 
   return (
     <div

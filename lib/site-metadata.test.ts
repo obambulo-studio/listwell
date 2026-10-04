@@ -85,6 +85,10 @@ describe("site metadata", () => {
         "https://listwell.dev/discover",
         "https://listwell.dev/new",
         "https://listwell.dev/sign-in",
+        "https://listwell.dev/privacy",
+        "https://listwell.dev/terms",
+        "https://listwell.dev/refunds",
+        "https://listwell.dev/how-it-works",
         "https://listwell.dev/llms.txt",
       ]);
     });

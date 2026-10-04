@@ -10,6 +10,7 @@
 
 import type * as account from "../account.js";
 import type * as auth from "../auth.js";
+import type * as businessGuests from "../businessGuests.js";
 import type * as businesses from "../businesses.js";
 import type * as checkSnapshots from "../checkSnapshots.js";
 import type * as claims from "../claims.js";
@@ -30,6 +31,7 @@ import type * as reportShares from "../reportShares.js";
 import type * as scans from "../scans.js";
 import type * as seo from "../seo.js";
 import type * as users from "../users.js";
+import type * as webAnalytics from "../webAnalytics.js";
 
 import type {
   ApiFromModules,
@@ -40,6 +42,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   account: typeof account;
   auth: typeof auth;
+  businessGuests: typeof businessGuests;
   businesses: typeof businesses;
   checkSnapshots: typeof checkSnapshots;
   claims: typeof claims;
@@ -60,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   scans: typeof scans;
   seo: typeof seo;
   users: typeof users;
+  webAnalytics: typeof webAnalytics;
 }>;
 
 /**

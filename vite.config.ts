@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 import { cloudflare } from "@cloudflare/vite-plugin";
@@ -33,6 +34,20 @@ const reactDomServerEdge = path.join(
 const emailRenderer = path.join(import.meta.dirname, "emails/render-email.ts");
 
 /** RSC remaps this specifier to a build without renderToStaticMarkup. */
+const workersCiAfterBuild = (): Plugin => ({
+  apply: "build",
+  closeBundle: {
+    handler: () => {
+      spawnSync("node", ["scripts/after-cf-build.mjs"], {
+        cwd: import.meta.dirname,
+        stdio: "inherit",
+      });
+    },
+    sequential: true,
+  },
+  name: "workers-ci-after-build",
+});
+
 const emailReactDomServerEdge = (): Plugin => ({
   enforce: "pre",
   name: "email-react-dom-server-edge",
@@ -52,6 +67,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    workersCiAfterBuild(),
     emailReactDomServerEdge(),
     cloudflareWorkersClientStub(),
     vinext({

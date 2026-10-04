@@ -16,6 +16,29 @@ import {
 } from "./lib/validators";
 
 export default defineSchema({
+  businessGuests: defineTable({
+    acceptedAt: v.optional(v.string()),
+    businessExternalId: v.string(),
+    createdAt: v.string(),
+    guestUserId: v.optional(v.string()),
+    inviteToken: v.string(),
+    invitedByUserId: v.string(),
+    inviteeEmail: v.string(),
+    revokedAt: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("active"),
+      v.literal("revoked")
+    ),
+    updatedAt: v.string(),
+  })
+    .index("by_guestUserId", ["guestUserId"])
+    .index("by_inviteToken", ["inviteToken"])
+    .index("by_inviteeEmail_and_business", [
+      "businessExternalId",
+      "inviteeEmail",
+    ]),
+
   businesses: defineTable({
     category: v.string(),
     categoryLabel: v.optional(v.string()),
@@ -152,4 +175,21 @@ export default defineSchema({
     spentUsdMicros: v.number(),
     updatedAt: v.string(),
   }).index("by_month", ["month"]),
+
+  webAnalyticsSites: defineTable({
+    businessExternalId: v.string(),
+    createdAt: v.string(),
+    ingestKey: v.string(),
+    updatedAt: v.string(),
+  }).index("by_businessExternalId_and_ingestKey", [
+    "businessExternalId",
+    "ingestKey",
+  ]),
+
+  webAnalyticsUsage: defineTable({
+    businessExternalId: v.string(),
+    eventCount: v.number(),
+    month: v.string(),
+    updatedAt: v.string(),
+  }).index("by_businessExternalId_and_month", ["businessExternalId", "month"]),
 });

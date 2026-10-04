@@ -4,6 +4,7 @@ import { PolarError } from "@polar-sh/sdk/models/errors/polarerror";
 import { ResourceNotFound } from "@polar-sh/sdk/models/errors/resourcenotfound";
 import { z } from "zod";
 
+import { isAnalyticsEntitlementKind } from "./analytics-pricing";
 import { getExecutionContext, getCloudflareEnv } from "./audit-env";
 import {
   cookiesFromAuthResponse,
@@ -13,12 +14,10 @@ import {
   normalizeEmail,
 } from "./auth";
 import { fetchAuthMutation } from "./auth-server";
-import {
-  CheckoutPlanNotConfiguredError,
-  CheckoutResponseShapeError,
-  checkoutCreateFailureLog,
-} from "./checkout-create-error";
+import { clearsSessionRequiredForGuest } from "./business-guest-access";
+import { checkoutCreateFailureLog } from "./checkout-create-error";
 import { CheckoutGrantError } from "./checkout-grant-error";
+import { CheckoutResponseShapeError } from "./checkout-response-shape-error";
 import {
   api,
   convexAction,
@@ -41,6 +40,7 @@ import {
 import {
   businessIdFromMetadata,
   checkoutCustomerIp,
+  checkoutReturnPathFromMetadata,
   customerEmailFromPolarData,
   customerIdFromPolarData,
   customerNameFromPolarData,
@@ -50,7 +50,8 @@ import {
   parsePolarCustomerPortalUrl,
   polarCheckoutSchema,
 } from "./polar";
-import type { PolarWebhookEvent } from "./polar";
+import type { PolarProductIds, PolarWebhookEvent } from "./polar";
+import { resolveCheckoutProduct } from "./polar-checkout-plan";
 import { schedulePurchaseReceipt } from "./purchase-email";
 import { startBaselineScan } from "./scans";
 import { checkoutPlanSchema, entitlementStateSchema } from "./schema";
@@ -68,44 +69,95 @@ const readSecret = (value: unknown): string | undefined => {
 export interface PolarConfig {
   accessToken: string;
   webhookSecret: string | undefined;
+  productAnalytics10k: string | undefined;
+  productAnalytics100k: string | undefined;
+  productAnalytics1m: string | undefined;
   productReportOnce: string;
   productReportMonthly: string | undefined;
   productReportYearly: string | undefined;
   server: z.infer<typeof polarServerSchema>;
 }
 
+const polarProductIdsFromConfig = (config: PolarConfig): PolarProductIds => ({
+  analytics100kProductId: config.productAnalytics100k,
+  analytics10kProductId: config.productAnalytics10k,
+  analytics1mProductId: config.productAnalytics1m,
+  monthlyProductId: config.productReportMonthly,
+  onceProductId: config.productReportOnce,
+  yearlyProductId: config.productReportYearly,
+});
+
+const optionalPolarSecret = (
+  workerEnv: Awaited<ReturnType<typeof getCloudflareEnv>>,
+  workerKey: keyof NonNullable<Awaited<ReturnType<typeof getCloudflareEnv>>>,
+  processKey: string
+): string | undefined =>
+  readSecret(workerEnv?.[workerKey]) ?? readSecret(process.env[processKey]);
+
+const polarAnalyticsProducts = (
+  workerEnv: Awaited<ReturnType<typeof getCloudflareEnv>>
+): Pick<
+  PolarConfig,
+  "productAnalytics100k" | "productAnalytics10k" | "productAnalytics1m"
+> => ({
+  productAnalytics100k: optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_ANALYTICS_100K",
+    "POLAR_PRODUCT_ANALYTICS_100K"
+  ),
+  productAnalytics10k: optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_ANALYTICS_10K",
+    "POLAR_PRODUCT_ANALYTICS_10K"
+  ),
+  productAnalytics1m: optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_ANALYTICS_1M",
+    "POLAR_PRODUCT_ANALYTICS_1M"
+  ),
+});
+
 export const getPolarConfig = async (): Promise<PolarConfig | null> => {
   const workerEnv = await getCloudflareEnv();
-  const accessToken =
-    readSecret(workerEnv?.POLAR_ACCESS_TOKEN) ??
-    readSecret(process.env.POLAR_ACCESS_TOKEN);
-  const productReportOnce =
-    readSecret(workerEnv?.POLAR_PRODUCT_REPORT_ONCE) ??
-    readSecret(process.env.POLAR_PRODUCT_REPORT_ONCE);
+  const accessToken = optionalPolarSecret(
+    workerEnv,
+    "POLAR_ACCESS_TOKEN",
+    "POLAR_ACCESS_TOKEN"
+  );
+  const productReportOnce = optionalPolarSecret(
+    workerEnv,
+    "POLAR_PRODUCT_REPORT_ONCE",
+    "POLAR_PRODUCT_REPORT_ONCE"
+  );
   if (!accessToken || !productReportOnce) {
     return null;
   }
 
   const serverValue =
-    readSecret(workerEnv?.POLAR_SERVER) ??
-    readSecret(process.env.POLAR_SERVER) ??
-    "sandbox";
+    optionalPolarSecret(workerEnv, "POLAR_SERVER", "POLAR_SERVER") ?? "sandbox";
   const serverParsed = polarServerSchema.safeParse(serverValue);
   const server = serverParsed.success ? serverParsed.data : "sandbox";
 
   return {
     accessToken,
-    productReportMonthly:
-      readSecret(workerEnv?.POLAR_PRODUCT_REPORT_MONTHLY) ??
-      readSecret(process.env.POLAR_PRODUCT_REPORT_MONTHLY),
+    ...polarAnalyticsProducts(workerEnv),
+    productReportMonthly: optionalPolarSecret(
+      workerEnv,
+      "POLAR_PRODUCT_REPORT_MONTHLY",
+      "POLAR_PRODUCT_REPORT_MONTHLY"
+    ),
     productReportOnce,
-    productReportYearly:
-      readSecret(workerEnv?.POLAR_PRODUCT_REPORT_YEARLY) ??
-      readSecret(process.env.POLAR_PRODUCT_REPORT_YEARLY),
+    productReportYearly: optionalPolarSecret(
+      workerEnv,
+      "POLAR_PRODUCT_REPORT_YEARLY",
+      "POLAR_PRODUCT_REPORT_YEARLY"
+    ),
     server,
-    webhookSecret:
-      readSecret(workerEnv?.POLAR_WEBHOOK_SECRET) ??
-      readSecret(process.env.POLAR_WEBHOOK_SECRET),
+    webhookSecret: optionalPolarSecret(
+      workerEnv,
+      "POLAR_WEBHOOK_SECRET",
+      "POLAR_WEBHOOK_SECRET"
+    ),
   };
 };
 
@@ -184,9 +236,7 @@ const attachUnlockedPurchase = async (
   return await getActiveEntitlementOwner(businessId);
 };
 
-export const getReportAccess = async (
-  businessId: string
-): Promise<EntitlementState> => {
+const loadReportAccessContext = async (businessId: string) => {
   const sessionUser = await getSessionUser();
   const [config, authEnabled, owner, paymentsDisabledFlag] = await Promise.all([
     getPolarConfig(),
@@ -213,15 +263,17 @@ export const getReportAccess = async (
       ? purchaserEmail
       : null);
   const maskedEmail = emailToMask ? maskEmail(emailToMask) : null;
-  const sessionRequired = reportSessionRequired({
-    authEnabled,
-    ownerUserId,
-    purchaserBound,
+  const sessionRequired = await clearsSessionRequiredForGuest({
+    businessId,
+    sessionRequired: reportSessionRequired({
+      authEnabled,
+      ownerUserId,
+      purchaserBound,
+      sessionUserId: sessionUser?.id ?? null,
+      unlocked,
+    }),
     sessionUserId: sessionUser?.id ?? null,
-    unlocked,
   });
-  const monthlyAvailable = Boolean(config?.productReportMonthly);
-  const yearlyAvailable = Boolean(config?.productReportYearly);
   const polarConfigured = Boolean(config);
   const waived = fixStepsWithoutPayment({
     intentionallyDisabled: paymentsDisabledFlag,
@@ -229,32 +281,52 @@ export const getReportAccess = async (
     polarConfigured,
   });
 
-  if (!config) {
+  return {
+    authEnabled,
+    backendAvailable,
+    config,
+    kind,
+    maskedEmail,
+    monthlyAvailable: Boolean(config?.productReportMonthly),
+    purchaserBound,
+    sessionRequired,
+    unlocked,
+    waived,
+    yearlyAvailable: Boolean(config?.productReportYearly),
+  };
+};
+
+export const getReportAccess = async (
+  businessId: string
+): Promise<EntitlementState> => {
+  const context = await loadReportAccessContext(businessId);
+
+  if (!context.config) {
     return entitlementStateSchema.parse({
-      authEnabled,
-      backendAvailable,
-      fixStepsWithoutPayment: waived,
-      kind,
-      maskedEmail,
+      authEnabled: context.authEnabled,
+      backendAvailable: context.backendAvailable,
+      fixStepsWithoutPayment: context.waived,
+      kind: context.kind,
+      maskedEmail: context.maskedEmail,
       monthlyAvailable: false,
       paymentsEnabled: false,
-      sessionRequired: purchaserBound ? sessionRequired : false,
-      unlocked,
+      sessionRequired: context.purchaserBound ? context.sessionRequired : false,
+      unlocked: context.unlocked,
       yearlyAvailable: false,
     });
   }
 
   return entitlementStateSchema.parse({
-    authEnabled,
-    backendAvailable,
-    fixStepsWithoutPayment: waived,
-    kind,
-    maskedEmail,
-    monthlyAvailable,
+    authEnabled: context.authEnabled,
+    backendAvailable: context.backendAvailable,
+    fixStepsWithoutPayment: context.waived,
+    kind: context.kind,
+    maskedEmail: context.maskedEmail,
+    monthlyAvailable: context.monthlyAvailable,
     paymentsEnabled: true,
-    sessionRequired,
-    unlocked,
-    yearlyAvailable,
+    sessionRequired: context.sessionRequired,
+    unlocked: context.unlocked,
+    yearlyAvailable: context.yearlyAvailable,
   });
 };
 
@@ -263,6 +335,7 @@ export const polarCheckoutConfirmSchema = z.object({
   cookies: z.array(z.string()).default([]),
   email: z.string().optional(),
   granted: z.boolean(),
+  returnPath: z.string().optional(),
   userId: z.string().optional(),
 });
 export type PolarCheckoutConfirm = z.infer<typeof polarCheckoutConfirmSchema>;
@@ -346,7 +419,12 @@ const grantPaidAccess = async (input: {
   if (input.kind === "report_monthly") {
     await scheduleMonthlyBaseline(input.businessId);
   }
-  if (input.email) {
+  if (isAnalyticsEntitlementKind(input.kind)) {
+    await convexMutation(api.webAnalytics.provisionAfterGrant, {
+      businessExternalId: input.businessId,
+    });
+  }
+  if (input.email && !isAnalyticsEntitlementKind(input.kind)) {
     await schedulePurchaseReceipt({
       businessId: input.businessId,
       email: input.email,
@@ -544,20 +622,11 @@ export const createPolarCheckout = async (input: {
   }
 
   const plan = checkoutPlanSchema.parse(input.plan);
-  let productId: string | undefined;
-  if (plan === "monthly") {
-    productId = config.productReportMonthly;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else if (plan === "yearly") {
-    productId = config.productReportYearly;
-    if (!productId) {
-      throw new CheckoutPlanNotConfiguredError(plan);
-    }
-  } else {
-    productId = config.productReportOnce;
-  }
+  const { productId, returnPath } = resolveCheckoutProduct(
+    config,
+    plan,
+    input.businessId
+  );
 
   const logContext = { businessId: input.businessId, plan };
 
@@ -565,9 +634,9 @@ export const createPolarCheckout = async (input: {
   try {
     created = await polarClient(config).checkouts.create({
       customerIpAddress: input.customerIpAddress,
-      metadata: { businessId: input.businessId, plan },
+      metadata: { businessId: input.businessId, plan, returnPath },
       products: [productId],
-      returnUrl: `${input.origin}/${input.businessId}`,
+      returnUrl: `${input.origin}${returnPath}`,
       successUrl: `${input.origin}/api/auth/checkout/{CHECKOUT_ID}/${input.businessId}`,
     });
   } catch (error) {
@@ -685,16 +754,18 @@ export const confirmPolarCheckout = async (
     return denied;
   }
 
+  const products = polarProductIdsFromConfig(config);
   const kind = entitlementKindFromCheckout(
     {
       metadata: parsed.metadata,
       productId: parsed.productId,
       subscriptionId: parsed.subscriptionId,
     },
-    {
-      monthlyProductId: config.productReportMonthly,
-      yearlyProductId: config.productReportYearly,
-    }
+    products
+  );
+  const returnPath = checkoutReturnPathFromMetadata(
+    parsed.metadata,
+    businessId
   );
 
   const email = customerEmailFromPolarData(parsed);
@@ -713,6 +784,7 @@ export const confirmPolarCheckout = async (
       cookies,
       email,
       granted: true,
+      returnPath,
       userId: user?.id,
     });
   } catch (grantError) {
@@ -781,10 +853,10 @@ export const applyPolarWebhookEvent = async (
   event: PolarWebhookEvent
 ): Promise<void> => {
   const config = await getPolarConfig();
-  const action = entitlementActionFromPolarEvent(event, {
-    monthlyProductId: config?.productReportMonthly,
-    yearlyProductId: config?.productReportYearly,
-  });
+  const action = entitlementActionFromPolarEvent(
+    event,
+    config ? polarProductIdsFromConfig(config) : {}
+  );
   if (action.type === "ignore") {
     return;
   }

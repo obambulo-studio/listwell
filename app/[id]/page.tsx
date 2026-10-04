@@ -4,6 +4,7 @@ import { z } from "zod";
 import { CheckoutReturnRedirect } from "@/components/checkout-return-redirect";
 import { ReportClient } from "@/components/report-client";
 import { runBusinessCheckBatch } from "@/lib/audit-jobs";
+import { resolveReportViewRole } from "@/lib/business-guest-access";
 import { checksForCategory } from "@/lib/checks/registry";
 import { pointsFor } from "@/lib/checks/types";
 import {
@@ -95,11 +96,13 @@ const ReportPage = async ({
     return <CheckoutReturnRedirect checkoutId={checkoutId} businessId={id} />;
   }
 
-  const [access, convexHealth, auditKv] = await Promise.all([
+  const [access, convexHealth, auditKv, viewRole] = await Promise.all([
     getReportAccess(id),
     probeConvexBusinesses(),
     hasAuditKv(),
+    resolveReportViewRole(id),
   ]);
+  const reportVariant = viewRole === "owner" ? "owner" : "shared";
   const showKvExpiryNotice = auditKv && convexHealth === "error";
   const checkoutReturned = searchFlag(search.checkout_returned);
   const purchasePending = searchFlag(search.purchase_pending);
@@ -149,6 +152,7 @@ const ReportPage = async ({
       openListingsEditor={searchFlag(search.listings)}
       research={research}
       researchVisible={researchVisible}
+      variant={reportVariant}
     />
   );
 };
