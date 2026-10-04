@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coerceStoredWebsiteUrl,
   isSameBusinessName,
   isSkipCommand,
   normalizeBusinessName,
@@ -62,13 +63,36 @@ describe(normalizeCategoryText, () => {
 });
 
 describe(normalizeWebsiteInput, () => {
-  it("leaves URLs unchanged", () => {
+  it("leaves URLs with a scheme unchanged", () => {
     expect(normalizeWebsiteInput("https://example.com/path")).toBe(
       "https://example.com/path"
     );
     expect(normalizeWebsiteInput("HTTP://EXAMPLE.COM")).toBe(
       "HTTP://EXAMPLE.COM"
     );
+  });
+
+  it("prefixes bare hosts with https", () => {
+    expect(normalizeWebsiteInput("assetal.store")).toBe(
+      "https://assetal.store"
+    );
+    expect(normalizeWebsiteInput("  example.com.au/menu  ")).toBe(
+      "https://example.com.au/menu"
+    );
+  });
+});
+
+describe(coerceStoredWebsiteUrl, () => {
+  it("normalises bare hosts for use in fetches", () => {
+    expect(coerceStoredWebsiteUrl("assetal.store")).toBe(
+      "https://assetal.store/"
+    );
+  });
+
+  it("returns null for empty or invalid values", () => {
+    expect(coerceStoredWebsiteUrl(null)).toBeNull();
+    expect(coerceStoredWebsiteUrl("")).toBeNull();
+    expect(coerceStoredWebsiteUrl("not a url")).toBeNull();
   });
 });
 
@@ -111,7 +135,11 @@ describe(normalizeChatInput, () => {
     });
   });
 
-  it("leaves website URLs unchanged", () => {
+  it("normalises bare website hosts", () => {
+    expect(normalizeChatInput("website", "assetal.store")).toStrictEqual({
+      kind: "text",
+      value: "https://assetal.store",
+    });
     expect(
       normalizeChatInput("website", "https://haddon.institute")
     ).toStrictEqual({

@@ -14,6 +14,7 @@ import type {
 import { z } from "zod";
 
 import type { Business } from "./schema";
+import { coerceStoredWebsiteUrl } from "./text-normalize";
 
 const optionalString = z.string().min(1).optional();
 
@@ -54,7 +55,7 @@ export const toBusinessSnapshot = (business: Business): BusinessSnapshot =>
     name: business.name,
     tiktokUsername: business.tiktokUsername,
     uberEatsUrl: business.uberEatsUrl,
-    websiteUrl: business.websiteUrl,
+    websiteUrl: coerceStoredWebsiteUrl(business.websiteUrl),
     xUsername: business.xUsername,
     youtubeUrl: business.youtubeUrl,
   });

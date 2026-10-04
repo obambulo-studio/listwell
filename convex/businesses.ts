@@ -7,6 +7,7 @@ import {
   removalBlockedByOtherActiveEntitlement,
 } from "../lib/account-business-remove";
 import { isAnalyticsEntitlementKind } from "../lib/analytics-pricing";
+import { normalizeWebsiteInput } from "../lib/text-normalize";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -35,6 +36,17 @@ const storedBusinessName = (value: string): string => {
     throw new Error("Invalid business name");
   }
   return name;
+};
+
+const storedWebsiteUrl = (value: string | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  return normalizeWebsiteInput(trimmed);
 };
 
 const entitlementAllowsClaim = async (
@@ -211,7 +223,7 @@ export const create = mutation({
       tiktokUsername: args.tiktokUsername,
       uberEatsUrl: args.uberEatsUrl,
       updatedAt: timestamp,
-      websiteUrl: args.websiteUrl,
+      websiteUrl: storedWebsiteUrl(args.websiteUrl),
       xUsername: args.xUsername,
       youtubeUrl: args.youtubeUrl,
     });
@@ -270,6 +282,10 @@ export const update = mutation({
       }
       if (key === "name" && typeof value === "string") {
         patch.name = storedBusinessName(value);
+        continue;
+      }
+      if (key === "websiteUrl" && typeof value === "string") {
+        patch.websiteUrl = storedWebsiteUrl(value);
         continue;
       }
       patch[key] = value;

@@ -65,6 +65,7 @@ import type {
   EntitlementState,
 } from "./schema";
 import { ensureSuggestedSearchPhrases } from "./suggest-search-phrases";
+import { zNullableString } from "./zod-coerce";
 
 const optionalString = z.string().min(1).optional();
 const polarServerSchema = z.enum(["sandbox", "production"]);
@@ -925,8 +926,8 @@ export const confirmPolarCheckout = async (
 };
 
 const polarCustomerForBusinessSchema = z.object({
-  polarCustomerId: z.string().nullable(),
-  purchaserEmail: z.string().nullable(),
+  polarCustomerId: zNullableString,
+  purchaserEmail: zNullableString,
 });
 
 /** Sends the increased DataForSEO cost for one observation to Polar. */
