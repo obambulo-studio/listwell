@@ -39,7 +39,12 @@ import {
   searchPhrasesSchema,
 } from "./seo-schema";
 import type { PinnedCompetitor, SearchPhrase } from "./seo-schema";
-import { normalizeBusinessName } from "./text-normalize";
+import {
+  coerceStoredWebsiteUrl,
+  normalizeBusinessName,
+  normalizeWebsiteInput,
+} from "./text-normalize";
+import { zNullableString } from "./zod-coerce";
 
 export const idListQuerySchema = z.object({
   ids: z.string().optional(),
@@ -101,7 +106,18 @@ const evictBusinessMemoryIfNeeded = (): void => {
   }
 };
 
-const optionalUrl = (value: string | undefined): string | null => value ?? null;
+const optionalUrl = (value: string | undefined): string | null =>
+  value === undefined ? null : coerceStoredWebsiteUrl(normalizeWebsiteInput(value));
+
+const storedWebsiteUrlArg = (
+  value: string | undefined
+): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  const coerced = coerceStoredWebsiteUrl(normalizeWebsiteInput(value));
+  return coerced ?? undefined;
+};
 
 export const businessFromCreateRequest = (
   input: CreateBusinessRequest
@@ -246,7 +262,7 @@ export const createBusiness = async (
       name: data.name,
       tiktokUsername: data.tiktokUsername,
       uberEatsUrl: data.uberEatsUrl,
-      websiteUrl: data.websiteUrl,
+      websiteUrl: storedWebsiteUrlArg(data.websiteUrl),
       xUsername: data.xUsername,
       youtubeUrl: data.youtubeUrl,
     })
@@ -338,7 +354,7 @@ export const updateBusiness = async (
       name: input.name,
       tiktokUsername: input.tiktokUsername,
       uberEatsUrl: input.uberEatsUrl,
-      websiteUrl: input.websiteUrl,
+      websiteUrl: storedWebsiteUrlArg(input.websiteUrl),
       xUsername: input.xUsername,
       youtubeUrl: input.youtubeUrl,
     })
@@ -457,7 +473,11 @@ export const grantEntitlement = async (input: {
   return entitlementRowSchema.parse({
     ...row,
     kind: entitlementKindSchema.parse(row.kind),
+    polarCustomerId: row.polarCustomerId ?? null,
+    polarOrderId: row.polarOrderId ?? null,
+    polarSubscriptionId: row.polarSubscriptionId ?? null,
     status: entitlementStatusSchema.parse(row.status),
+    userId: row.userId ?? null,
   });
 };
 
@@ -487,12 +507,16 @@ export const lapseEntitlements = async (input: {
 const activeOwnerValueSchema = z.object({
   kind: entitlementKindSchema.nullable(),
   monthlyCancelled: z.boolean(),
-  ownerEmail: z.string().nullable(),
-  ownerUserId: z.string().nullable(),
-  polarOrderId: z.string().nullable(),
-  purchaserEmail: z.string().nullable(),
+  ownerEmail: zNullableString,
+  ownerUserId: zNullableString,
+  polarOrderId: zNullableString,
+  purchaserEmail: zNullableString,
   unlocked: z.boolean(),
 });
+
+export const parseActiveEntitlementOwnerValue = (
+  value: unknown
+): z.infer<typeof activeOwnerValueSchema> => activeOwnerValueSchema.parse(value);
 
 export type EntitlementOwnerSnapshot =
   | { backendAvailable: false }
@@ -525,7 +549,7 @@ export const getResearchEntitlement = async (
   return z
     .object({
       kind: entitlementKindSchema,
-      nextScanAt: z.string().nullable(),
+      nextScanAt: zNullableString,
       status: entitlementStatusSchema,
     })
     .parse(row);
@@ -542,7 +566,7 @@ export const getActiveEntitlementOwner = async (
   if (owner.status === "unavailable") {
     return { backendAvailable: false };
   }
-  const value = activeOwnerValueSchema.parse(owner.value);
+  const value = parseActiveEntitlementOwnerValue(owner.value);
   return {
     backendAvailable: true,
     kind: value.kind,

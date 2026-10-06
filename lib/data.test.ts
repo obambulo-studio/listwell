@@ -16,10 +16,10 @@ describe("anonymous audit store", () => {
       id: "audit-1",
       locations: [{ address: "West End, Brisbane", name: "Blackstar Coffee" }],
       name: "Blackstar Coffee",
-      websiteUrl: "https://example.com",
+      websiteUrl: "example.com",
     });
     expect(business.id).toBe("audit-1");
-    expect(business.websiteUrl).toBe("https://example.com");
+    expect(business.websiteUrl).toBe("https://example.com/");
     expect(business.locations[0]?.address).toBe("West End, Brisbane");
     expect(business.userId).toBeNull();
     expect(business.categoryLabel).toBeNull();
@@ -59,7 +59,7 @@ describe("anonymous audit store", () => {
     expect(created.name).toBe("Blackstar Coffee");
     const loaded = await getBusiness(created.id);
     expect(loaded?.id).toBe(created.id);
-    expect(loaded?.websiteUrl).toBe("https://example.com");
+    expect(loaded?.websiteUrl).toBe("https://example.com/");
   });
 
   it("marks entitlements unavailable when Convex is down", async () => {

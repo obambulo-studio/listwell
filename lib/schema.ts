@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { categoryIdSchema, categoryLabelInputSchema } from "./category";
+import { coerceStoredWebsiteUrl } from "./text-normalize";
+import { zNullableString } from "./zod-coerce";
 import {
   hiddenCompetitorPlaceIdsSchema,
   pinnedCompetitorsSchema,
@@ -77,7 +79,10 @@ export const businessSchema = z.object({
   uberEatsUrl: z.string().nullable(),
   updatedAt: z.string(),
   userId: z.string().nullable(),
-  websiteUrl: z.string().nullable(),
+  websiteUrl: z.preprocess(
+    (value) => coerceStoredWebsiteUrl(value as string | null | undefined),
+    z.string().nullable()
+  ),
   xUsername: z.string().nullable(),
   youtubeUrl: z.string().nullable(),
 });
@@ -130,13 +135,13 @@ export const entitlementRowSchema = z.object({
   createdAt: z.string(),
   id: z.string(),
   kind: entitlementKindSchema,
-  nextScanAt: z.string().nullable(),
-  polarCustomerId: z.string().nullable(),
-  polarOrderId: z.string().nullable(),
-  polarSubscriptionId: z.string().nullable(),
+  nextScanAt: zNullableString,
+  polarCustomerId: zNullableString,
+  polarOrderId: zNullableString,
+  polarSubscriptionId: zNullableString,
   status: entitlementStatusSchema,
   updatedAt: z.string(),
-  userId: z.string().nullable(),
+  userId: zNullableString,
 });
 export type EntitlementRow = z.infer<typeof entitlementRowSchema>;
 

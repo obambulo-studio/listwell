@@ -85,7 +85,44 @@ export const isSameBusinessName = (left: string, right: string): boolean =>
 export const normalizeCategoryText = (text: string): string =>
   normalizeTitleCase(text, { smallWords: true });
 
-export const normalizeWebsiteInput = (text: string): string => text.trim();
+const URL_SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:/u;
+
+const trimmedWebsite = (text: string): string => text.trim();
+
+const withHttpsScheme = (text: string): string =>
+  URL_SCHEME_PATTERN.test(text) ? text : `https://${text}`;
+
+/** Trim and prefix bare hosts with `https://` on save. */
+export const normalizeWebsiteInput = (text: string): string => {
+  const trimmed = trimmedWebsite(text);
+  if (trimmed.length === 0) {
+    return trimmed;
+  }
+  return withHttpsScheme(trimmed);
+};
+
+/** Normalise stored website values before checks and fetches. Invalid URLs become null. */
+export const coerceStoredWebsiteUrl = (
+  value: string | null | undefined
+): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = trimmedWebsite(value);
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const candidate = withHttpsScheme(trimmed);
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+};
 
 export type NormalizedChatInput =
   | { kind: "skip"; display: "Skip" }
