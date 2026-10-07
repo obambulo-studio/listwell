@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 import { categoryIdSchema, categoryLabelInputSchema } from "./category";
-import { coerceStoredWebsiteUrl } from "./text-normalize";
-import { zNullableString } from "./zod-coerce";
 import {
   hiddenCompetitorPlaceIdsSchema,
   pinnedCompetitorsSchema,
   searchPhrasesSchema,
 } from "./seo-schema";
+import { coerceStoredWebsiteUrl } from "./text-normalize";
+import { zNullableString } from "./zod-coerce";
 
 export const locationInputSchema = z.object({
   address: z.string().optional(),

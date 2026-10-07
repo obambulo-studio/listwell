@@ -107,11 +107,11 @@ const evictBusinessMemoryIfNeeded = (): void => {
 };
 
 const optionalUrl = (value: string | undefined): string | null =>
-  value === undefined ? null : coerceStoredWebsiteUrl(normalizeWebsiteInput(value));
+  value === undefined
+    ? null
+    : coerceStoredWebsiteUrl(normalizeWebsiteInput(value));
 
-const storedWebsiteUrlArg = (
-  value: string | undefined
-): string | undefined => {
+const storedWebsiteUrlArg = (value: string | undefined): string | undefined => {
   if (value === undefined) {
     return undefined;
   }
@@ -516,7 +516,8 @@ const activeOwnerValueSchema = z.object({
 
 export const parseActiveEntitlementOwnerValue = (
   value: unknown
-): z.infer<typeof activeOwnerValueSchema> => activeOwnerValueSchema.parse(value);
+): z.infer<typeof activeOwnerValueSchema> =>
+  activeOwnerValueSchema.parse(value);
 
 export type EntitlementOwnerSnapshot =
   | { backendAvailable: false }
