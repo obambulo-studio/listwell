@@ -42,9 +42,17 @@ Use this skill when someone wants to check local listings or website SEO with Li
 
 Listwell is a local and website SEO audit for small businesses at ${origin}. A visitor describes a business. Listwell matches Google Business Profile, Apple Maps, a website, and social profiles, then runs a free basic check. A full report with fix steps is ${REPORT_ONCE_PRICE} once. Continued reports are ${REPORT_MONTHLY_PRICE} or ${REPORT_YEARLY_PRICE} per business (${REPORT_YEARLY_VALUE_NOTE} on yearly).
 
-obambulo studio owns Listwell. Discovery: \`${origin}/.well-known/api-catalog\`, WebMCP in the browser, and read-only streamable HTTP MCP at \`${origin}/mcp\` (server card \`${origin}/.well-known/mcp/server-card.json\`). Session auth uses email OTP (see \`${origin}/auth.md\`).
+obambulo studio owns Listwell. Discovery: \`${origin}/.well-known/api-catalog\`, WebMCP in the browser, and streamable HTTP MCP at \`${origin}/mcp\` (server card \`${origin}/.well-known/mcp/server-card.json\`). Humans sign in with email OTP; agents use API keys from \`${origin}/account\` (see \`${origin}/auth.md\`).
 
-## Start an audit
+## Start an audit (MCP)
+
+1. Connect MCP at \`${origin}/mcp\`
+2. Call \`run_listing_audit\` with \`businessName\` and optional \`near\` or \`websiteUrl\`
+3. If the tool returns \`needsConfirmation\`, call again with \`candidateId\` from the candidate list
+4. Read the markdown basic report and \`reportUrl\`
+5. For saved businesses and fix steps, create an API key on \`${origin}/account\`, then call \`list_my_businesses\` and \`get_business_report\` with \`Authorization: Bearer lw_…\`
+
+## Start an audit (web)
 
 1. Open ${origin}/chat (or the home page and submit a business name)
 2. Enter the business name
@@ -64,7 +72,7 @@ Humans sign in with email OTP at \`${origin}/sign-in\`. Agent discovery: \`${ori
 
 Rate-limited \`/api/discover\`, \`/api/health\`, and \`/api/chat/interpret\` are listed in \`${origin}/.well-known/api-catalog\`. Business APIs require a session.
 
-Read-only MCP at \`${origin}/mcp\` exposes \`discover_listings\` and \`listwell_health\` over streamable HTTP. It does not create accounts, start paid audits, or change saved businesses.
+MCP at \`${origin}/mcp\` exposes \`discover_listings\`, \`listwell_health\`, \`run_listing_audit\`, \`list_my_businesses\`, and \`get_business_report\`. The last two require a Listwell API key. Fix steps follow report entitlements.
 
 ## Do not
 
@@ -154,7 +162,7 @@ export const llmsTxt = (origin = listwellSiteUrl()): string =>
     `- [Agent skill](${origin}/.well-known/agent-skills/index.json): start a listing audit`,
     "- DNS-AID: publish HTTPS/SVCB `_index._agents`, `_mcp._agents`, and `_a2a._agents` on the listwell.dev zone with DNSSEC enabled",
     "",
-    "Read-only HTTP MCP tools: `discover_listings`, `listwell_health`. WebMCP also registers `start_listing_audit` in supporting browsers.",
+    "HTTP MCP tools: `discover_listings`, `listwell_health`, `run_listing_audit`, `list_my_businesses`, `get_business_report` (API key for the last two). WebMCP registers `start_listing_audit` in supporting browsers.",
     "",
   ].join("\n");
 
@@ -173,7 +181,7 @@ export const authMd = (origin = listwellSiteUrl()): string =>
     "2. Fetch authorization server metadata at " +
       `\`${origin}/.well-known/oauth-authorization-server\` (includes \`agent_auth\`).`,
     "",
-    "The issuer is the site origin. Better Auth on Convex handles human sign-in only; bearer tokens for agents are not issued.",
+    `The issuer is the site origin. Humans sign in with Better Auth (email OTP). Agents use Listwell API keys (lw_…) created at ${origin}/account and sent as Authorization: Bearer on MCP tools list_my_businesses and get_business_report.`,
     "",
     "## How humans sign in",
     "",
@@ -185,15 +193,15 @@ export const authMd = (origin = listwellSiteUrl()): string =>
     "",
     "## Agent registration",
     "",
-    "Listwell publishes an anonymous `agent_auth` profile for discovery. Registration endpoints exist but return `registration_disabled` and do not create accounts, send email, or issue credentials.",
+    "Listwell publishes an anonymous `agent_auth` profile for discovery. OAuth agent registration endpoints return `registration_disabled`. Use account API keys instead.",
     "",
     `- Register: \`POST ${origin}/api/agent/register\``,
     `- Claim: \`POST ${origin}/api/agent/claim\``,
     `- Token: \`POST ${origin}/api/agent/token\``,
     `- Revoke: \`POST ${origin}/api/agent/revoke\``,
     "",
-    "For listing audits without a session, use the public chat at " +
-      `\`${origin}/chat\`, rate-limited routes in the [API catalog](${origin}/.well-known/api-catalog), or read-only MCP at \`${origin}/mcp\` (\`discover_listings\`, \`listwell_health\`).`,
+    "For listing audits, use MCP `run_listing_audit` at " +
+      `\`${origin}/mcp\`, the public chat at \`${origin}/chat\`, or routes in the [API catalog](${origin}/.well-known/api-catalog).`,
     "",
   ].join("\n");
 

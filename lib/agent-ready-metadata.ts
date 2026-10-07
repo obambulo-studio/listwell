@@ -271,7 +271,7 @@ export const mcpServerCard = (origin = listwellSiteUrl()) =>
       tools: true,
     },
     description:
-      "Read-only Listwell tools over streamable HTTP: public listing search and audit-engine health. Does not create accounts, start paid audits, or change saved businesses.",
+      "Listwell over streamable HTTP MCP: discover_listings, listwell_health, run_listing_audit (free basic check), plus list_my_businesses and get_business_report with a Listwell API key (Bearer lw_…).",
     serverInfo: {
       name: "Listwell",
       version: LISTWELL_MCP_VERSION,

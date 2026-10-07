@@ -1,8 +1,9 @@
+import type { Mock } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { handleMcpPost } from "./mcp-http";
-import type { McpReadDependencies } from "./mcp-http";
+import type { McpDependencies } from "./mcp-http";
 
 const jsonRpcResponseSchema = z.object({
   error: z
@@ -19,9 +20,6 @@ const jsonRpcResponseSchema = z.object({
 const toolListSchema = z.object({
   tools: z.array(
     z.object({
-      annotations: z.object({
-        readOnlyHint: z.literal(true),
-      }),
       name: z.string(),
     })
   ),
@@ -48,9 +46,13 @@ const mcpRequest = (body: unknown, headers?: Record<string, string>): Request =>
     method: "POST",
   });
 
-const dependencies = (): McpReadDependencies => ({
-  discoverListings: vi.fn<McpReadDependencies["discoverListings"]>(),
-  readHealth: vi.fn<McpReadDependencies["readHealth"]>(),
+const dependencies = (): McpDependencies => ({
+  discoverListings: vi.fn<McpDependencies["discoverListings"]>(),
+  getBusinessReport: vi.fn<McpDependencies["getBusinessReport"]>(),
+  listMyBusinesses: vi.fn<McpDependencies["listMyBusinesses"]>(),
+  readHealth: vi.fn<McpDependencies["readHealth"]>(),
+  resolveAgentUser: vi.fn<McpDependencies["resolveAgentUser"]>(),
+  runListingAudit: vi.fn<McpDependencies["runListingAudit"]>(),
 });
 
 const readJson = async (response: Response) => {
@@ -81,7 +83,7 @@ describe(handleMcpPost, () => {
     expect(response.status).toBe(406);
   });
 
-  it("negotiates initialize and advertises read-only tools", async () => {
+  it("negotiates initialize and advertises MCP tools", async () => {
     const response = await handleMcpPost(
       mcpRequest({
         id: 1,
@@ -105,10 +107,10 @@ describe(handleMcpPost, () => {
         serverInfo: z.object({ name: z.literal("Listwell") }),
       })
       .parse(body.result);
-    expect(result.instructions).toContain("read-only");
+    expect(result.instructions).toContain("run_listing_audit");
   });
 
-  it("lists only read-only tools", async () => {
+  it("lists MCP tools", async () => {
     const response = await handleMcpPost(
       mcpRequest({ id: 2, jsonrpc: "2.0", method: "tools/list" }),
       dependencies()
@@ -118,12 +120,15 @@ describe(handleMcpPost, () => {
     expect(listed.tools.map((tool) => tool.name)).toStrictEqual([
       "discover_listings",
       "listwell_health",
+      "run_listing_audit",
+      "list_my_businesses",
+      "get_business_report",
     ]);
   });
 
   it("calls listwell_health", async () => {
     const deps = dependencies();
-    vi.mocked(deps.readHealth).mockResolvedValue({ ok: true });
+    (deps.readHealth as Mock).mockResolvedValue({ ok: true });
     const response = await handleMcpPost(
       mcpRequest({
         id: 3,
@@ -141,7 +146,7 @@ describe(handleMcpPost, () => {
 
   it("calls discover_listings with the rate-limited dependency", async () => {
     const deps = dependencies();
-    vi.mocked(deps.discoverListings).mockResolvedValue({
+    (deps.discoverListings as Mock).mockResolvedValue({
       body: { candidates: [] },
       ok: true,
     });
@@ -167,7 +172,7 @@ describe(handleMcpPost, () => {
 
   it("returns a tool error when discover is rate limited", async () => {
     const deps = dependencies();
-    vi.mocked(deps.discoverListings).mockResolvedValue({
+    (deps.discoverListings as Mock).mockResolvedValue({
       error: "Too many requests. Try again soon.",
       ok: false,
       status: 429,
@@ -190,7 +195,53 @@ describe(handleMcpPost, () => {
     expect(result.content[0]?.text).toBe("Too many requests. Try again soon.");
   });
 
-  it("rejects unknown tools and write-style names", async () => {
+  it("returns candidates when run_listing_audit needs confirmation", async () => {
+    const deps = dependencies();
+    (deps.runListingAudit as Mock).mockResolvedValue({
+      body: {
+        candidates: [{ candidateId: "google:1", name: "Cafe" }],
+        message: "pick one",
+        needsConfirmation: true,
+      },
+      ok: true,
+    });
+    const response = await handleMcpPost(
+      mcpRequest({
+        id: 8,
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          arguments: { businessName: "Cafe" },
+          name: "run_listing_audit",
+        },
+      }),
+      deps
+    );
+    const body = await readJson(response);
+    const result = toolCallSchema.parse(body.result);
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0]?.text).toContain("needsConfirmation");
+  });
+
+  it("rejects keyed tools without an API key", async () => {
+    const deps = dependencies();
+    (deps.resolveAgentUser as Mock).mockResolvedValue(null);
+    const response = await handleMcpPost(
+      mcpRequest({
+        id: 9,
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: { arguments: {}, name: "list_my_businesses" },
+      }),
+      deps
+    );
+    const body = await readJson(response);
+    const result = toolCallSchema.parse(body.result);
+    expect(result.isError).toBeTruthy();
+    expect(result.content[0]?.text).toContain("API key");
+  });
+
+  it("rejects unknown tools", async () => {
     const response = await handleMcpPost(
       mcpRequest({
         id: 6,

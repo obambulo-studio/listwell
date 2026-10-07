@@ -16,6 +16,18 @@ import {
 } from "./lib/validators";
 
 export default defineSchema({
+  agentApiKeys: defineTable({
+    createdAt: v.string(),
+    keyHash: v.string(),
+    label: v.string(),
+    lastUsedAt: v.optional(v.string()),
+    prefix: v.string(),
+    revokedAt: v.optional(v.string()),
+    userId: v.string(),
+  })
+    .index("by_keyHash", ["keyHash"])
+    .index("by_userId", ["userId"]),
+
   businessGuests: defineTable({
     acceptedAt: v.optional(v.string()),
     businessExternalId: v.string(),

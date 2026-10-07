@@ -82,11 +82,42 @@ export interface McpReadDependencies {
     input: McpDiscoverInput,
     request: Request
   ) => Promise<McpToolOutcome>;
+  getBusinessReport: (
+    userId: string,
+    businessId: string,
+    request: Request
+  ) => Promise<McpToolOutcome>;
+  listMyBusinesses: (userId: string) => Promise<McpToolOutcome>;
   readHealth: () => Promise<unknown>;
+  resolveAgentUser: (request: Request) => Promise<string | null>;
+  runListingAudit: (
+    input: {
+      businessName: string;
+      candidateId?: string;
+      near?: string;
+      websiteUrl?: string;
+    },
+    request: Request
+  ) => Promise<McpToolOutcome>;
 }
 
-const READ_ONLY_INSTRUCTIONS =
-  "Listwell MCP is read-only. discover_listings searches public map listings and is rate limited. listwell_health reads audit-engine status. This server does not create accounts, start paid audits, or change saved businesses.";
+export type McpDependencies = McpReadDependencies;
+
+const MCP_INSTRUCTIONS =
+  "Listwell MCP: public tools discover_listings, listwell_health, and run_listing_audit (free basic check, rate limited). Authenticated tools list_my_businesses and get_business_report need Authorization: Bearer with a Listwell API key from your account. Fix steps follow report entitlements.";
+
+const keyedToolNames = new Set(["list_my_businesses", "get_business_report"]);
+
+const runListingAuditArgsSchema = z.object({
+  businessName: z.string().trim().min(1),
+  candidateId: z.string().trim().min(1).optional(),
+  near: z.string().trim().min(1).optional(),
+  websiteUrl: z.string().trim().min(1).optional(),
+});
+
+const getBusinessReportArgsSchema = z.object({
+  businessId: z.string().trim().min(1),
+});
 
 const toolDefinitions = [
   {
@@ -133,6 +164,85 @@ const toolDefinitions = [
     },
     name: "listwell_health",
     title: "Listwell health",
+  },
+  {
+    annotations: {
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+      readOnlyHint: false,
+    },
+    description:
+      "Run a free basic listing and website SEO audit for a business name. Returns markdown check outcomes or listing candidates when confirmation is needed.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {
+        businessName: {
+          description: "Business name to audit",
+          minLength: 1,
+          type: "string",
+        },
+        candidateId: {
+          description:
+            "When a prior call returned candidates, pass candidateId from that response",
+          type: "string",
+        },
+        near: {
+          description: "Optional suburb, city, or region hint",
+          type: "string",
+        },
+        websiteUrl: {
+          description: "Optional website URL when map match is unclear",
+          type: "string",
+        },
+      },
+      required: ["businessName"],
+      type: "object",
+    },
+    name: "run_listing_audit",
+    title: "Run listing audit",
+  },
+  {
+    annotations: {
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+      readOnlyHint: true,
+    },
+    description:
+      "List businesses saved on the signed-in Listwell account. Requires Authorization: Bearer with a Listwell API key.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {},
+      type: "object",
+    },
+    name: "list_my_businesses",
+    title: "List my businesses",
+  },
+  {
+    annotations: {
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+      readOnlyHint: true,
+    },
+    description:
+      "Fetch a markdown report for an owned business, including fix steps when entitled. Requires Authorization: Bearer with a Listwell API key.",
+    inputSchema: {
+      additionalProperties: false,
+      properties: {
+        businessId: {
+          description:
+            "Business id from list_my_businesses or run_listing_audit",
+          minLength: 1,
+          type: "string",
+        },
+      },
+      required: ["businessId"],
+      type: "object",
+    },
+    name: "get_business_report",
+    title: "Get business report",
   },
 ] as const;
 
@@ -268,17 +378,59 @@ const protocolVersionFromHeader = (
   return value;
 };
 
-const callReadOnlyTool = async (
+const callKeyedMcpTool = async (
   name: string,
   args: unknown,
   request: Request,
-  dependencies: McpReadDependencies
+  dependencies: McpDependencies
+): Promise<
+  | { kind: "error"; response: ReturnType<typeof toolErrorResult> }
+  | { kind: "success"; response: ReturnType<typeof toolSuccessResult> }
+> => {
+  const userId = await dependencies.resolveAgentUser(request);
+  if (!userId) {
+    return {
+      kind: "error",
+      response: toolErrorResult(
+        "Missing or invalid API key. Create one in Listwell account settings and send Authorization: Bearer lw_…"
+      ),
+    };
+  }
+  if (name === "list_my_businesses") {
+    emptyArgsSchema.parse(args ?? {});
+    const outcome = await dependencies.listMyBusinesses(userId);
+    if (!outcome.ok) {
+      return { kind: "error", response: toolErrorResult(outcome.error) };
+    }
+    return { kind: "success", response: toolSuccessResult(outcome.body) };
+  }
+  const parsed = getBusinessReportArgsSchema.parse(args ?? {});
+  const outcome = await dependencies.getBusinessReport(
+    userId,
+    parsed.businessId,
+    request
+  );
+  if (!outcome.ok) {
+    return { kind: "error", response: toolErrorResult(outcome.error) };
+  }
+  return { kind: "success", response: toolSuccessResult(outcome.body) };
+};
+
+const callMcpTool = async (
+  name: string,
+  args: unknown,
+  request: Request,
+  dependencies: McpDependencies
 ): Promise<
   | { kind: "error"; response: ReturnType<typeof toolErrorResult> }
   | { kind: "missing" }
   | { kind: "success"; response: ReturnType<typeof toolSuccessResult> }
 > => {
   try {
+    if (keyedToolNames.has(name)) {
+      return await callKeyedMcpTool(name, args, request, dependencies);
+    }
+
     if (name === "listwell_health") {
       emptyArgsSchema.parse(args ?? {});
       return {
@@ -292,6 +444,26 @@ const callReadOnlyTool = async (
         {
           businessName: parsed.businessName,
           ...(parsed.near === undefined ? {} : { near: parsed.near }),
+        },
+        request
+      );
+      if (!outcome.ok) {
+        return { kind: "error", response: toolErrorResult(outcome.error) };
+      }
+      return { kind: "success", response: toolSuccessResult(outcome.body) };
+    }
+    if (name === "run_listing_audit") {
+      const parsed = runListingAuditArgsSchema.parse(args ?? {});
+      const outcome = await dependencies.runListingAudit(
+        {
+          businessName: parsed.businessName,
+          ...(parsed.candidateId === undefined
+            ? {}
+            : { candidateId: parsed.candidateId }),
+          ...(parsed.near === undefined ? {} : { near: parsed.near }),
+          ...(parsed.websiteUrl === undefined
+            ? {}
+            : { websiteUrl: parsed.websiteUrl }),
         },
         request
       );
@@ -315,7 +487,7 @@ const dispatchRequest = async (
   params: unknown,
   id: JsonRpcId,
   request: Request,
-  dependencies: McpReadDependencies,
+  dependencies: McpDependencies,
   protocolVersion: McpProtocolVersion
 ): Promise<Response> => {
   if (method === "ping") {
@@ -338,7 +510,7 @@ const dispatchRequest = async (
         capabilities: {
           tools: { listChanged: false },
         },
-        instructions: READ_ONLY_INSTRUCTIONS,
+        instructions: MCP_INSTRUCTIONS,
         protocolVersion: negotiated,
         serverInfo: {
           name: "Listwell",
@@ -378,7 +550,7 @@ const dispatchRequest = async (
         protocolVersion
       );
     }
-    const called = await callReadOnlyTool(
+    const called = await callMcpTool(
       parsed.data.name,
       parsed.data.arguments,
       request,
@@ -404,7 +576,7 @@ const dispatchRequest = async (
 
 export const handleMcpPost = async (
   request: Request,
-  dependencies: McpReadDependencies
+  dependencies: McpDependencies
 ): Promise<Response> => {
   if (!isAllowedMcpOrigin(request.headers.get("origin"), request.url)) {
     return jsonResponse({ error: "Origin is not allowed." }, 403);

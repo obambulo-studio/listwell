@@ -249,12 +249,18 @@ const attachUnlockedPurchase = async (
   return await getActiveEntitlementOwner(businessId);
 };
 
-const loadReportAccessContext = async (businessId: string) => {
-  const sessionUser = await getSessionUser();
+const loadReportAccessContext = async (
+  businessId: string,
+  agentUserId?: string
+) => {
+  const sessionUser = agentUserId === undefined ? await getSessionUser() : null;
+  const sessionUserId = agentUserId ?? sessionUser?.id ?? null;
   const [config, authEnabled, owner, paymentsDisabledFlag] = await Promise.all([
     getPolarConfig(),
     isAuthEnabled(),
-    attachUnlockedPurchase(businessId, sessionUser?.id),
+    agentUserId === undefined
+      ? attachUnlockedPurchase(businessId, sessionUserId ?? undefined)
+      : getActiveEntitlementOwner(businessId),
     readPaymentsDisabledFlag(),
   ]);
 
@@ -283,10 +289,10 @@ const loadReportAccessContext = async (businessId: string) => {
       authEnabled,
       ownerUserId,
       purchaserBound,
-      sessionUserId: sessionUser?.id ?? null,
+      sessionUserId,
       unlocked,
     }),
-    sessionUserId: sessionUser?.id ?? null,
+    sessionUserId,
   });
   const polarConfigured = Boolean(config);
   const waived = fixStepsWithoutPayment({
@@ -310,11 +316,9 @@ const loadReportAccessContext = async (businessId: string) => {
   };
 };
 
-export const getReportAccess = async (
-  businessId: string
-): Promise<EntitlementState> => {
-  const context = await loadReportAccessContext(businessId);
-
+const entitlementStateFromReportContext = (
+  context: Awaited<ReturnType<typeof loadReportAccessContext>>
+): EntitlementState => {
   if (!context.config) {
     return entitlementStateSchema.parse({
       authEnabled: context.authEnabled,
@@ -344,6 +348,21 @@ export const getReportAccess = async (
     unlocked: context.unlocked,
     yearlyAvailable: context.yearlyAvailable,
   });
+};
+
+export const getReportAccess = async (
+  businessId: string
+): Promise<EntitlementState> => {
+  const context = await loadReportAccessContext(businessId);
+  return entitlementStateFromReportContext(context);
+};
+
+export const getReportAccessForUser = async (
+  businessId: string,
+  userId: string
+): Promise<EntitlementState> => {
+  const context = await loadReportAccessContext(businessId, userId);
+  return entitlementStateFromReportContext(context);
 };
 
 export const polarCheckoutConfirmSchema = z.object({

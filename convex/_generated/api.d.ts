@@ -9,6 +9,8 @@
  */
 
 import type * as account from "../account.js";
+import type * as accountReports from "../accountReports.js";
+import type * as agentApiKeys from "../agentApiKeys.js";
 import type * as auth from "../auth.js";
 import type * as businessGuests from "../businessGuests.js";
 import type * as businesses from "../businesses.js";
@@ -45,6 +47,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   account: typeof account;
+  accountReports: typeof accountReports;
+  agentApiKeys: typeof agentApiKeys;
   auth: typeof auth;
   businessGuests: typeof businessGuests;
   businesses: typeof businesses;

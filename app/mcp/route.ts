@@ -3,11 +3,20 @@ import { ZodError } from "zod";
 
 import { readListwellHealth } from "@/app/api/health/route";
 import {
+  parseBearerAgentKey,
+  resolveAgentKeyUserId,
+} from "@/lib/agent-api-keys";
+import {
+  getBusinessReportForAgent,
+  listBusinessesForAgent,
+} from "@/lib/agent-report";
+import {
   getAuditEngineEnv,
   getCloudflareEnv,
   getFetchWebsiteOptions,
 } from "@/lib/audit-env";
 import { discoverBusiness, discoverRequestSchema } from "@/lib/discover";
+import { runListingAudit } from "@/lib/listing-audit-workflow";
 import { handleMcpPost } from "@/lib/mcp-http";
 import type { McpDiscoverInput, McpToolOutcome } from "@/lib/mcp-http";
 import { consumeRateLimit } from "@/lib/rate-limit-kv";
@@ -53,6 +62,94 @@ const discoverListings = async (
   }
 };
 
+const runListingAuditTool = async (
+  input: {
+    businessName: string;
+    candidateId?: string;
+    near?: string;
+    websiteUrl?: string;
+  },
+  request: Request
+): Promise<McpToolOutcome> => {
+  try {
+    const allowed = await consumeRateLimit({
+      bucket: "mcp-listing-audit",
+      env: await getCloudflareEnv(),
+      failClosed: false,
+      maxRequests: 8,
+      request,
+    });
+    if (!allowed) {
+      return {
+        error: "Too many requests. Try again soon.",
+        ok: false,
+        status: 429,
+      };
+    }
+    const outcome = await runListingAudit(
+      input,
+      await getAuditEngineEnv(),
+      await getFetchWebsiteOptions()
+    );
+    if (!outcome.ok) {
+      return outcome;
+    }
+    return { body: outcome.body, ok: true };
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return { error: "Invalid audit request", ok: false, status: 400 };
+    }
+    return { error: "Could not run listing audit", ok: false, status: 500 };
+  }
+};
+
+const resolveAgentUser = (request: Request): Promise<string | null> => {
+  const token = parseBearerAgentKey(request.headers.get("authorization"));
+  if (!token) {
+    return Promise.resolve(null);
+  }
+  return resolveAgentKeyUserId(token);
+};
+
+const listMyBusinesses = async (userId: string): Promise<McpToolOutcome> => {
+  try {
+    const businesses = await listBusinessesForAgent(userId);
+    return { body: { businesses }, ok: true };
+  } catch {
+    return { error: "Could not list businesses", ok: false, status: 500 };
+  }
+};
+
+const getBusinessReport = async (
+  userId: string,
+  businessId: string,
+  request: Request
+): Promise<McpToolOutcome> => {
+  try {
+    const allowed = await consumeRateLimit({
+      bucket: "mcp-business-report",
+      env: await getCloudflareEnv(),
+      failClosed: false,
+      maxRequests: 12,
+      request,
+    });
+    if (!allowed) {
+      return {
+        error: "Too many requests. Try again soon.",
+        ok: false,
+        status: 429,
+      };
+    }
+    const outcome = await getBusinessReportForAgent(userId, businessId);
+    if (!outcome.ok) {
+      return outcome;
+    }
+    return { body: outcome.body, ok: true };
+  } catch {
+    return { error: "Could not load business report", ok: false, status: 500 };
+  }
+};
+
 export const GET = () =>
   NextResponse.json(
     {
@@ -68,7 +165,11 @@ export const GET = () =>
 export const POST = (request: Request) =>
   handleMcpPost(request, {
     discoverListings,
+    getBusinessReport,
+    listMyBusinesses,
     readHealth: readListwellHealth,
+    resolveAgentUser,
+    runListingAudit: runListingAuditTool,
   });
 
 export const DELETE = () =>

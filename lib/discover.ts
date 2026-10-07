@@ -94,6 +94,7 @@ export const discoverResponseSchema = z.object({
   categoryId: z.enum(["food", "retail", "services", "other"]),
   profiles: z.array(discoveredProfileSchema),
   strongMatch: z.boolean().optional(),
+  strongMatchId: z.string().optional(),
 });
 export type DiscoverResponse = z.infer<typeof discoverResponseSchema>;
 
@@ -719,12 +720,20 @@ export const discoverBusiness = async (
     preferredLabel: request.categoryLabel,
   });
 
+  const namedCandidates = candidates.filter((candidate) =>
+    namesMatch(request.businessName, candidate.name)
+  );
+  const strongMatchId =
+    namedCandidates.length === 1 ? namedCandidates[0]?.id : undefined;
+
   return discoverResponseSchema.parse({
     address: firstAddress,
     candidates,
     categoryDisplayLabel,
     categoryId,
     profiles,
+    strongMatch: Boolean(strongMatchId),
+    strongMatchId,
   });
 };
 
