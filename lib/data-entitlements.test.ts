@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { businessSchema } from "./schema";
 import { parseActiveEntitlementOwnerValue } from "./data";
+import { businessSchema } from "./schema";
 
 describe(parseActiveEntitlementOwnerValue, () => {
   it("accepts missing Polar billing fields on an active owner", () => {
