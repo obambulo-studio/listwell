@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { z } from "zod";
 
-import { AccountAgentConnect } from "@/components/account-agent-connect";
 import {
   AccountOwnedBusinesses,
   AccountPageActions,
@@ -189,7 +188,6 @@ const AccountPage = async ({
           siteOrigin={siteOrigin}
         />
       </AccountCard>
-      <AccountAgentConnect mcpUrl={`${siteOrigin}/mcp`} />
       {hasShared ? (
         <AccountCard title="Shared with you">
           <p className="listwell-panel__body listwell-panel__note">

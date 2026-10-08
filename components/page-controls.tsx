@@ -2,6 +2,7 @@
 
 import {
   Add01Icon,
+  AiBrowserIcon,
   Building03Icon,
   CreditCardIcon,
   Login01Icon,
@@ -197,6 +198,18 @@ const AccountMenuContent = ({
       <Icon className={menuIconClass} icon={Building03Icon} size={15} />
       My businesses
     </Link>
+    {signedIn ? (
+      <Link
+        href="/account/mcp"
+        role="menuitem"
+        data-menu-row
+        className="listwell-account-menu__item"
+        onClick={() => onClose()}
+      >
+        <Icon className={menuIconClass} icon={AiBrowserIcon} size={15} />
+        MCP setup
+      </Link>
+    ) : null}
     <button
       type="button"
       role="menuitem"

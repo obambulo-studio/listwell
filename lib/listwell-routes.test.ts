@@ -10,6 +10,7 @@ describe("listwell routes", () => {
   it("detects account paths", () => {
     expect(isAccountPath("/account")).toBeTruthy();
     expect(isAccountPath("/account/profile")).toBeTruthy();
+    expect(isAccountPath("/account/mcp")).toBeTruthy();
     expect(isAccountPath("/chat")).toBeFalsy();
   });
 
