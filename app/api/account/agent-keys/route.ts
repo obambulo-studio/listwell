@@ -7,6 +7,10 @@ import {
   listAgentApiKeysForUser,
 } from "@/lib/agent-api-keys";
 import { getSessionUser } from "@/lib/auth";
+import { logRouteError } from "@/lib/route-error-log";
+
+const GET_ROUTE = "GET /api/account/agent-keys";
+const POST_ROUTE = "POST /api/account/agent-keys";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +26,8 @@ export const GET = async () => {
   try {
     const keys = await listAgentApiKeysForUser(user.id);
     return NextResponse.json({ keys });
-  } catch {
+  } catch (error) {
+    logRouteError(GET_ROUTE, error);
     return NextResponse.json({ error: "Could not load keys" }, { status: 500 });
   }
 };
@@ -51,6 +56,7 @@ export const POST = async (request: Request) => {
     if (error instanceof Error && error.message === "Too many active keys") {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+    logRouteError(POST_ROUTE, error);
     return NextResponse.json(
       { error: "Could not create key" },
       { status: 500 }

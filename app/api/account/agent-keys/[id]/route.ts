@@ -3,6 +3,9 @@ import { ZodError, z } from "zod";
 
 import { revokeAgentApiKeyForUser } from "@/lib/agent-api-keys";
 import { getSessionUser } from "@/lib/auth";
+import { logRouteError } from "@/lib/route-error-log";
+
+const DELETE_ROUTE = "DELETE /api/account/agent-keys/[id]";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +32,7 @@ export const DELETE = async (
     if (error instanceof Error && error.message === "Key not found") {
       return NextResponse.json({ error: "Key not found" }, { status: 404 });
     }
+    logRouteError(DELETE_ROUTE, error);
     return NextResponse.json(
       { error: "Could not revoke key" },
       { status: 500 }
