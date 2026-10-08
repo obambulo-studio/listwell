@@ -21,6 +21,6 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["./**/*"],
+  "include": ["./**/*", "../cloudflare-env.d.ts"],
   "exclude": ["./_generated"]
 }
