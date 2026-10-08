@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { sha256Hex } from "@/lib/agent-discovery";
 import { api, convexMutation, convexQuery } from "@/lib/convex/server";
+import { zNullableString } from "@/lib/zod-coerce";
 
 import type { Id } from "../convex/_generated/dataModel";
 
@@ -14,10 +15,34 @@ export const agentKeyListItemSchema = z.object({
   createdAt: z.string(),
   id: z.string(),
   label: z.string(),
-  lastUsedAt: z.string().nullable(),
+  lastUsedAt: zNullableString,
   prefix: z.string(),
-  revokedAt: z.string().nullable(),
+  revokedAt: zNullableString,
 });
+
+const agentKeyListRowInputSchema = z
+  .object({
+    _id: z.unknown().optional(),
+    createdAt: z.unknown(),
+    id: z.unknown().optional(),
+    label: z.unknown(),
+    lastUsedAt: z.unknown().optional(),
+    prefix: z.unknown(),
+    revokedAt: z.unknown().optional(),
+  })
+  .transform((row) => ({
+    createdAt: z.string().parse(row.createdAt),
+    id: z.string().parse(row.id ?? row._id),
+    label: z.string().parse(row.label),
+    lastUsedAt: row.lastUsedAt,
+    prefix: z.string().parse(row.prefix),
+    revokedAt: row.revokedAt,
+  }));
+
+export const parseAgentKeyListItems = (rows: unknown[]): AgentKeyListItem[] =>
+  z
+    .array(agentKeyListItemSchema)
+    .parse(rows.map((row) => agentKeyListRowInputSchema.parse(row)));
 
 export type AgentKeyListItem = z.infer<typeof agentKeyListItemSchema>;
 
@@ -107,12 +132,7 @@ export const listAgentApiKeysForUser = async (
   const rows = await convexQuery(api.agentApiKeys.listForUserInternal, {
     userId,
   });
-  return z.array(agentKeyListItemSchema).parse(
-    rows.map((row) => ({
-      ...row,
-      id: String(row.id),
-    }))
-  );
+  return parseAgentKeyListItems(rows);
 };
 
 export const revokeAgentApiKeyForUser = async (input: {
