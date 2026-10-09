@@ -336,6 +336,13 @@ export type ClaimBusinessesRequest = z.infer<
   typeof claimBusinessesRequestSchema
 >;
 
+export const reportShareRouteParamsSchema = z.object({
+  token: z.string().min(16),
+});
+export type ReportShareRouteParams = z.infer<
+  typeof reportShareRouteParamsSchema
+>;
+
 export const reportShareRecordSchema = z.object({
   businessId: z.string(),
   createdAt: z.string(),

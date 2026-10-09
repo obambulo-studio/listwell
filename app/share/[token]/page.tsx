@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { z } from "zod";
 
 import { ReportClient } from "@/components/report-client";
 import { runBusinessCheckBatch } from "@/lib/audit-jobs";
@@ -13,22 +12,28 @@ import {
   storedPeerComparisonVisible,
 } from "@/lib/entitlements-access";
 import { getSharedReportViewerAccess } from "@/lib/polar-server";
-import { getReportShareByToken } from "@/lib/report-share";
+import {
+  getReportShareByToken,
+  parseReportShareRouteParams,
+} from "@/lib/report-share";
 import { loadResearchView } from "@/lib/research-load";
 import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
 
 export const dynamic = "force-dynamic";
-
-const paramsSchema = z.object({
-  token: z.string().min(16),
-});
 
 export const generateMetadata = async ({
   params,
 }: {
   params: Promise<{ token: string }>;
 }): Promise<Metadata> => {
-  const { token } = paramsSchema.parse(await params);
+  const parsedParams = parseReportShareRouteParams(await params);
+  if (!parsedParams) {
+    return {
+      robots: { follow: false, index: false },
+      title: "Shared report",
+    };
+  }
+  const { token } = parsedParams;
   const share = await getReportShareByToken(token);
   if (!share) {
     return {
@@ -58,7 +63,11 @@ const SharedReportPage = async ({
 }: {
   params: Promise<{ token: string }>;
 }) => {
-  const { token } = paramsSchema.parse(await params);
+  const parsedParams = parseReportShareRouteParams(await params);
+  if (!parsedParams) {
+    notFound();
+  }
+  const { token } = parsedParams;
   const share = await getReportShareByToken(token);
   if (!share) {
     notFound();
