@@ -5,7 +5,7 @@
   "keep_vars": true,
   "workers_dev": false,
   "preview_urls": false,
-  "compatibility_date": "2026-09-09",
+  "compatibility_date": "2026-10-09",
   // Apex only. www.listwell.dev is the shared www-to-apex Worker
   // (0b0a8688c79a480c819d1604056d9bdf). Binding www here makes
   // `wrangler deploy` fight that Worker and fail Workers Builds.
@@ -24,6 +24,9 @@
     "enabled": true,
     "head_sampling_rate": 1,
     "redact_query_string": false,
+    "issues": {
+      "enabled": true,
+    },
     "logs": {
       "enabled": true,
       "head_sampling_rate": 1,
@@ -34,9 +37,6 @@
       "enabled": true,
       "head_sampling_rate": 0.1,
       "persist": true,
-    },
-    "issue_detection": {
-      "enabled": true,
     },
   },
   "cache": {
@@ -116,6 +116,9 @@
       "enabled": true,
       "head_sampling_rate": 1,
       "redact_query_string": false,
+      "issues": {
+        "enabled": true,
+      },
       "logs": {
         "enabled": true,
         "head_sampling_rate": 1,
@@ -126,9 +129,6 @@
         "enabled": true,
         "head_sampling_rate": 0.1,
         "persist": true,
-      },
-      "issue_detection": {
-        "enabled": true,
       },
     },
     "placement": {
