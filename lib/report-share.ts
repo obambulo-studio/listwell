@@ -10,11 +10,13 @@ import { BUSINESS_KV_TTL_SECONDS } from "./data";
 import {
   createReportShareRequestSchema,
   reportShareRecordSchema,
+  reportShareRouteParamsSchema,
   reportShareStateSchema,
 } from "./schema";
 import type {
   CreateReportShareRequest,
   ReportShareRecord,
+  ReportShareRouteParams,
   ReportShareState,
 } from "./schema";
 
@@ -63,6 +65,14 @@ export const generateReportShareToken = (): string => {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return base64UrlFromBytes(bytes);
+};
+
+/** Invalid tokens (empty, short probes like `init_data`) must not throw during RSC render. */
+export const parseReportShareRouteParams = (
+  params: unknown
+): ReportShareRouteParams | null => {
+  const parsed = reportShareRouteParamsSchema.safeParse(params);
+  return parsed.success ? parsed.data : null;
 };
 
 const parseShareRecord = (raw: unknown): ReportShareRecord | null => {

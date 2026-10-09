@@ -2,9 +2,25 @@ import { describe, expect, it } from "vitest";
 
 import {
   generateReportShareToken,
+  parseReportShareRouteParams,
   resolveShareExpiresAt,
 } from "./report-share";
 import { reportShareRecordSchema } from "./schema";
+
+describe(parseReportShareRouteParams, () => {
+  it("rejects empty and short share route tokens without throwing", () => {
+    expect(parseReportShareRouteParams({ token: "" })).toBeNull();
+    expect(parseReportShareRouteParams({ token: "init_data" })).toBeNull();
+    expect(parseReportShareRouteParams({ token: "short" })).toBeNull();
+  });
+
+  it("accepts tokens that meet the minimum length", () => {
+    const token = "a".repeat(16);
+    expect(parseReportShareRouteParams({ token })).toEqual({ token });
+    expect(parseReportShareRouteParams({ token: generateReportShareToken() }))
+      .not.toBeNull();
+  });
+});
 
 describe(generateReportShareToken, () => {
   it("returns URL-safe tokens with enough entropy", () => {
