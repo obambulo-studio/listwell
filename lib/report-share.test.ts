@@ -16,9 +16,10 @@ describe(parseReportShareRouteParams, () => {
 
   it("accepts tokens that meet the minimum length", () => {
     const token = "a".repeat(16);
-    expect(parseReportShareRouteParams({ token })).toEqual({ token });
-    expect(parseReportShareRouteParams({ token: generateReportShareToken() }))
-      .not.toBeNull();
+    expect(parseReportShareRouteParams({ token })).toStrictEqual({ token });
+    expect(
+      parseReportShareRouteParams({ token: generateReportShareToken() })
+    ).not.toBeNull();
   });
 });
 
