@@ -19,6 +19,7 @@ import {
   reportPeerComparisonVisible,
 } from "@/lib/entitlements-access";
 import { getReportAccess } from "@/lib/polar-server";
+import { reportRouteMetadata } from "@/lib/report-metadata";
 import { loadResearchView } from "@/lib/research-load";
 import { isFileLikePathId } from "@/lib/site-metadata";
 import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
@@ -68,13 +69,10 @@ export const generateMetadata = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = paramsSchema.parse(await params);
-  if (isFileLikePathId(id)) {
-    notFound();
-  }
-  const business = await getBusiness(id);
-  return {
-    title: business ? `${business.name} report` : "Report",
-  };
+  return await reportRouteMetadata(id, getBusiness, {
+    found: (name) => `${name} report`,
+    missing: "Report",
+  });
 };
 
 const ReportPage = async ({

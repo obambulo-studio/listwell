@@ -7,6 +7,7 @@ import {
   appendAgentLinkHeaders,
   isApiPath,
 } from "@/lib/agent-discovery";
+import { isProbePath, probeNotFoundResponse } from "@/lib/probe-paths";
 import {
   hasSiteGateAccess,
   isSiteGateExemptPath,
@@ -76,6 +77,14 @@ export const proxy = async (request: NextRequest): Promise<NextResponse> => {
     return new NextResponse(agentResponse.body, {
       headers: agentResponse.headers,
       status: agentResponse.status,
+    });
+  }
+
+  if (isProbePath(request.nextUrl.pathname)) {
+    const notFoundResponse = probeNotFoundResponse(request.method);
+    return new NextResponse(notFoundResponse.body, {
+      headers: notFoundResponse.headers,
+      status: notFoundResponse.status,
     });
   }
 
