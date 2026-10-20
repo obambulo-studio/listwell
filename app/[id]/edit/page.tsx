@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 import { getBusiness } from "@/lib/data";
+import { reportRouteMetadata } from "@/lib/report-metadata";
 import { isFileLikePathId } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
@@ -16,13 +17,10 @@ export const generateMetadata = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = paramsSchema.parse(await params);
-  if (isFileLikePathId(id)) {
-    notFound();
-  }
-  const business = await getBusiness(id);
-  return {
-    title: business ? `Edit ${business.name}` : "Edit audit",
-  };
+  return await reportRouteMetadata(id, getBusiness, {
+    found: (name) => `Edit ${name}`,
+    missing: "Edit audit",
+  });
 };
 
 const EditPage = async ({ params }: { params: Promise<{ id: string }> }) => {
