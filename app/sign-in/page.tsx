@@ -1,7 +1,9 @@
 import { SignInForm } from "@/components/sign-in-form";
 import { firstSearchParam, safeAppPath } from "@/lib/query-params";
+import { canonicalFor } from "@/lib/site-metadata";
 
 export const metadata = {
+  alternates: canonicalFor("/sign-in"),
   title: "Sign in",
 };
 

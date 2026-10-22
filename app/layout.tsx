@@ -7,7 +7,7 @@ import { ConvexClientProvider } from "@/components/convex-client-provider";
 import { ListwellWebMcp } from "@/components/listwell-web-mcp";
 import { Toaster } from "@/components/ui/sonner";
 import { getToken } from "@/lib/auth-server";
-import { listwellSiteUrl } from "@/lib/site-metadata";
+import { listwellMetadataBase, listwellSiteUrl } from "@/lib/site-metadata";
 import { ThemeBootstrapScript } from "@/lib/theme";
 
 import "./beautifui/foundation.css";
@@ -30,6 +30,7 @@ export const metadata: Metadata = {
     apple: [{ type: "image/svg+xml", url: "/apple-touch-icon.svg" }],
     icon: [{ type: "image/svg+xml", url: "/favicon.svg" }],
   },
+  metadataBase: listwellMetadataBase(),
   title: {
     default: "Listwell",
     template: "%s · Listwell",

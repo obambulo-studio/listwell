@@ -84,3 +84,11 @@ export const sitemapEntries = () => {
     },
   ];
 };
+
+/** Root URL for resolving relative metadata URLs such as canonicals. */
+export const listwellMetadataBase = (): URL => new URL(listwellSiteUrl());
+
+/** Self-referencing canonical for a public page, resolved against metadataBase. */
+export const canonicalFor = (pathname: string) => ({
+  canonical: pathname,
+});

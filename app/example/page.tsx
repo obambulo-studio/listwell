@@ -10,8 +10,10 @@ import {
   uiFixturePeerAudit,
   uiFixtureSummary,
 } from "@/lib/sample-report-fixture";
+import { canonicalFor } from "@/lib/site-metadata";
 
 export const metadata: Metadata = {
+  alternates: canonicalFor("/example"),
   description:
     "See a free sample visibility report for Sample Cafe — scores, checks, and nearby comparison without entering your business details.",
   title: "Sample report",
