@@ -14,7 +14,7 @@ import {
   statusFromResult,
   visibilityCounts,
 } from "@/lib/chat-onboarding";
-import type { PlaceCandidate } from "@/lib/discover";
+import type { PlaceCandidate } from "@/lib/discover-shared";
 import {
   PEER_LIMIT,
   PEER_ORDER_CAPTION,

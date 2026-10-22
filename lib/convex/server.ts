@@ -6,7 +6,7 @@ import type {
 } from "convex/server";
 import { z } from "zod";
 
-import { getCloudflareEnv } from "@/lib/audit-env";
+import { getCloudflareEnv } from "@/lib/cloudflare-env";
 
 export { api } from "../../convex/_generated/api";
 

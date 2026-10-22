@@ -7,9 +7,12 @@ import {
   matchBusinessCategory,
 } from "./category";
 import type { CategoryId } from "./category";
-import { channelSectionTitle, groupByChannelCategory } from "./checks/registry";
-import { lookupResponseSchema, placeCandidateSchema } from "./discover";
-import type { PlaceCandidate, lookupProvidersSchema } from "./discover";
+import {
+  channelSectionTitle,
+  groupByChannelCategory,
+} from "./checks/channel-groups";
+import { lookupResponseSchema, placeCandidateSchema } from "./discover-shared";
+import type { PlaceCandidate, lookupProvidersSchema } from "./discover-shared";
 import {
   categoryFromInputWithJev,
   interpretResponseSchema,

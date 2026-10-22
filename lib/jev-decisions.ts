@@ -7,7 +7,7 @@ import { z } from "zod";
 import { BUSINESS_CATEGORY_OPTIONS, matchBusinessCategory } from "./category";
 import type { CategoryId } from "./category";
 import type { ChatDraft, ChatPhase } from "./chat-onboarding";
-import type { PlaceCandidate } from "./discover";
+import type { PlaceCandidate } from "./discover-shared";
 import {
   getTypeSafeConfig,
   parseChoiceAnswer,

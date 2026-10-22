@@ -89,8 +89,8 @@ import {
   discoverResponseSchema,
   filterProfilesForCandidate,
   lookupResponseSchema,
-} from "@/lib/discover";
-import type { PlaceCandidate } from "@/lib/discover";
+} from "@/lib/discover-shared";
+import type { PlaceCandidate } from "@/lib/discover-shared";
 import { SAMPLE_REPORT_PATH } from "@/lib/listwell-routes";
 import { withDiscoveryPin } from "@/lib/place-pin";
 import {
