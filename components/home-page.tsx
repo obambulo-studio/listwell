@@ -31,6 +31,10 @@ import { Icon } from "@/components/icon";
 import { ANALYTICS_HOME_ADDON_PRICING } from "@/lib/analytics-pricing";
 import { authClient } from "@/lib/auth-client";
 import {
+  clearChatSession,
+  LISTWELL_PENDING_BUSINESS_KEY,
+} from "@/lib/chat-session-keys";
+import {
   getHomepageCheckGridGroups,
   HOMEPAGE_CHECK_COUNT,
 } from "@/lib/home-checks-display";
@@ -47,7 +51,6 @@ import {
   REPORT_YEARLY_VALUE_NOTE,
 } from "@/lib/polar";
 import { ONCE_RESCAN_WINDOW_DAYS } from "@/lib/scan-config";
-import { clearChatSession, LISTWELL_PENDING_BUSINESS_KEY } from "@/lib/storage";
 
 const homepageCheckGridGroups = getHomepageCheckGridGroups();
 

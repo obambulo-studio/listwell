@@ -13,6 +13,7 @@ import type {
 } from "@listwell/audit-engine";
 import { z } from "zod";
 
+import { getCloudflareEnv } from "./cloudflare-env";
 import type { Business } from "./schema";
 import { coerceStoredWebsiteUrl } from "./text-normalize";
 
@@ -60,14 +61,7 @@ export const toBusinessSnapshot = (business: Business): BusinessSnapshot =>
     youtubeUrl: business.youtubeUrl,
   });
 
-export const getCloudflareEnv = async (): Promise<CloudflareEnv | null> => {
-  try {
-    const { env } = await import("cloudflare:workers");
-    return env;
-  } catch {
-    return null;
-  }
-};
+export { getCloudflareEnv } from "./cloudflare-env";
 
 export const getExecutionContext = async (): Promise<{
   waitUntil: (promise: Promise<unknown>) => void;

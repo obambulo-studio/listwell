@@ -3282,7 +3282,8 @@ div.listwell-panel__row:hover {
 }
 
 .home-split__price {
-  color: var(--home-faint);
+  /* --home-muted on --home-wash is about 4.7:1; --home-faint was 2.9:1. */
+  color: var(--home-muted);
   font-size: 13px;
   line-height: 1.25;
 }

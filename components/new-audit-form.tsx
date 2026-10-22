@@ -30,7 +30,7 @@ import {
 import type { CategoryId } from "@/lib/category";
 import { CHANNEL_CONFIG, channelIdSchema } from "@/lib/channel";
 import type { ChannelId, DiscoveredProfile } from "@/lib/channel";
-import type { PlaceCandidate } from "@/lib/discover";
+import type { PlaceCandidate } from "@/lib/discover-shared";
 import {
   businessInputFromDiscovery,
   channelPlaceholder,

@@ -7,8 +7,8 @@ import { Icon } from "@/components/icon";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { CATEGORY_CONFIG } from "@/lib/category";
-import { lookupResponseSchema } from "@/lib/discover";
-import type { PlaceCandidate } from "@/lib/discover";
+import { lookupResponseSchema } from "@/lib/discover-shared";
+import type { PlaceCandidate } from "@/lib/discover-shared";
 
 const SEARCH_DEBOUNCE_MS = 300;
 

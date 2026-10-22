@@ -18,7 +18,10 @@ const geistSans = Geist({
   variable: "--font-geist-sans",
 });
 
+// Mono is not used above the fold, so skip its preload to keep the
+// homepage LCP path to one font request.
 const geistMono = Geist_Mono({
+  preload: false,
   subsets: ["latin"],
   variable: "--font-geist-mono",
 });

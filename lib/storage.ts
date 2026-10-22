@@ -2,16 +2,24 @@ import { z } from "zod";
 
 import { chatSessionSnapshotSchema } from "./chat-onboarding";
 import type { ChatSessionSnapshot } from "./chat-onboarding";
+import {
+  CHAT_SESSION_STORAGE_KEY,
+  clearChatSession,
+  LISTWELL_CHAT_SESSION_EVENT,
+  LISTWELL_PENDING_BUSINESS_KEY,
+} from "./chat-session-keys";
+
+export {
+  CHAT_SESSION_STORAGE_KEY,
+  clearChatSession,
+  LISTWELL_CHAT_SESSION_EVENT,
+  LISTWELL_PENDING_BUSINESS_KEY,
+} from "./chat-session-keys";
 
 const STORAGE_KEY = "listwell-businesses";
-export const CHAT_SESSION_STORAGE_KEY = "listwell-chat-session";
-/** Set on marketing home before navigating to `/chat` for the crossfade entry. */
-export const LISTWELL_PENDING_BUSINESS_KEY = "listwell-pending-business-name";
 
 export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY =
   "listwell-account-background-scan";
-
-export const LISTWELL_CHAT_SESSION_EVENT = "listwell:chat-session";
 
 export interface AccountBackgroundScanState {
   businessId?: string;
@@ -93,14 +101,6 @@ export const saveChatSession = (snapshot: ChatSessionSnapshot): void => {
   } catch {
     // Ignore quota or privacy mode errors.
   }
-};
-
-export const clearChatSession = (): void => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  window.localStorage.removeItem(CHAT_SESSION_STORAGE_KEY);
-  window.dispatchEvent(new Event(LISTWELL_CHAT_SESSION_EVENT));
 };
 
 export const takePendingBusinessName = (): string | null => {

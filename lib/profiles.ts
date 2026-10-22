@@ -1,8 +1,8 @@
-import { isHttpUrl } from "@listwell/audit-engine";
 import { z } from "zod";
 
 import { CHANNEL_CONFIG, channelIdSchema } from "./channel";
 import type { ChannelId, DiscoveredProfile } from "./channel";
+import { isHttpUrl } from "./http-url";
 import type { Business, CreateBusinessRequest } from "./schema";
 
 export const profileValueSchema = z.string().min(1);

@@ -3,8 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import {
+  clearChatSession,
+  LISTWELL_PENDING_BUSINESS_KEY,
+} from "@/lib/chat-session-keys";
 import { listwellChatHref } from "@/lib/listwell-routes";
-import { clearChatSession, LISTWELL_PENDING_BUSINESS_KEY } from "@/lib/storage";
 
 type JsonSchema = Record<string, unknown>;
 

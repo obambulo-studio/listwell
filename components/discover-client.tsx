@@ -11,8 +11,8 @@ import type { CategoryId } from "@/lib/category";
 import {
   discoverResponseSchema,
   filterProfilesForCandidate,
-} from "@/lib/discover";
-import type { DiscoverResponse, PlaceCandidate } from "@/lib/discover";
+} from "@/lib/discover-shared";
+import type { DiscoverResponse, PlaceCandidate } from "@/lib/discover-shared";
 import { withDiscoveryPin } from "@/lib/place-pin";
 import { businessInputFromDiscovery } from "@/lib/profiles";
 import { businessSchema } from "@/lib/schema";
