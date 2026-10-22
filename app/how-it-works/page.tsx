@@ -3,8 +3,10 @@ import Link from "next/link";
 
 import { LegalPage, LegalSection } from "@/components/legal-page";
 import { listwellThirdPartyServices } from "@/lib/listwell-services";
+import { canonicalFor } from "@/lib/site-metadata";
 
 export const metadata: Metadata = {
+  alternates: canonicalFor("/how-it-works"),
   description:
     "How Listwell is built and which third-party services the product calls.",
   title: "How it works",

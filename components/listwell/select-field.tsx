@@ -78,7 +78,12 @@ export const ListwellCategoryField = ({
 }) => (
   <Field>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    {/* Labels the hidden form input that Base UI renders alongside the combobox. */}
+    <label htmlFor={`${id}-hidden-input`} hidden>
+      {label}
+    </label>
     <Combobox.Root
+      id={id}
       items={categoryOptions}
       value={value.trim() ? value : null}
       inputValue={value}

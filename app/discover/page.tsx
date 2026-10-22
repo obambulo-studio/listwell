@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import { ButtonLink } from "@/components/atoms/button";
 import { DiscoverClient } from "@/components/discover-client";
 import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
+import { canonicalFor } from "@/lib/site-metadata";
 
 export const metadata: Metadata = {
+  alternates: canonicalFor("/discover"),
   description:
     "Match a business name to Google Business Profile, Apple Maps, a website, and social profiles.",
   title: "Find your listing",

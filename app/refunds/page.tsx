@@ -13,8 +13,10 @@ import {
   REPORT_YEARLY_VALUE_NOTE,
 } from "@/lib/polar";
 import { ONCE_RESCAN_WINDOW_DAYS } from "@/lib/scan-config";
+import { canonicalFor } from "@/lib/site-metadata";
 
 export const metadata: Metadata = {
+  alternates: canonicalFor("/refunds"),
   description:
     "Refund and cancellation terms for Listwell report purchases and subscriptions.",
   title: "Refunds",

@@ -6,10 +6,12 @@ import {
   parseCategoryParam,
   parseProfilesParam,
 } from "@/lib/query-params";
+import { canonicalFor } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
+  alternates: canonicalFor("/new"),
   title: "Confirm listings",
 };
 
