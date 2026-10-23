@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -19,6 +19,12 @@ export const runAfterCfBuild = () => {
   const branch = process.env.WORKERS_CI_BRANCH ?? "";
   if (branch === "main") {
     return;
+  }
+
+  if (!existsSync(serverConfigPath)) {
+    throw new Error(
+      `Missing ${serverConfigPath} after vite build. Preview Workers Builds need the full build (bun run build:cf) to finish before after-cf-build runs.`
+    );
   }
 
   installWranglerBinWrapper();

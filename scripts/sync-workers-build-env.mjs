@@ -142,7 +142,7 @@ const listTriggers = () =>
     `/accounts/${ACCOUNT_ID}/builds/workers/${WORKER_SCRIPT_ID}/triggers`
   );
 
-const CF_BUILD = "bun run cf:build";
+const CF_BUILD = "bun run build:cf";
 const BUILD_COMMAND = `npx convex deploy --cmd '${CF_BUILD}'`;
 const PRODUCTION_DEPLOY_COMMAND =
   "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";

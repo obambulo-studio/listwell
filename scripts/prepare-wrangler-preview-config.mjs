@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -39,6 +39,11 @@ export const stripProductionOnlyWranglerFields = (config) => {
 };
 
 export const prepareWranglerPreviewConfig = () => {
+  if (!existsSync(serverConfigPath)) {
+    throw new Error(
+      `Missing ${serverConfigPath}. Run the full vinext build (bun run build) so Cloudflare emits dist/server/wrangler.json before preparing preview config.`
+    );
+  }
   const raw = readFileSync(serverConfigPath, "utf-8");
   const parsed = JSON.parse(raw);
   const config = wranglerObjectSchema.parse(parsed);

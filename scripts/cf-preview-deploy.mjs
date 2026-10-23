@@ -12,7 +12,7 @@ const serverConfigPath = path.join(root, "dist/server/wrangler.json");
 const ensureVinextBuildOutput = () => {
   if (!existsSync(serverConfigPath)) {
     throw new Error(
-      "Missing dist/server/wrangler.json. Run bun run cf:build (or bun run build) before cf:preview-deploy."
+      "Missing dist/server/wrangler.json. Run bun run build:cf (or bun run build) before cf:preview-deploy."
     );
   }
 };

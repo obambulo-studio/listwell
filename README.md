@@ -81,11 +81,11 @@ Use `bun dev:localhost` if you want `http://localhost:3000` without Portless.
 
 Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun run convex:deploy` only for production.
 
-`wrangler.jsonc` is the Worker config. `bun run build` runs the vinext production build. `bun run cf:build` runs quality checks, tests, then the vinext build — Workers Builds uses this for every trigger. On the production branch, the build step is `npx convex deploy --cmd 'bun run cf:build'` (Convex production plus the Worker build), then `npx wrangler deploy --config dist/server/wrangler.json --keep-vars`. Preview triggers run `bun run cf:build` only (no Convex production deploy). Run `bun run cf:sync-build-env` after changing build commands so the dashboard matches the repo.
+`wrangler.jsonc` is the Worker config. `bun run build` runs the vinext production build. `bun run build:cf` runs quality checks, tests, then the vinext build — Workers Builds uses this for every trigger. On the production branch, the build step is `npx convex deploy --cmd 'bun run build:cf'` (Convex production plus the Worker build), then `npx wrangler deploy --config dist/server/wrangler.json --keep-vars`. Preview triggers run `bun run build:cf` only (no Convex production deploy). Run `bun run cf:sync-build-env` after changing build commands so the dashboard matches the repo.
 
 On the production branch, deploy with `bun run deploy`.
 
-**Preview deployments:** Non-`main` Workers Builds triggers run `bun run cf:build`, then `node scripts/cf-preview-deploy.mjs` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
+**Preview deployments:** Non-`main` Workers Builds triggers run `bun run build:cf`, then `node scripts/cf-preview-deploy.mjs` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
 
 Run smoke against a preview host:
 
@@ -107,7 +107,7 @@ Development:
 
 Quality:
 
-- Workers Builds runs `bun run cf:build` (`check`, `test`, then vinext `build`) on every trigger before deploy or preview.
+- Workers Builds runs `bun run build:cf` (`check`, `test`, then vinext `build`) on every trigger before deploy or preview.
 - `bun run catalog` - write `lib/checks/catalog.ts` from `content/checks`
 - `bun run test` - Vitest for the app and the audit engine (use this instead of bare `bun test` at the repo root)
 - `bun run typecheck` - TypeScript for the app and the audit engine
@@ -116,7 +116,7 @@ Quality:
 
 Deploy:
 
-- `bun run cf:build` - Ultracite, React Doctor, TypeScript, knip, tests, then vinext production build (same as Workers Builds)
+- `bun run build:cf` - Ultracite, React Doctor, TypeScript, knip, tests, then vinext production build (same as Workers Builds)
 - `bun run preview` - vinext build and local Wrangler dev
 - `bun run deploy` - vinext build and Worker deploy (`--keep-vars`)
 - `bun run upload` - vinext build and Worker version upload
