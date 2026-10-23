@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { persistedCategoryLabel, resolveTypedCategory } from "./category";
 import {
@@ -8,6 +8,12 @@ import {
   getBusiness,
   probeConvexBusinesses,
 } from "./data";
+
+const withConvexUnreachable = (): void => {
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(
+    new TypeError("Failed to fetch")
+  );
+};
 
 describe("anonymous audit store", () => {
   it("builds a business document from a create request", () => {
@@ -49,22 +55,34 @@ describe("anonymous audit store", () => {
     ).toBeNull();
   });
 
-  it("saves and loads an audit when Convex is down", async () => {
-    const created = await createBusiness({
-      category: "food",
-      locations: [{ address: "West End, Brisbane", name: "Blackstar Coffee" }],
-      name: "Blackstar Coffee",
-      websiteUrl: "https://example.com",
+  describe("when Convex is unreachable", () => {
+    beforeEach(() => {
+      withConvexUnreachable();
     });
-    expect(created.name).toBe("Blackstar Coffee");
-    const loaded = await getBusiness(created.id);
-    expect(loaded?.id).toBe(created.id);
-    expect(loaded?.websiteUrl).toBe("https://example.com/");
-  });
 
-  it("marks entitlements unavailable when Convex is down", async () => {
-    const owner = await getActiveEntitlementOwner("missing");
-    expect(owner).toStrictEqual({ backendAvailable: false });
-    await expect(probeConvexBusinesses()).resolves.toBe("error");
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("saves and loads an audit when Convex is down", async () => {
+      const created = await createBusiness({
+        category: "food",
+        locations: [
+          { address: "West End, Brisbane", name: "Blackstar Coffee" },
+        ],
+        name: "Blackstar Coffee",
+        websiteUrl: "https://example.com",
+      });
+      expect(created.name).toBe("Blackstar Coffee");
+      const loaded = await getBusiness(created.id);
+      expect(loaded?.id).toBe(created.id);
+      expect(loaded?.websiteUrl).toBe("https://example.com/");
+    });
+
+    it("marks entitlements unavailable when Convex is down", async () => {
+      const owner = await getActiveEntitlementOwner("missing");
+      expect(owner).toStrictEqual({ backendAvailable: false });
+      await expect(probeConvexBusinesses()).resolves.toBe("error");
+    });
   });
 });
