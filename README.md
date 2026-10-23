@@ -81,11 +81,11 @@ Use `bun dev:localhost` if you want `http://localhost:3000` without Portless.
 
 Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun run convex:deploy` only for production.
 
-`wrangler.jsonc` is the Worker config. `bun run build` runs the vinext production build. Workers Builds runs `bun run cf:build`, then `npx wrangler deploy --config dist/server/wrangler.json --keep-vars`. Run `bun run cf:sync-build-env` after this migration so the dashboard uses those commands.
+`wrangler.jsonc` is the Worker config. `bun run build` runs the vinext production build. `bun run cf:build` runs quality checks, tests, then the vinext build — Workers Builds uses this for every trigger. On the production branch, the build step is `npx convex deploy --cmd 'bun run cf:build'` (Convex production plus the Worker build), then `npx wrangler deploy --config dist/server/wrangler.json --keep-vars`. Preview triggers run `bun run cf:build` only (no Convex production deploy). Run `bun run cf:sync-build-env` after changing build commands so the dashboard matches the repo.
 
 On the production branch, deploy with `bun run deploy`.
 
-**Preview deployments:** Non-`main` Workers Builds triggers run `npx wrangler preview --config dist/server/wrangler.json` after the vinext build (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
+**Preview deployments:** Non-`main` Workers Builds triggers run `bun run cf:build`, then `node scripts/cf-preview-deploy.mjs` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
 
 Run smoke against a preview host:
 
@@ -107,7 +107,7 @@ Development:
 
 Quality:
 
-- GitHub Actions runs `bun x ultracite check`, `bun run typecheck`, and `bun run test` on pull requests and `main`.
+- Workers Builds runs `bun run cf:build` (`check`, `test`, then vinext `build`) on every trigger before deploy or preview.
 - `bun run catalog` - write `lib/checks/catalog.ts` from `content/checks`
 - `bun run test` - Vitest for the app and the audit engine (use this instead of bare `bun test` at the repo root)
 - `bun run typecheck` - TypeScript for the app and the audit engine
@@ -116,6 +116,7 @@ Quality:
 
 Deploy:
 
+- `bun run cf:build` - Ultracite, React Doctor, TypeScript, knip, tests, then vinext production build (same as Workers Builds)
 - `bun run preview` - vinext build and local Wrangler dev
 - `bun run deploy` - vinext build and Worker deploy (`--keep-vars`)
 - `bun run upload` - vinext build and Worker version upload
@@ -203,7 +204,7 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so the vinext build can inline them without a local `.env`. The same values live in `wrangler.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
 
-- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, public build variables, and the vinext build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
+- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, public build variables, and Workers Builds build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
 - `bun run cf:sync-env` — pushes runtime secrets from `.env.local`
 
 Bindings:

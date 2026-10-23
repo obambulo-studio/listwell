@@ -142,12 +142,12 @@ const listTriggers = () =>
     `/accounts/${ACCOUNT_ID}/builds/workers/${WORKER_SCRIPT_ID}/triggers`
   );
 
-const BUILD_COMMAND = "bun run build";
+const CF_BUILD = "bun run cf:build";
+const BUILD_COMMAND = `npx convex deploy --cmd '${CF_BUILD}'`;
 const PRODUCTION_DEPLOY_COMMAND =
   "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
-/** Build + preview in one step so preview triggers work even with an empty build command. */
 const PREVIEW_DEPLOY_COMMAND = "node scripts/cf-preview-deploy.mjs";
-const PREVIEW_BUILD_COMMAND = "true";
+const PREVIEW_BUILD_COMMAND = CF_BUILD;
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
