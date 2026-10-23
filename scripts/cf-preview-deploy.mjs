@@ -9,30 +9,10 @@ import { installWranglerBinWrapper } from "./wrangler-bin-wrapper.mjs";
 const root = path.join(import.meta.dirname, "..");
 const serverConfigPath = path.join(root, "dist/server/wrangler.json");
 
-const runWorkersCiBuild = () => {
-  if (process.env.WORKERS_CI !== "1") {
-    return;
-  }
-  const result = spawnSync("bun", ["run", "build"], {
-    cwd: root,
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1);
-  }
-};
-
 const ensureVinextBuildOutput = () => {
-  if (process.env.WORKERS_CI === "1") {
-    runWorkersCiBuild();
-    return;
-  }
   if (!existsSync(serverConfigPath)) {
     throw new Error(
-      "Missing dist/server/wrangler.json. Run bun run build before cf:preview-deploy."
+      "Missing dist/server/wrangler.json. Run bun run build:cf (or bun run build) before version:cf."
     );
   }
 };

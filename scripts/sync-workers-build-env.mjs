@@ -142,12 +142,11 @@ const listTriggers = () =>
     `/accounts/${ACCOUNT_ID}/builds/workers/${WORKER_SCRIPT_ID}/triggers`
   );
 
-const BUILD_COMMAND = "bun run build";
-const PRODUCTION_DEPLOY_COMMAND =
-  "npx wrangler deploy --config dist/server/wrangler.json --keep-vars";
-/** Build + preview in one step so preview triggers work even with an empty build command. */
-const PREVIEW_DEPLOY_COMMAND = "node scripts/cf-preview-deploy.mjs";
-const PREVIEW_BUILD_COMMAND = "true";
+const CF_BUILD = "bun run build:cf";
+const PRODUCTION_BUILD_COMMAND = "bun run build:cf:production";
+const PRODUCTION_DEPLOY_COMMAND = "bun run deploy:cf";
+const PREVIEW_BUILD_COMMAND = CF_BUILD;
+const PREVIEW_DEPLOY_COMMAND = "bun run version:cf";
 
 const upsertBuildEnv = (triggerUuid, variables) =>
   cloudflareRequest(
@@ -192,7 +191,9 @@ const syncTrigger = async (trigger) => {
     return;
   }
   const isPreview = isPreviewTrigger(trigger);
-  const buildCommand = isPreview ? PREVIEW_BUILD_COMMAND : BUILD_COMMAND;
+  const buildCommand = isPreview
+    ? PREVIEW_BUILD_COMMAND
+    : PRODUCTION_BUILD_COMMAND;
   const deployCommand = isPreview
     ? PREVIEW_DEPLOY_COMMAND
     : PRODUCTION_DEPLOY_COMMAND;
