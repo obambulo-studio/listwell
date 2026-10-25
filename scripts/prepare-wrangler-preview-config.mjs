@@ -16,7 +16,8 @@ const kvNamespaceSchema = z
   })
   .passthrough();
 
-export const PREVIEW_AUDIT_KV_PLACEHOLDER_ID = "PREVIEW_AUDIT_KV_PLACEHOLDER";
+/** Live preview namespace `listwell-audit-preview`. */
+export const PREVIEW_AUDIT_KV_NAMESPACE_ID = "543048c92e7f44b694365d78521bf495";
 const PREVIEW_KV_ID_PATTERN = /^[0-9a-f]{32}$/u;
 const sourceConfigPath = path.join(root, "wrangler.jsonc");
 
@@ -34,7 +35,7 @@ export const previewAuditKvIdFromConfig = (config, envId) => {
       ? previews.kv_namespaces
       : undefined;
   if (!Array.isArray(namespaces)) {
-    return PREVIEW_AUDIT_KV_PLACEHOLDER_ID;
+    return PREVIEW_AUDIT_KV_NAMESPACE_ID;
   }
   for (const entry of namespaces) {
     const parsed = kvNamespaceSchema.safeParse(entry);
@@ -46,7 +47,7 @@ export const previewAuditKvIdFromConfig = (config, envId) => {
       return parsed.data.id;
     }
   }
-  return PREVIEW_AUDIT_KV_PLACEHOLDER_ID;
+  return PREVIEW_AUDIT_KV_NAMESPACE_ID;
 };
 
 export const readPreviewAuditKvNamespaceId = () => {

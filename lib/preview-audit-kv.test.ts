@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  PREVIEW_AUDIT_KV_PLACEHOLDER_ID,
+  PREVIEW_AUDIT_KV_NAMESPACE_ID,
   previewAuditKvIdFromConfig,
   retargetPreviewKvNamespaces,
   stripProductionOnlyWranglerFields,
 } from "../scripts/prepare-wrangler-preview-config.mjs";
 
 const productionId = "06b74ff3aa6e41a9a5ea7a6eb365e711";
+const previewNamespaceId = "543048c92e7f44b694365d78521bf495";
 
 describe(previewAuditKvIdFromConfig, () => {
   it("prefers a 32-character preview namespace id from the environment", () => {
@@ -23,7 +24,7 @@ describe(previewAuditKvIdFromConfig, () => {
     ).toBe("abcdef0123456789abcdef0123456789");
   });
 
-  it("reads the previews block, then the placeholder", () => {
+  it("reads the previews block, then the preview namespace id", () => {
     expect(
       previewAuditKvIdFromConfig(
         {
@@ -34,9 +35,8 @@ describe(previewAuditKvIdFromConfig, () => {
         ""
       )
     ).toBe("preview-from-config");
-    expect(previewAuditKvIdFromConfig({})).toBe(
-      PREVIEW_AUDIT_KV_PLACEHOLDER_ID
-    );
+    expect(previewAuditKvIdFromConfig({})).toBe(previewNamespaceId);
+    expect(PREVIEW_AUDIT_KV_NAMESPACE_ID).toBe(previewNamespaceId);
   });
 });
 

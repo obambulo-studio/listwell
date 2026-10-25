@@ -106,13 +106,13 @@
     "images": {
       "binding": "IMAGES",
     },
-    // Separate from production AUDIT_KV. This placeholder is not a live namespace.
-    // Create `listwell-audit-preview` and replace the id below. The prepare script
-    // copies it onto preview deploys. AUDIT_KV_PREVIEW_NAMESPACE_ID overrides it.
+    // Preview namespace `listwell-audit-preview`. Separate from production AUDIT_KV.
+    // The prepare script copies this id onto preview deploys.
+    // AUDIT_KV_PREVIEW_NAMESPACE_ID overrides it when set.
     "kv_namespaces": [
       {
         "binding": "AUDIT_KV",
-        "id": "PREVIEW_AUDIT_KV_PLACEHOLDER",
+        "id": "543048c92e7f44b694365d78521bf495",
       },
     ],
     "observability": {

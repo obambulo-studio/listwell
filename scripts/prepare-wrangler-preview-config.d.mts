@@ -9,7 +9,7 @@ interface PreviewWranglerConfig {
   workers_dev?: boolean;
 }
 
-export const PREVIEW_AUDIT_KV_PLACEHOLDER_ID: string;
+export const PREVIEW_AUDIT_KV_NAMESPACE_ID: string;
 
 export function previewAuditKvIdFromConfig(
   config: unknown,
