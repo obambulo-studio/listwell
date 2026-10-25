@@ -531,19 +531,19 @@ const bytesToBase64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
-const timingSafeEqual = (left: string, right: string): boolean => {
+/** Byte-wise compare. A mismatch does not return before the rest of the input is mixed in. */
+export const timingSafeEqual = (left: string, right: string): boolean => {
   const encoder = new TextEncoder();
   const leftBytes = encoder.encode(left);
   const rightBytes = encoder.encode(right);
-  if (leftBytes.length !== rightBytes.length) {
-    return false;
+  const maxLength = Math.max(leftBytes.length, rightBytes.length);
+  // eslint-disable-next-line no-bitwise
+  let diff = leftBytes.length ^ rightBytes.length;
+  for (let index = 0; index < maxLength; index += 1) {
+    // eslint-disable-next-line no-bitwise
+    diff |= (leftBytes[index] ?? 0) ^ (rightBytes[index] ?? 0);
   }
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    if (leftBytes[index] !== rightBytes[index]) {
-      return false;
-    }
-  }
-  return true;
+  return diff === 0;
 };
 
 const hmacSha256Base64 = async (

@@ -16,7 +16,10 @@ import type { DiscoverResponse, PlaceCandidate } from "@/lib/discover-shared";
 import { withDiscoveryPin } from "@/lib/place-pin";
 import { businessInputFromDiscovery } from "@/lib/profiles";
 import { businessSchema } from "@/lib/schema";
-import { addBusinessId } from "@/lib/storage";
+import {
+  addBusinessId,
+  rememberBusinessEditTokenFromResponse,
+} from "@/lib/storage";
 
 const SENTENCE_HOLD_MS = 2000;
 
@@ -61,6 +64,7 @@ const persistDiscovery = async (
     }
     const business = businessSchema.parse(await response.json());
     addBusinessId(business.id);
+    rememberBusinessEditTokenFromResponse(business.id, response);
     return business.id;
   } catch {
     return null;

@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { looksLikeThinSpa } from "./html";
+import {
+  assertPublicHttpUrl,
+  fetchPublic,
+  UnsafeAuditUrlError,
+} from "./public-fetch";
 import type { SerializedHttpResponse } from "./types";
 
 export interface BrowserRenderingConfig {
@@ -55,32 +60,31 @@ const browserContentSchema = z.object({
   success: z.boolean(),
 });
 
+const AUDIT_USER_AGENT = "ListwellAuditBot/1.0 (+https://listwell.dev)";
+
 export const fetchPlain = async (
   url: string,
   fetchImpl: typeof fetch = fetch
 ): Promise<SerializedHttpResponse> => {
-  const response = await fetchImpl(url, {
-    headers: {
-      "user-agent": "ListwellAuditBot/1.0 (+https://listwell.dev)",
-    },
-    redirect: "follow",
-  });
+  const fetched = await fetchPublic(
+    url,
+    { headers: { "user-agent": AUDIT_USER_AGENT } },
+    fetchImpl
+  );
+  const { response } = fetched;
 
   const headers: Record<string, string> = {};
   for (const [key, value] of response.headers.entries()) {
     headers[key] = value;
   }
 
-  const isRedirect = response.status >= 300 && response.status < 400;
-  const body = isRedirect ? "" : await response.text();
-
   return {
-    body,
+    body: await response.text(),
     headers,
     ok: response.ok,
     status: response.status,
     statusText: response.statusText,
-    url: response.url,
+    url: fetched.url,
   };
 };
 
@@ -97,6 +101,7 @@ export const fetchBrowserRenderingHtml = async (
   if (!config.accountId || !config.apiToken) {
     throw new Error("Cloudflare Browser Rendering is not configured");
   }
+  assertPublicHttpUrl(url);
 
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/browser-rendering/content`;
   const payload: Record<string, unknown> = {
@@ -155,6 +160,7 @@ export const fetchTinyFishHtml = async (
   apiKey: string,
   fetchImpl: typeof fetch = fetch
 ): Promise<string> => {
+  assertPublicHttpUrl(url);
   const response = await fetchImpl(TINYFISH_FETCH_ENDPOINT, {
     body: JSON.stringify({
       format: "html",
@@ -253,6 +259,7 @@ export const fetchWebsiteHtml = async (
   url: string,
   options: FetchWebsiteOptions = {}
 ): Promise<string> => {
+  assertPublicHttpUrl(url);
   const fetchImpl = options.fetchImpl ?? fetch;
   let plainBody: string | undefined;
   let plainOk = false;
@@ -265,7 +272,10 @@ export const fetchWebsiteHtml = async (
       if (plain.ok && !looksLikeThinSpa(plain.body)) {
         return plain.body;
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof UnsafeAuditUrlError) {
+        throw error;
+      }
       // Fall through to a rendered fetch.
     }
   }
@@ -306,13 +316,15 @@ export const fetchText = async (
   fetchImpl: typeof fetch = fetch
 ): Promise<{ ok: boolean; status: number; body: string }> => {
   try {
-    const response = await fetchImpl(url, {
-      headers: { "user-agent": "ListwellAuditBot/1.0 (+https://listwell.dev)" },
-    });
+    const fetched = await fetchPublic(
+      url,
+      { headers: { "user-agent": AUDIT_USER_AGENT } },
+      fetchImpl
+    );
     return {
-      body: await response.text(),
-      ok: response.ok,
-      status: response.status,
+      body: await fetched.response.text(),
+      ok: fetched.response.ok,
+      status: fetched.response.status,
     };
   } catch {
     return { body: "", ok: false, status: 0 };

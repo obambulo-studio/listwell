@@ -144,7 +144,10 @@ export const isSiteGateExemptPath = (pathname: string): boolean => {
   if (pathname === "/lw-analytics.js") {
     return true;
   }
-  if (pathname === "/api/internal/dataforseo/postback") {
+  if (
+    pathname === "/api/internal/dataforseo/postback" ||
+    pathname.startsWith("/api/internal/dataforseo/postback/")
+  ) {
     return true;
   }
   return false;

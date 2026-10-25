@@ -452,6 +452,10 @@ export const releasePurchaseEmail = async (
   });
 };
 
+const duplicateGrantSchema = z
+  .object({ webhookDuplicate: z.literal(true) })
+  .strict();
+
 export const grantEntitlement = async (input: {
   businessId: string;
   kind: EntitlementKind;
@@ -460,8 +464,11 @@ export const grantEntitlement = async (input: {
   polarSubscriptionId?: string;
   purchaserEmail?: string;
   userId?: string;
-}): Promise<EntitlementRow> => {
-  const row = await convexMutation(api.entitlements.grant, {
+  webhookId?: string;
+}): Promise<
+  { duplicate: true } | { duplicate: false; row: EntitlementRow }
+> => {
+  const row: unknown = await convexMutation(api.entitlements.grant, {
     businessExternalId: input.businessId,
     kind: input.kind,
     polarCustomerId: input.polarCustomerId,
@@ -469,27 +476,37 @@ export const grantEntitlement = async (input: {
     polarSubscriptionId: input.polarSubscriptionId,
     purchaserEmail: input.purchaserEmail,
     userId: input.userId,
+    ...(input.webhookId ? { webhookId: input.webhookId } : {}),
   });
-  return entitlementRowSchema.parse({
-    ...row,
-    kind: entitlementKindSchema.parse(row.kind),
-    polarCustomerId: row.polarCustomerId ?? null,
-    polarOrderId: row.polarOrderId ?? null,
-    polarSubscriptionId: row.polarSubscriptionId ?? null,
-    status: entitlementStatusSchema.parse(row.status),
-    userId: row.userId ?? null,
-  });
+  if (duplicateGrantSchema.safeParse(row).success) {
+    return { duplicate: true };
+  }
+  const record = z.record(z.string(), z.unknown()).parse(row);
+  return {
+    duplicate: false,
+    row: entitlementRowSchema.parse({
+      ...record,
+      kind: entitlementKindSchema.parse(record.kind),
+      polarCustomerId: record.polarCustomerId ?? null,
+      polarOrderId: record.polarOrderId ?? null,
+      polarSubscriptionId: record.polarSubscriptionId ?? null,
+      status: entitlementStatusSchema.parse(record.status),
+      userId: record.userId ?? null,
+    }),
+  };
 };
 
 export const revokeEntitlements = async (input: {
   businessId?: string;
   polarOrderId?: string;
   polarSubscriptionId?: string;
+  webhookId?: string;
 }): Promise<void> => {
   await convexMutation(api.entitlements.revoke, {
     businessExternalId: input.businessId,
     polarOrderId: input.polarOrderId,
     polarSubscriptionId: input.polarSubscriptionId,
+    ...(input.webhookId ? { webhookId: input.webhookId } : {}),
   });
 };
 
@@ -497,10 +514,12 @@ export const revokeEntitlements = async (input: {
 export const lapseEntitlements = async (input: {
   businessId?: string;
   polarSubscriptionId?: string;
+  webhookId?: string;
 }): Promise<void> => {
   await convexMutation(api.entitlements.lapse, {
     businessExternalId: input.businessId,
     polarSubscriptionId: input.polarSubscriptionId,
+    ...(input.webhookId ? { webhookId: input.webhookId } : {}),
   });
 };
 

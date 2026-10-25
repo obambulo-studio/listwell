@@ -17,6 +17,11 @@ export {
 } from "./chat-session-keys";
 
 const STORAGE_KEY = "listwell-businesses";
+const EDIT_TOKEN_STORAGE_KEY = "listwell-business-edit-tokens";
+
+export const BUSINESS_EDIT_TOKEN_HEADER = "x-listwell-edit-token";
+
+const editTokenMapSchema = z.record(z.string(), z.string().min(1));
 
 export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY =
   "listwell-account-background-scan";
@@ -67,6 +72,44 @@ export const getStoredBusinessIds = (): string[] => {
   } catch {
     return [];
   }
+};
+
+const readEditTokens = (): Record<string, string> => {
+  const parsed = editTokenMapSchema.safeParse(
+    readLocalJson(EDIT_TOKEN_STORAGE_KEY)
+  );
+  return parsed.success ? parsed.data : {};
+};
+
+export const rememberBusinessEditToken = (id: string, token: string): void => {
+  if (typeof window === "undefined" || token.length === 0) {
+    return;
+  }
+  const existing = readEditTokens();
+  window.localStorage.setItem(
+    EDIT_TOKEN_STORAGE_KEY,
+    JSON.stringify({ ...existing, [id]: token })
+  );
+};
+
+export const rememberBusinessEditTokenFromResponse = (
+  id: string,
+  response: Response
+): void => {
+  const token = response.headers.get(BUSINESS_EDIT_TOKEN_HEADER);
+  if (token) {
+    rememberBusinessEditToken(id, token);
+  }
+};
+
+export const businessEditTokenHeaders = (
+  id: string
+): Record<string, string> => {
+  const token = readEditTokens()[id];
+  if (!token) {
+    return {};
+  }
+  return { [BUSINESS_EDIT_TOKEN_HEADER]: token };
 };
 
 export const addBusinessId = (id: string): void => {

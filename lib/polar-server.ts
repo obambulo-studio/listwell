@@ -440,9 +440,10 @@ const grantPaidAccess = async (input: {
   polarOrderId?: string;
   polarSubscriptionId?: string;
   email?: string;
+  webhookId?: string;
 }): Promise<{ id: string; email: string } | null> => {
   const userId = input.email ? await findUserIdByEmail(input.email) : null;
-  await grantEntitlement({
+  const granted = await grantEntitlement({
     businessId: input.businessId,
     kind: input.kind,
     polarCustomerId: input.polarCustomerId,
@@ -450,7 +451,11 @@ const grantPaidAccess = async (input: {
     polarSubscriptionId: input.polarSubscriptionId,
     purchaserEmail: input.email,
     userId: userId ?? undefined,
+    webhookId: input.webhookId,
   });
+  if (granted.duplicate) {
+    return null;
+  }
   if (input.kind === "report_monthly") {
     await scheduleMonthlyBaseline(input.businessId);
   }
@@ -994,7 +999,8 @@ export const reportBusinessDeliveryCost = async (input: {
 };
 
 export const applyPolarWebhookEvent = async (
-  event: PolarWebhookEvent
+  event: PolarWebhookEvent,
+  webhookId?: string
 ): Promise<void> => {
   const config = await getPolarConfig();
   const action = entitlementActionFromPolarEvent(
@@ -1012,6 +1018,7 @@ export const applyPolarWebhookEvent = async (
       polarCustomerId: action.polarCustomerId,
       polarOrderId: action.polarOrderId,
       polarSubscriptionId: action.polarSubscriptionId,
+      webhookId,
     });
     return;
   }
@@ -1019,6 +1026,7 @@ export const applyPolarWebhookEvent = async (
     await lapseEntitlements({
       businessId: action.businessId,
       polarSubscriptionId: action.polarSubscriptionId,
+      webhookId,
     });
     return;
   }
@@ -1026,5 +1034,6 @@ export const applyPolarWebhookEvent = async (
     businessId: action.businessId,
     polarOrderId: action.polarOrderId,
     polarSubscriptionId: action.polarSubscriptionId,
+    webhookId,
   });
 };

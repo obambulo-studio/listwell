@@ -111,6 +111,7 @@ import {
 } from "@/lib/schema";
 import {
   addBusinessId,
+  rememberBusinessEditTokenFromResponse,
   CHAT_SESSION_STORAGE_KEY,
   clearChatSession,
   hasPendingBusinessName,
@@ -1462,6 +1463,7 @@ export const useListwellChat = () => {
       }
       const business = businessSchema.parse(await saveResponse.json());
       addBusinessId(business.id);
+      rememberBusinessEditTokenFromResponse(business.id, saveResponse);
       setBusinessId(business.id);
 
       const checksResponse = await fetch(

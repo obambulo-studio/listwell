@@ -23,7 +23,7 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
-    "redact_query_string": false,
+    "redact_query_string": true,
     "issues": {
       "enabled": true,
     },
@@ -106,16 +106,19 @@
     "images": {
       "binding": "IMAGES",
     },
+    // Separate from production AUDIT_KV. This placeholder is not a live namespace.
+    // Create `listwell-audit-preview` and replace the id below. The prepare script
+    // copies it onto preview deploys. AUDIT_KV_PREVIEW_NAMESPACE_ID overrides it.
     "kv_namespaces": [
       {
         "binding": "AUDIT_KV",
-        "id": "06b74ff3aa6e41a9a5ea7a6eb365e711",
+        "id": "PREVIEW_AUDIT_KV_PLACEHOLDER",
       },
     ],
     "observability": {
       "enabled": true,
       "head_sampling_rate": 1,
-      "redact_query_string": false,
+      "redact_query_string": true,
       "issues": {
         "enabled": true,
       },

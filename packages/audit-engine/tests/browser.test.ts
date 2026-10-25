@@ -41,7 +41,7 @@ describe(fetchWebsiteHtml, () => {
     });
 
     expect(html).toBe(fatHtml);
-    expect(calls).toStrictEqual(["https://cafe.example"]);
+    expect(calls).toStrictEqual(["https://cafe.example/"]);
   });
 
   it("renders a thin page with TinyFish Fetch and skips Browser Rendering", async () => {
@@ -72,7 +72,7 @@ describe(fetchWebsiteHtml, () => {
 
     expect(html).toBe(fatHtml);
     expect(calls).toStrictEqual([
-      "https://cafe.example",
+      "https://cafe.example/",
       "https://api.fetch.tinyfish.ai",
     ]);
     expect(tinyFishBodies).toStrictEqual([

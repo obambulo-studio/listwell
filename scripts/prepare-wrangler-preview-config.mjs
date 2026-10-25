@@ -9,9 +9,81 @@ const serverConfigPath = path.join(root, "dist/server/wrangler.json");
 const previewConfigPath = path.join(root, "dist/server/wrangler.preview.json");
 
 const wranglerObjectSchema = z.record(z.string(), z.unknown());
+const kvNamespaceSchema = z
+  .object({
+    binding: z.string(),
+    id: z.string().optional(),
+  })
+  .passthrough();
+
+export const PREVIEW_AUDIT_KV_PLACEHOLDER_ID = "PREVIEW_AUDIT_KV_PLACEHOLDER";
+const PREVIEW_KV_ID_PATTERN = /^[0-9a-f]{32}$/u;
+const sourceConfigPath = path.join(root, "wrangler.jsonc");
+
+const stripJsoncComments = (source) => source.replaceAll(/^\s*\/\/.*$/gmu, "");
+
+export const previewAuditKvIdFromConfig = (config, envId) => {
+  const configured =
+    typeof envId === "string" ? envId.trim().toLowerCase() : "";
+  if (PREVIEW_KV_ID_PATTERN.test(configured)) {
+    return configured;
+  }
+  const previews = config?.previews;
+  const namespaces =
+    previews && typeof previews === "object"
+      ? previews.kv_namespaces
+      : undefined;
+  if (!Array.isArray(namespaces)) {
+    return PREVIEW_AUDIT_KV_PLACEHOLDER_ID;
+  }
+  for (const entry of namespaces) {
+    const parsed = kvNamespaceSchema.safeParse(entry);
+    if (
+      parsed.success &&
+      parsed.data.binding === "AUDIT_KV" &&
+      parsed.data.id
+    ) {
+      return parsed.data.id;
+    }
+  }
+  return PREVIEW_AUDIT_KV_PLACEHOLDER_ID;
+};
+
+export const readPreviewAuditKvNamespaceId = () => {
+  let source = {};
+  if (existsSync(sourceConfigPath)) {
+    try {
+      source = JSON.parse(
+        stripJsoncComments(readFileSync(sourceConfigPath, "utf-8"))
+      );
+    } catch {
+      source = {};
+    }
+  }
+  return previewAuditKvIdFromConfig(
+    source,
+    process.env.AUDIT_KV_PREVIEW_NAMESPACE_ID
+  );
+};
+
+export const retargetPreviewKvNamespaces = (namespaces, previewKvId) => {
+  if (!Array.isArray(namespaces)) {
+    return namespaces;
+  }
+  return namespaces.map((entry) => {
+    const parsed = kvNamespaceSchema.safeParse(entry);
+    if (!parsed.success || parsed.data.binding !== "AUDIT_KV") {
+      return entry;
+    }
+    return { ...parsed.data, id: previewKvId };
+  });
+};
 
 /** Fields that break `wrangler preview` on Workers Builds (production-only). */
-export const stripProductionOnlyWranglerFields = (config) => {
+export const stripProductionOnlyWranglerFields = (
+  config,
+  previewKvId = readPreviewAuditKvNamespaceId()
+) => {
   const previewConfig = { ...config };
   delete previewConfig.routes;
   delete previewConfig.migrations;
@@ -34,6 +106,18 @@ export const stripProductionOnlyWranglerFields = (config) => {
 
   // Preview deploy config only (production wrangler.jsonc keeps workers_dev false).
   previewConfig.workers_dev = true;
+  previewConfig.kv_namespaces = retargetPreviewKvNamespaces(
+    previewConfig.kv_namespaces,
+    previewKvId
+  );
+  if (previewConfig.previews && typeof previewConfig.previews === "object") {
+    const previews = { ...previewConfig.previews };
+    previews.kv_namespaces = retargetPreviewKvNamespaces(
+      previews.kv_namespaces,
+      previewKvId
+    );
+    previewConfig.previews = previews;
+  }
 
   return previewConfig;
 };

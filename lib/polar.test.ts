@@ -22,6 +22,7 @@ import {
   REPORT_YEARLY_VALUE_NOTE,
   signPolarWebhook,
   unlockPricingNote,
+  timingSafeEqual,
   verifyPolarSignature,
 } from "./polar";
 import { checkoutRequestSchema } from "./schema";
@@ -671,6 +672,22 @@ describe("checkout request schema", () => {
     expect(checkoutRequestSchema.parse({ businessId: "biz_1" }).plan).toBe(
       "once"
     );
+  });
+});
+
+describe(timingSafeEqual, () => {
+  it("matches equal byte strings, including a shared prefix", () => {
+    expect(timingSafeEqual("v1-signature", "v1-signature")).toBeTruthy();
+    expect(timingSafeEqual("é", "é")).toBeTruthy();
+    expect(timingSafeEqual("", "")).toBeTruthy();
+  });
+
+  it("rejects a difference at the start, the end, or the length", () => {
+    expect(timingSafeEqual("v1-signature", "x1-signature")).toBeFalsy();
+    expect(timingSafeEqual("v1-signature", "v1-signaturx")).toBeFalsy();
+    expect(timingSafeEqual("v1-signature", "v1-signature-extra")).toBeFalsy();
+    expect(timingSafeEqual("é", "e")).toBeFalsy();
+    expect(timingSafeEqual("abc", "")).toBeFalsy();
   });
 });
 

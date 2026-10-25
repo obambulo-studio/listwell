@@ -3,6 +3,10 @@ import { ZodError, z } from "zod";
 
 import { getSessionUser } from "@/lib/auth";
 import {
+  BUSINESS_EDIT_TOKEN_HEADER,
+  businessEditAccess,
+} from "@/lib/business-edit-token";
+import {
   claimBusinesses,
   getActiveEntitlementOwner,
   getBusiness,
@@ -59,6 +63,15 @@ export const PUT = async (
   ]);
   if (ownerId && ownerId !== sessionUser?.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!ownerId) {
+    const access = await businessEditAccess(
+      id,
+      request.headers.get(BUSINESS_EDIT_TOKEN_HEADER)
+    );
+    if (access === "denied") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
   const paidOwnedBySomeoneElse =
     entitlement.backendAvailable &&

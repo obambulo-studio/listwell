@@ -6,7 +6,8 @@
     "components/reui/**",
     "emails/change-email.tsx",
     "emails/scan-ready-multi.tsx",
-    "public/lw-analytics.js"
+    "public/lw-analytics.js",
+    "scripts/prepare-wrangler-preview-config.d.mts"
   ],
   "ignoreDependencies": [
     "@react-email/render",
