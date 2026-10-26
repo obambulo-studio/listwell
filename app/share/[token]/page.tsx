@@ -17,6 +17,7 @@ import {
   parseReportShareRouteParams,
 } from "@/lib/report-share";
 import { loadResearchView } from "@/lib/research-load";
+import { listwellSocialMetadata, withListwellTitle } from "@/lib/site-metadata";
 import { buildFallbackSummary, completedCheckSchema } from "@/lib/summaries";
 
 export const dynamic = "force-dynamic";
@@ -27,24 +28,50 @@ export const generateMetadata = async ({
   params: Promise<{ token: string }>;
 }): Promise<Metadata> => {
   const parsedParams = parseReportShareRouteParams(await params);
+  const missing = "Shared report";
+  const missingDescription = "This shared Listwell report could not be found.";
   if (!parsedParams) {
     return {
+      description: missingDescription,
       robots: { follow: false, index: false },
-      title: "Shared report",
+      title: missing,
+      ...listwellSocialMetadata({
+        description: missingDescription,
+        pathname: "/share",
+        title: withListwellTitle(missing),
+      }),
     };
   }
   const { token } = parsedParams;
   const share = await getReportShareByToken(token);
   if (!share) {
     return {
+      description: missingDescription,
       robots: { follow: false, index: false },
-      title: "Shared report",
+      title: missing,
+      ...listwellSocialMetadata({
+        description: missingDescription,
+        pathname: `/share/${token}`,
+        title: withListwellTitle(missing),
+      }),
     };
   }
   const business = await getBusiness(share.businessId);
+  const pageTitle = business
+    ? `${business.name} · shared report`
+    : "Shared report";
+  const description = business
+    ? `Shared visibility report for ${business.name}.`
+    : "Shared Listwell visibility report.";
   return {
+    description,
     robots: { follow: false, index: false },
-    title: business ? `${business.name} · shared report` : "Shared report",
+    title: pageTitle,
+    ...listwellSocialMetadata({
+      description,
+      pathname: `/share/${token}`,
+      title: withListwellTitle(pageTitle),
+    }),
   };
 };
 

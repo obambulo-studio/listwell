@@ -69,10 +69,19 @@ export const generateMetadata = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = paramsSchema.parse(await params);
-  return await reportRouteMetadata(id, getBusiness, {
-    found: (name) => `${name} report`,
-    missing: "Report",
-  });
+  return await reportRouteMetadata(
+    id,
+    getBusiness,
+    {
+      description: (name) =>
+        name
+          ? `Visibility report for ${name}.`
+          : "This Listwell report could not be found.",
+      found: (name) => `${name} report`,
+      missing: "Report",
+    },
+    `/${id}`
+  );
 };
 
 const ReportPage = async ({

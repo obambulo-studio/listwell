@@ -5,6 +5,7 @@ import { BusinessGuestInviteAccept } from "@/components/business-guest-invite-ac
 import { getSessionUser } from "@/lib/auth";
 import { api, convexPublicQuery } from "@/lib/convex/server";
 import { businessGuestInvitePreviewSchema } from "@/lib/schema";
+import { listwellSocialMetadata, withListwellTitle } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +13,24 @@ const paramsSchema = z.object({
   token: z.string().min(16),
 });
 
-export const metadata = {
-  title: "Business invite",
+const inviteDescription = "Accept a guest invite to a Listwell business.";
+const inviteTitle = "Business invite";
+
+export const generateMetadata = async ({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) => {
+  const { token } = await params;
+  return {
+    description: inviteDescription,
+    title: inviteTitle,
+    ...listwellSocialMetadata({
+      description: inviteDescription,
+      pathname: `/invite/${token}`,
+      title: withListwellTitle(inviteTitle),
+    }),
+  };
 };
 
 const InvitePage = async ({

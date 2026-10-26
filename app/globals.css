@@ -3161,7 +3161,8 @@ div.listwell-panel__row:hover {
 }
 
 .home-nav__by {
-  color: var(--home-faint);
+  /* --home-faint on white is 3.03:1. --vbg-text-secondary (#666) is 5.74:1. */
+  color: var(--vbg-text-secondary);
   font-weight: 400;
 }
 
@@ -3183,7 +3184,7 @@ div.listwell-panel__row:hover {
 
 .home-nav__studio:hover,
 .home-nav__studio:focus-visible {
-  color: var(--home-muted);
+  color: var(--home-ink);
   text-decoration-color: rgba(23, 23, 23, 0.38);
 }
 
@@ -4156,6 +4157,18 @@ div.listwell-panel__row:hover {
   color: var(--ink);
   font-size: 1rem;
   line-height: 1.55;
+}
+
+/* The lede is the LCP element on /how-it-works. The panel fade starts at
+   opacity 0, and a <code> child pulls in Geist Mono (not preloaded, so the
+   homepage stays on one font). System mono keeps the identifier monospaced
+   and the paragraph paints with the preloaded sans font. */
+.listwell-legal .listwell-panel {
+  animation: none;
+}
+
+.listwell-legal__lede code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .listwell-legal__meta {

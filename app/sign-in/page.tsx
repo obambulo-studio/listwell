@@ -1,10 +1,23 @@
 import { SignInForm } from "@/components/sign-in-form";
 import { firstSearchParam, safeAppPath } from "@/lib/query-params";
-import { canonicalFor } from "@/lib/site-metadata";
+import {
+  canonicalFor,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
+
+const description = "Sign in to Listwell with an email code.";
+const title = "Sign in";
 
 export const metadata = {
   alternates: canonicalFor("/sign-in"),
-  title: "Sign in",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/sign-in",
+    title: withListwellTitle(title),
+  }),
 };
 
 const SignInPage = async ({

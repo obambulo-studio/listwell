@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { AccountWebAnalytics } from "@/components/account-web-analytics";
@@ -7,12 +8,32 @@ import { fetchAuthQuery } from "@/lib/auth-server";
 import { api } from "@/lib/convex/server";
 import { getPolarConfig } from "@/lib/polar-server";
 import { firstSearchParam } from "@/lib/query-params";
-import { listwellSiteUrl } from "@/lib/site-metadata";
+import {
+  listwellSiteUrl,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Web analytics",
+const description = "Web analytics for a saved business.";
+const title = "Web analytics";
+
+export const generateMetadata = async ({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> => {
+  const { id } = await params;
+  return {
+    description,
+    title,
+    ...listwellSocialMetadata({
+      description,
+      pathname: `/account/analytics/${id}`,
+      title: withListwellTitle(title),
+    }),
+  };
 };
 
 const AccountAnalyticsPage = async ({

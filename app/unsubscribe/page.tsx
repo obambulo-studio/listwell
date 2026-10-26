@@ -1,7 +1,17 @@
 import { PrimaryButton } from "@/components/listwell/actions";
+import { listwellSocialMetadata, withListwellTitle } from "@/lib/site-metadata";
+
+const description = "Stop Listwell email for this link.";
+const title = "Unsubscribe";
 
 export const metadata = {
-  title: "Unsubscribe",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/unsubscribe",
+    title: withListwellTitle(title),
+  }),
 };
 
 const tokenMinLength = 8;

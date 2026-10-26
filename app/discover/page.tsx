@@ -3,13 +3,25 @@ import type { Metadata } from "next";
 import { ButtonLink } from "@/components/atoms/button";
 import { DiscoverClient } from "@/components/discover-client";
 import { firstSearchParam, parseCategoryParam } from "@/lib/query-params";
-import { canonicalFor } from "@/lib/site-metadata";
+import {
+  canonicalFor,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
+
+const description =
+  "Match a business name to Google Business Profile, Apple Maps, a website, and social profiles.";
+const title = "Find your listing";
 
 export const metadata: Metadata = {
   alternates: canonicalFor("/discover"),
-  description:
-    "Match a business name to Google Business Profile, Apple Maps, a website, and social profiles.",
-  title: "Find your listing",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/discover",
+    title: withListwellTitle(title),
+  }),
 };
 
 const DiscoverPage = async ({
@@ -46,6 +58,9 @@ const DiscoverPage = async ({
         />
       ) : (
         <div className="listwell-panel">
+          <div className="listwell-panel__head">
+            <h1 className="listwell-panel__title">Find your listing</h1>
+          </div>
           <div className="listwell-panel__body">
             <p className="listwell-panel__text">
               Enter a business name on the home page to start an audit.

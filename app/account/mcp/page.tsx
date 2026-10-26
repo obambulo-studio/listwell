@@ -3,12 +3,25 @@ import { ButtonLink } from "@/components/atoms/button";
 import { ProfileBackLink } from "@/components/profile-form";
 import { listAgentApiKeysForUser } from "@/lib/agent-api-keys";
 import { getSessionUser } from "@/lib/auth";
-import { listwellSiteUrl } from "@/lib/site-metadata";
+import {
+  listwellSiteUrl,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
+const description = "Create API keys and connect Listwell to an MCP client.";
+const title = "MCP setup";
+
 export const metadata = {
-  title: "MCP setup",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/account/mcp",
+    title: withListwellTitle(title),
+  }),
 };
 
 const AccountMcpPage = async () => {

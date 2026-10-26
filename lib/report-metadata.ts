@@ -1,13 +1,26 @@
 import type { Metadata } from "next";
 
-import { isFileLikePathId } from "@/lib/site-metadata";
+import {
+  isFileLikePathId,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
 
 export type LoadBusinessName = (id: string) => Promise<{ name: string } | null>;
 
-const notFoundMetadata: Metadata = {
+const notFoundTitle = "Report not found";
+const notFoundDescription = "This Listwell report could not be found.";
+
+const notFoundMetadata = (pathname: string): Metadata => ({
+  description: notFoundDescription,
   robots: { follow: false, index: false },
-  title: "Report not found",
-};
+  title: notFoundTitle,
+  ...listwellSocialMetadata({
+    description: notFoundDescription,
+    pathname,
+    title: withListwellTitle(notFoundTitle),
+  }),
+});
 
 /**
  * Metadata for `/[id]` and `/[id]/edit`. A file-like id (a bot probe such as
@@ -18,13 +31,26 @@ const notFoundMetadata: Metadata = {
 export const reportRouteMetadata = async (
   id: string,
   loadBusiness: LoadBusinessName,
-  titles: { found: (name: string) => string; missing: string }
+  titles: {
+    description: (name: string | null) => string;
+    found: (name: string) => string;
+    missing: string;
+  },
+  pathname: string
 ): Promise<Metadata> => {
   if (isFileLikePathId(id)) {
-    return notFoundMetadata;
+    return notFoundMetadata(pathname);
   }
   const business = await loadBusiness(id);
+  const title = business ? titles.found(business.name) : titles.missing;
+  const description = titles.description(business ? business.name : null);
   return {
-    title: business ? titles.found(business.name) : titles.missing,
+    description,
+    title,
+    ...listwellSocialMetadata({
+      description,
+      pathname,
+      title: withListwellTitle(title),
+    }),
   };
 };

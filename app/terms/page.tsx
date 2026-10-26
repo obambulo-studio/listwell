@@ -6,12 +6,24 @@ import {
   LISTWELL_CONTACT_URL,
   LISTWELL_OPERATOR,
 } from "@/lib/listwell-services";
-import { canonicalFor } from "@/lib/site-metadata";
+import {
+  canonicalFor,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
+
+const description = "Terms of use for the Listwell website and audit service.";
+const title = "Terms";
 
 export const metadata: Metadata = {
   alternates: canonicalFor("/terms"),
-  description: "Terms of use for the Listwell website and audit service.",
-  title: "Terms",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/terms",
+    title: withListwellTitle(title),
+  }),
 };
 
 const TermsPage = () => (
