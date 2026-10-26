@@ -37,7 +37,11 @@ import {
   unusedChannels,
 } from "@/lib/profiles";
 import { businessSchema } from "@/lib/schema";
-import { addBusinessId } from "@/lib/storage";
+import {
+  addBusinessId,
+  businessEditTokenHeaders,
+  rememberBusinessEditTokenFromResponse,
+} from "@/lib/storage";
 import { normalizeBusinessName } from "@/lib/text-normalize";
 
 interface AuditFormState {
@@ -500,7 +504,10 @@ export const NewAuditForm = ({
           body: JSON.stringify(
             existingId ? payload : { ...payload, id: crypto.randomUUID() }
           ),
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(existingId ? businessEditTokenHeaders(existingId) : {}),
+          },
           method: existingId ? "PUT" : "POST",
         }
       );
@@ -510,6 +517,7 @@ export const NewAuditForm = ({
       }
       const business = businessSchema.parse(await response.json());
       addBusinessId(business.id);
+      rememberBusinessEditTokenFromResponse(business.id, response);
       if (presentation === "dialog") {
         await onSaved?.();
         return;

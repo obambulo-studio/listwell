@@ -50,6 +50,7 @@ import {
   entitlementStateSchema,
 } from "@/lib/schema";
 import type { CheckoutPlan, EntitlementState } from "@/lib/schema";
+import { businessEditTokenHeaders } from "@/lib/storage";
 import {
   isSameBusinessName,
   normalizeBusinessName,
@@ -120,7 +121,10 @@ const saveBusinessName = async (
   }
   const response = await fetch(`/api/businesses/${businessId}`, {
     body: JSON.stringify({ name: next }),
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...businessEditTokenHeaders(businessId),
+    },
     method: "PUT",
   });
   if (!response.ok) {

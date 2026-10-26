@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import { claimWebhookDelivery } from "../lib/polar-webhook-receipt";
 import {
   normalizePurchaserEmail,
   activePurchaseLinksToUser,
@@ -47,6 +48,38 @@ const isAnalyticsEntitlementKind = (kind: string): boolean =>
   analyticsEntitlementKinds.has(kind);
 
 const nowIso = (): string => new Date().toISOString();
+
+const duplicateWebhookGrant = (): { webhookDuplicate: true } => ({
+  webhookDuplicate: true,
+});
+
+const webhookDeliveryGate = async (
+  ctx: MutationCtx,
+  webhookId: string | undefined
+): Promise<"fresh" | "duplicate"> => {
+  if (!webhookId) {
+    return "fresh";
+  }
+  const outcome = await claimWebhookDelivery(
+    {
+      find: async (id) => {
+        const row = await ctx.db
+          .query("polarWebhookDeliveries")
+          .withIndex("by_webhookId", (q) => q.eq("webhookId", id))
+          .unique();
+        return row
+          ? { processedAt: row.processedAt, webhookId: row.webhookId }
+          : null;
+      },
+      save: async (record) => {
+        await ctx.db.insert("polarWebhookDeliveries", record);
+      },
+    },
+    webhookId,
+    nowIso()
+  );
+  return outcome === "duplicate" ? "duplicate" : "fresh";
+};
 
 const nextScanAtFrom = (date: Date): string =>
   new Date(date.getTime() + SCAN_INTERVAL_MS).toISOString();
@@ -428,9 +461,13 @@ export const grant = mutation({
     purchaserEmail: v.optional(v.string()),
     secret: v.string(),
     userId: v.optional(v.string()),
+    webhookId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
+    if ((await webhookDeliveryGate(ctx, args.webhookId)) === "duplicate") {
+      return duplicateWebhookGrant();
+    }
     const timestamp = nowIso();
     const nextScanAt =
       args.kind === "report_monthly"
@@ -538,7 +575,10 @@ export const grant = mutation({
     });
     return toEntitlementResponse(inserted);
   },
-  returns: entitlementResponseValidator,
+  returns: v.union(
+    v.object({ webhookDuplicate: v.literal(true) }),
+    entitlementResponseValidator
+  ),
 });
 
 const findActiveEntitlement = async (
@@ -612,6 +652,7 @@ export const revoke = mutation({
     polarOrderId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
     secret: v.string(),
+    webhookId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
@@ -620,7 +661,10 @@ export const revoke = mutation({
       !args.polarOrderId &&
       !args.polarSubscriptionId
     ) {
-      return;
+      return null;
+    }
+    if ((await webhookDeliveryGate(ctx, args.webhookId)) === "duplicate") {
+      return null;
     }
 
     const timestamp = nowIso();
@@ -676,6 +720,7 @@ export const revoke = mutation({
         })
       )
     );
+    return null;
   },
   returns: v.null(),
 });
@@ -689,12 +734,16 @@ export const lapse = mutation({
     businessExternalId: v.optional(v.string()),
     polarSubscriptionId: v.optional(v.string()),
     secret: v.string(),
+    webhookId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     requireInternalSecret(args.secret);
     const { businessExternalId } = args;
     const { polarSubscriptionId } = args;
     if (!businessExternalId && !polarSubscriptionId) {
+      return null;
+    }
+    if ((await webhookDeliveryGate(ctx, args.webhookId)) === "duplicate") {
       return null;
     }
 

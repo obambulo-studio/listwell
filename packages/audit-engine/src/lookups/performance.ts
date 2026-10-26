@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { fetchBrowserRenderingHtml } from "../browser";
 import type { FetchWebsiteOptions } from "../browser";
+import { assertPublicHttpUrl } from "../public-fetch";
 
 export const LCP_GOOD_MS = 2500;
 
@@ -163,6 +164,7 @@ export const fetchCruxPerformance = async (
   }
 
   try {
+    assertPublicHttpUrl(url);
     const page = await queryCruxRecord({ url }, googleApiKey, fetchImpl);
     if (page.lcp !== undefined) {
       return page;
@@ -195,6 +197,7 @@ export const fetchPageSpeedPerformance = async (
   }
 
   try {
+    assertPublicHttpUrl(url);
     const response = await fetchImpl(
       `https://pagespeedonline.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&category=performance&key=${googleApiKey}`
     );
@@ -229,6 +232,7 @@ export const measureSyntheticPerformance = async (
   options: FetchWebsiteOptions = {}
 ): Promise<PerformanceData> => {
   if (options.measurePerformance) {
+    assertPublicHttpUrl(url);
     return performanceDataSchema.parse(await options.measurePerformance(url));
   }
 

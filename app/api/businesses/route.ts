@@ -3,6 +3,10 @@ import { ZodError } from "zod";
 
 import { getCloudflareEnv } from "@/lib/audit-env";
 import { fetchAuthMutation, isAuthenticated } from "@/lib/auth-server";
+import {
+  BUSINESS_EDIT_TOKEN_HEADER,
+  issueBusinessEditToken,
+} from "@/lib/business-edit-token";
 import { api } from "@/lib/convex/server";
 import {
   createBusiness,
@@ -119,16 +123,23 @@ export const POST = async (request: Request) => {
         } catch {
           // Claim is best-effort after a signed-in create.
         }
-        return NextResponse.json(
-          await writeStoredBusiness(businessSchema.parse(created))
+        const business = await writeStoredBusiness(
+          businessSchema.parse(created)
         );
+        const editToken = await issueBusinessEditToken(business.id);
+        return NextResponse.json(business, {
+          headers: { [BUSINESS_EDIT_TOKEN_HEADER]: editToken },
+        });
       } catch {
         // Auth create is best-effort. Anonymous KV/Convex create still runs.
       }
     }
 
     const business = await createBusiness(parsed);
-    return NextResponse.json(business);
+    const editToken = await issueBusinessEditToken(business.id);
+    return NextResponse.json(business, {
+      headers: { [BUSINESS_EDIT_TOKEN_HEADER]: editToken },
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Invalid business" }, { status: 400 });

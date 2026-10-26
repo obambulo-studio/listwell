@@ -4,6 +4,7 @@ import { fetchErrorResult, noWebsiteResult } from "../context";
 import type { CheckContext } from "../context";
 import { parseJsonLd } from "../html";
 import { addressPartsMatch, phonesMatch } from "../lookups/listing-evidence";
+import { isPinnedSitemapUrl } from "../public-fetch";
 import { checkResult } from "../schemas";
 import type { CheckResult } from "../types";
 
@@ -385,7 +386,7 @@ export const checkWebsiteSitemap = async (
       const parsed = robotsParser(`${baseUrl}/robots.txt`, robots.body);
       const declared = parsed.getSitemaps();
       const [firstSitemap] = declared;
-      if (firstSitemap) {
+      if (firstSitemap && isPinnedSitemapUrl(firstSitemap, websiteUrl.href)) {
         const sitemap = await ctx.fetchText(firstSitemap);
         if (sitemap.ok && looksLikeSitemap(sitemap.body)) {
           sitemapFound = true;

@@ -55,6 +55,26 @@ const mockFetch = (routes: Record<string, Response | string>): typeof fetch => {
   };
 };
 
+const wwwSitemapFetch: typeof fetch = (input) => {
+  const url = resolveMockUrl(input);
+  if (url.includes("robots.txt")) {
+    return Promise.resolve(
+      new Response("Sitemap: https://www.seoulbistro.example/sitemap.xml\n", {
+        status: 200,
+      })
+    );
+  }
+  if (url.includes("www.seoulbistro.example/sitemap.xml")) {
+    return Promise.resolve(
+      new Response(
+        '<?xml version="1.0"?><urlset><url><loc>https://www.seoulbistro.example/</loc></url></urlset>',
+        { status: 200 }
+      )
+    );
+  }
+  return Promise.resolve(new Response("missing", { status: 404 }));
+};
+
 const websitePage = `<!doctype html>
   <html>
     <head>
@@ -173,6 +193,35 @@ describe("website html checks", () => {
     expect(
       Object.values(results).every((result) => Boolean(result?.value))
     ).toBeTruthy();
+  });
+
+  it("does not fetch a robots sitemap on another host", async () => {
+    const calls: string[] = [];
+    const offHostFetch: typeof fetch = (input) => {
+      const url = resolveMockUrl(input);
+      calls.push(url);
+      if (url.includes("robots.txt")) {
+        return Promise.resolve(
+          new Response("Sitemap: https://evil.example/sitemap.xml\n", {
+            status: 200,
+          })
+        );
+      }
+      return Promise.resolve(new Response("missing", { status: 404 }));
+    };
+    const blocked = await runCheck("website-sitemap", cafe, {
+      fetchImpl: offHostFetch,
+    });
+    expect(blocked.value).toBeFalsy();
+    expect(calls.some((url) => url.includes("evil.example"))).toBeFalsy();
+  });
+
+  it("accepts a www sitemap for the audited host", async () => {
+    const allowed = await runCheck("website-sitemap", cafe, {
+      fetchImpl: wwwSitemapFetch,
+    });
+    expect(allowed.value).toBeTruthy();
+    expect(allowed.label).toContain("www.seoulbistro.example/sitemap.xml");
   });
 
   it("fails meta description when longer than 160 characters", async () => {

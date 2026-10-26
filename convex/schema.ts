@@ -121,6 +121,11 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_unsubscribeToken", ["unsubscribeToken"]),
 
+  polarWebhookDeliveries: defineTable({
+    processedAt: v.string(),
+    webhookId: v.string(),
+  }).index("by_webhookId", ["webhookId"]),
+
   reportShares: defineTable({
     businessExternalId: v.string(),
     createdAt: v.string(),

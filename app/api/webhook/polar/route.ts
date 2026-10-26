@@ -51,6 +51,6 @@ export const POST = async (request: Request) => {
   }
 
   const event = polarWebhookEventSchema.parse(json);
-  await applyPolarWebhookEvent(event);
+  await applyPolarWebhookEvent(event, headers.data.id);
   return new NextResponse(null, { status: 202 });
 };

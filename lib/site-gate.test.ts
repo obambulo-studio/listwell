@@ -24,6 +24,12 @@ describe("site gate paths", () => {
     expect(isSiteGateExemptPath("/api/agent/register")).toBeTruthy();
   });
 
+  it("exempts a DataForSEO postback token in the path", () => {
+    expect(
+      isSiteGateExemptPath("/api/internal/dataforseo/postback/abc123")
+    ).toBeTruthy();
+  });
+
   it("exempts web analytics assets", () => {
     expect(isSiteGateExemptPath("/api/analytics/collect")).toBeTruthy();
     expect(isSiteGateExemptPath("/lw-analytics.js")).toBeTruthy();

@@ -85,7 +85,7 @@ Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun
 
 On the production branch, deploy with `bun run deploy`.
 
-**Preview deployments:** Non-`main` Workers Builds triggers run `bun run build:cf`, then `bun run version:cf` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
+**Preview deployments:** Non-`main` Workers Builds triggers run `bun run build:cf`, then `bun run version:cf` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview `AUDIT_KV` is the namespace `listwell-audit-preview` (`543048c92e7f44b694365d78521bf495`), separate from production. `AUDIT_KV_PREVIEW_NAMESPACE_ID` overrides that id when set. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
 
 Run smoke against a preview host:
 
@@ -258,7 +258,7 @@ bash scripts/export-site-interest.sh site-interest-export.json
 - `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY`
 - `LISTWELL_BROWSER_RENDERING_ACCOUNT_ID` and `LISTWELL_BROWSER_RENDERING_API_TOKEN`
 - `TINYFISH_API_KEY` - optional free rendered HTML for thin pages
-- `DATAFORSEO_API_KEY`, `DATAFORSEO_MONTHLY_CEILING_USD` - SEO research on continued reports. Queued DataForSEO tasks post results to `/api/internal/dataforseo/postback` with a per-task token
+- `DATAFORSEO_API_KEY`, `DATAFORSEO_MONTHLY_CEILING_USD` - SEO research on continued reports. Queued DataForSEO tasks post results to `/api/internal/dataforseo/postback/<token>`. The token is a path segment. Workers logs redact query strings.
 
 You can use `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` instead of the `LISTWELL_BROWSER_RENDERING_*` pair for Browser Rendering REST.
 
@@ -382,7 +382,9 @@ Google/Apple keys are optional for this OSM path. Full Google Business Profile q
 
 Production Convex is `fine-elephant-894` (`https://fine-elephant-894.ap-southeast-2.convex.cloud`). `SITE_URL` on that deployment must be `https://listwell.dev` with no trailing slash. Auth returns 500 until that variable is set. The previous deployment `hallowed-mallard-135` no longer serves queries or auth routes.
 
-Confirm `AUDIT_KV` stays bound on the `listwell` Worker (live id already in `wrangler.jsonc`). Do not create D1. Do not add `www.listwell.dev` as a Listwell custom domain.
+Confirm production `AUDIT_KV` stays bound on the `listwell` Worker (live id `06b74ff3aa6e41a9a5ea7a6eb365e711` in the top-level `kv_namespaces` of `wrangler.jsonc`). Do not create D1. Do not add `www.listwell.dev` as a Listwell custom domain.
+
+Preview Workers use KV namespace `listwell-audit-preview` (`543048c92e7f44b694365d78521bf495`) in `wrangler.jsonc` → `previews.kv_namespaces` → the `AUDIT_KV` entry. `scripts/prepare-wrangler-preview-config.mjs` copies that id onto `dist/server/wrangler.preview.json` for non-main preview deploys. Set Workers Builds variable `AUDIT_KV_PREVIEW_NAMESPACE_ID` only when a preview should use a different namespace.
 
 On Convex production `fine-elephant-894`, set env (no trailing slash on `SITE_URL`):
 

@@ -10,6 +10,7 @@ import {
   DATAFORSEO_SANDBOX_HOST,
   dataForSeoBaseUrl,
   dataForSeoClientFromEnv,
+  dataForSeoPostbackToken,
   estimateCostUsdMicros,
   getTaskResult,
   linkGapFromResult,
@@ -299,9 +300,25 @@ describe("dataforseo queued tasks", () => {
     expect(posted.costUsdMicros).toBe(600);
     expect(body?.postback_data).toBe("advanced");
     expect(body?.postback_url).toBe(
-      `https://listwell.example/api/internal/dataforseo/postback?id=$id&token=${posted.token}`
+      `https://listwell.example/api/internal/dataforseo/postback/${posted.token}?id=$id`
     );
+    expect(body?.postback_url).not.toContain("token=");
     expect([...store.values.keys()].join(",")).not.toContain(posted.token);
+  });
+
+  it("prefers a path token and still accepts a legacy query token", () => {
+    expect(
+      dataForSeoPostbackToken({
+        pathToken: "abc",
+        queryToken: "legacy",
+      })
+    ).toBe("abc");
+    expect(
+      dataForSeoPostbackToken({ pathToken: null, queryToken: "legacy-token" })
+    ).toBe("legacy-token");
+    expect(
+      dataForSeoPostbackToken({ pathToken: "  ", queryToken: "" })
+    ).toBeNull();
   });
 
   it("accepts the gzip postback and stores the parsed result", async () => {

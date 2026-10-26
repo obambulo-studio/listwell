@@ -26,6 +26,29 @@ export const DATAFORSEO_API_HOST = "https://api.dataforseo.com";
 export const DATAFORSEO_SANDBOX_HOST = "https://sandbox.dataforseo.com";
 export const DATAFORSEO_POSTBACK_PATH = "/api/internal/dataforseo/postback";
 
+/**
+ * DataForSEO posts the task body to `postback_url` and has no header field.
+ * The credential is a path segment so it is not written into query-string logs.
+ * `$id` stays in the query; Workers observability redacts query strings.
+ * In-flight tasks posted with `?token=` are still accepted by the route.
+ */
+export const dataForSeoPostbackUrl = (
+  postbackUrl: string,
+  token: string
+): string => `${postbackUrl}/${token}?id=$id`;
+
+export const dataForSeoPostbackToken = (input: {
+  pathToken?: string | null;
+  queryToken?: string | null;
+}): string | null => {
+  const pathToken = input.pathToken?.trim();
+  if (pathToken) {
+    return pathToken;
+  }
+  const queryToken = input.queryToken?.trim();
+  return queryToken || null;
+};
+
 export const DATAFORSEO_OK = 20_000;
 export const DATAFORSEO_TASK_CREATED = 20_100;
 const DATAFORSEO_NOT_READY = new Set([40_601, 40_602]);
@@ -821,7 +844,7 @@ export const postQueuedTask = async <Endpoint extends DataForSeoEndpoint>(
   await writeTaskRecord(taskStore, key, record);
 
   const postback = {
-    postback_url: `${client.postbackUrl}?id=$id&token=${token}`,
+    postback_url: dataForSeoPostbackUrl(client.postbackUrl, token),
     ...(definition.postbackData
       ? { postback_data: definition.postbackData }
       : {}),
