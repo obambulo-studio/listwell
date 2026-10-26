@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { CheckContext } from "../context";
+import { fetchPublic } from "../public-fetch";
 import { pngLikeness } from "./png-hash";
 import type { ImageLikeness } from "./png-hash";
 import type { SocialProfileEvidence } from "./social-profiles";
@@ -34,13 +35,19 @@ const loadImage = async (
   fetchImpl: typeof fetch
 ): Promise<Uint8Array | null> => {
   try {
-    const response = await fetchImpl(url, {
-      headers: { "user-agent": "ListwellAuditBot/1.0 (+https://listwell.dev)" },
-    });
-    if (!response.ok) {
+    const fetched = await fetchPublic(
+      url,
+      {
+        headers: {
+          "user-agent": "ListwellAuditBot/1.0 (+https://listwell.dev)",
+        },
+      },
+      fetchImpl
+    );
+    if (!fetched.response.ok) {
       return null;
     }
-    return new Uint8Array(await response.arrayBuffer());
+    return new Uint8Array(await fetched.response.arrayBuffer());
   } catch {
     return null;
   }

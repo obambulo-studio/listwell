@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createTinyFishFetchBudget,
   fetchBrowserRenderingHtml,
+  fetchText,
   fetchTinyFishHtml,
   fetchWebsiteHtml,
 } from "../src/browser";
@@ -122,6 +123,24 @@ const waitForAbort = (
 
 const hangingFetch: typeof fetch = (_input, init) => waitForAbort(init?.signal);
 
+const brotliFetch =
+  (contentEncoding: string): typeof fetch =>
+  () =>
+    Promise.resolve(
+      new Response("not-html", {
+        headers: { "content-encoding": contentEncoding },
+        status: 200,
+      })
+    );
+
+const alreadyDecodedFetch: typeof fetch = () =>
+  Promise.resolve(
+    new Response("menu", {
+      headers: { "content-encoding": "gzip" },
+      status: 200,
+    })
+  );
+
 describe(fetchPublic, () => {
   it("follows a public redirect and checks the next hop", async () => {
     const calls: string[] = [];
@@ -196,9 +215,98 @@ describe(fetchPublic, () => {
       fetchPublic("https://cafe.example/", { timeoutMs: 20 }, hangingFetch)
     ).rejects.toThrow(/abort|timeout/iu);
   });
+
+  it("asks for gzip or deflate and does not advertise brotli", async () => {
+    let acceptEncoding = "";
+    let userAgent = "";
+    let decompressDisabled = false;
+    const fetchImpl: typeof fetch = (_input, init) => {
+      const headers = new Headers(init?.headers);
+      acceptEncoding = headers.get("accept-encoding") ?? "";
+      userAgent = headers.get("user-agent") ?? "";
+      decompressDisabled =
+        init !== undefined && "decompress" in init && init.decompress === false;
+      return Promise.resolve(new Response("menu", { status: 200 }));
+    };
+    const fetched = await fetchPublic(
+      "https://cafe.example/",
+      {
+        headers: { "accept-encoding": "br", "user-agent": "ListwellAuditBot" },
+      },
+      fetchImpl
+    );
+    expect(acceptEncoding).toBe("gzip, deflate");
+    expect(userAgent).toBe("ListwellAuditBot");
+    expect(decompressDisabled).toBeTruthy();
+    await expect(fetched.response.text()).resolves.toBe("menu");
+  });
+
+  it("rejects a Brotli body without decoding it", async () => {
+    await expect(
+      fetchPublic("https://cafe.example/", {}, brotliFetch("br"))
+    ).rejects.toThrow("Refusing a Brotli-encoded response");
+    await expect(
+      fetchPublic("https://cafe.example/", {}, brotliFetch("BR"))
+    ).rejects.toThrow("Refusing a Brotli-encoded response");
+    await expect(
+      fetchPublic("https://cafe.example/", {}, brotliFetch("gzip, br"))
+    ).rejects.toThrow("Refusing a Brotli-encoded response");
+  });
+
+  it("inflates a gzip body and keeps an already decoded one", async () => {
+    const gzip = new CompressionStream("gzip");
+    const compressed = new Uint8Array(
+      await new Response(
+        new Blob(["menu"]).stream().pipeThrough(gzip)
+      ).arrayBuffer()
+    );
+    const fetchImpl: typeof fetch = () =>
+      Promise.resolve(
+        new Response(compressed, {
+          headers: { "content-encoding": "gzip" },
+          status: 200,
+        })
+      );
+    const fetched = await fetchPublic("https://cafe.example/", {}, fetchImpl);
+    await expect(fetched.response.text()).resolves.toBe("menu");
+    expect(fetched.response.headers.get("content-encoding")).toBeNull();
+
+    const plain = await fetchPublic(
+      "https://cafe.example/",
+      {},
+      alreadyDecodedFetch
+    );
+    await expect(plain.response.text()).resolves.toBe("menu");
+  });
 });
 
 describe("rendered fetches", () => {
+  it("does not decode a Brotli page or pass it to TinyFish", async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = (input) => {
+      calls.push(requestUrl(input));
+      return Promise.resolve(
+        new Response("not-html", {
+          headers: { "content-encoding": "br" },
+          status: 200,
+        })
+      );
+    };
+    await expect(
+      fetchWebsiteHtml("https://cafe.example/", {
+        fetchImpl,
+        tinyFish: createTinyFishFetchBudget("tf_test"),
+      })
+    ).rejects.toThrow("Refusing a Brotli-encoded response");
+    await expect(
+      fetchText("https://cafe.example/robots.txt", fetchImpl)
+    ).resolves.toStrictEqual({ body: "", ok: false, status: 0 });
+    expect(calls).toStrictEqual([
+      "https://cafe.example/",
+      "https://cafe.example/robots.txt",
+    ]);
+  });
+
   it("does not call TinyFish or Browser Rendering for a private URL", async () => {
     const calls: string[] = [];
     const fetchImpl: typeof fetch = (input) => {

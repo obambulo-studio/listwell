@@ -4,6 +4,7 @@ import { looksLikeThinSpa } from "./html";
 import {
   assertPublicHttpUrl,
   fetchPublic,
+  isBrotliResponseError,
   UnsafeAuditUrlError,
 } from "./public-fetch";
 import type { SerializedHttpResponse } from "./types";
@@ -273,7 +274,10 @@ export const fetchWebsiteHtml = async (
         return plain.body;
       }
     } catch (error) {
-      if (error instanceof UnsafeAuditUrlError) {
+      if (
+        error instanceof UnsafeAuditUrlError ||
+        isBrotliResponseError(error)
+      ) {
         throw error;
       }
       // Fall through to a rendered fetch.
