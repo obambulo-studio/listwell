@@ -1,4 +1,49 @@
+import type { Metadata } from "next";
 import { z } from "zod";
+
+/** Tab title for the home page. Absolute, so the "%s · Listwell" template is not applied twice. */
+export const LISTWELL_HOME_TITLE = "Listwell: fix your Google Business listing";
+
+export const LISTWELL_TITLE_TEMPLATE = "%s · Listwell";
+
+export const withListwellTitle = (title: string): string =>
+  LISTWELL_TITLE_TEMPLATE.replace("%s", title);
+
+const LISTWELL_OG_IMAGE_PATH = "/og.png";
+
+const listwellOgImage = {
+  alt: LISTWELL_HOME_TITLE,
+  height: 630,
+  url: LISTWELL_OG_IMAGE_PATH,
+  width: 1200,
+} as const;
+
+/** Open Graph and Twitter card fields for one page. Relative URLs resolve against metadataBase. */
+export const listwellSocialMetadata = ({
+  description,
+  pathname,
+  title,
+}: {
+  description: string;
+  pathname: string;
+  title: string;
+}): Pick<Metadata, "openGraph" | "twitter"> => ({
+  openGraph: {
+    description,
+    images: [listwellOgImage],
+    locale: "en_AU",
+    siteName: "Listwell",
+    title,
+    type: "website",
+    url: pathname,
+  },
+  twitter: {
+    card: "summary_large_image",
+    description,
+    images: [LISTWELL_OG_IMAGE_PATH],
+    title,
+  },
+});
 
 const LISTWELL_APEX_ORIGIN = "https://listwell.dev";
 

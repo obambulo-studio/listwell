@@ -7,13 +7,25 @@ import {
   LISTWELL_OPERATOR,
   listwellServicesWithPersonalData,
 } from "@/lib/listwell-services";
-import { canonicalFor } from "@/lib/site-metadata";
+import {
+  canonicalFor,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
+
+const description =
+  "How Listwell collects, uses, and stores personal information under the Privacy Act 1988 and the Australian Privacy Principles.";
+const title = "Privacy";
 
 export const metadata: Metadata = {
   alternates: canonicalFor("/privacy"),
-  description:
-    "How Listwell collects, uses, and stores personal information under the Privacy Act 1988 and the Australian Privacy Principles.",
-  title: "Privacy",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/privacy",
+    title: withListwellTitle(title),
+  }),
 };
 
 const PrivacyPage = () => {

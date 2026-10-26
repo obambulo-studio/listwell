@@ -38,6 +38,7 @@ const routedPaths = [
   "/favicon.svg",
   "/favicon.ico",
   "/lw-analytics.js",
+  "/og.png",
   "/.well-known/api-catalog",
   "/.well-known/mcp/server-card.json",
 ];

@@ -6,13 +6,27 @@ import {
   parseCategoryParam,
   parseProfilesParam,
 } from "@/lib/query-params";
-import { canonicalFor } from "@/lib/site-metadata";
+import {
+  canonicalFor,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
+const description =
+  "Confirm the category, locations, and profile URLs before the audit runs.";
+const title = "Confirm listings";
+
 export const metadata = {
   alternates: canonicalFor("/new"),
-  title: "Confirm listings",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/new",
+    title: withListwellTitle(title),
+  }),
 };
 
 const NewAuditPage = async ({

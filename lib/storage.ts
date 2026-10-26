@@ -5,6 +5,8 @@ import type { ChatSessionSnapshot } from "./chat-onboarding";
 import {
   CHAT_SESSION_STORAGE_KEY,
   clearChatSession,
+  LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
+  LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY,
   LISTWELL_CHAT_SESSION_EVENT,
   LISTWELL_PENDING_BUSINESS_KEY,
 } from "./chat-session-keys";
@@ -12,6 +14,8 @@ import {
 export {
   CHAT_SESSION_STORAGE_KEY,
   clearChatSession,
+  LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT,
+  LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY,
   LISTWELL_CHAT_SESSION_EVENT,
   LISTWELL_PENDING_BUSINESS_KEY,
 } from "./chat-session-keys";
@@ -22,9 +26,6 @@ const EDIT_TOKEN_STORAGE_KEY = "listwell-business-edit-tokens";
 export const BUSINESS_EDIT_TOKEN_HEADER = "x-listwell-edit-token";
 
 const editTokenMapSchema = z.record(z.string(), z.string().min(1));
-
-export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_KEY =
-  "listwell-account-background-scan";
 
 export interface AccountBackgroundScanState {
   businessId?: string;
@@ -175,9 +176,6 @@ export const isRestorableChatSession = (
   snapshot.phase !== "business_name" ||
   snapshot.messages.length > 1 ||
   Boolean(snapshot.messages[0]?.userAnswer);
-
-export const LISTWELL_ACCOUNT_BACKGROUND_SCAN_EVENT =
-  "listwell:account-background-scan";
 
 export const LISTWELL_ACCOUNT_SCAN_COMPLETE_EVENT =
   "listwell:account-scan-complete";

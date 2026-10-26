@@ -3,13 +3,25 @@ import Link from "next/link";
 
 import { LegalPage, LegalSection } from "@/components/legal-page";
 import { listwellThirdPartyServices } from "@/lib/listwell-services";
-import { canonicalFor } from "@/lib/site-metadata";
+import {
+  canonicalFor,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
+
+const description =
+  "How Listwell is built and which third-party services the product calls.";
+const title = "How it works";
 
 export const metadata: Metadata = {
   alternates: canonicalFor("/how-it-works"),
-  description:
-    "How Listwell is built and which third-party services the product calls.",
-  title: "How it works",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/how-it-works",
+    title: withListwellTitle(title),
+  }),
 };
 
 const HowItWorksPage = () => {

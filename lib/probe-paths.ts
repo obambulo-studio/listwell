@@ -18,6 +18,7 @@ const servedDottedSegments = new Set([
   "favicon.svg",
   "llms.txt",
   "logo.png",
+  "og.png",
   "lw-analytics.js",
   "robots.txt",
   "sitemap.xml",

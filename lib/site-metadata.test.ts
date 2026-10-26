@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   isFileLikePathId,
+  LISTWELL_HOME_TITLE,
   listwellSiteUrl,
+  listwellSocialMetadata,
   robotsDirectives,
   sitemapEntries,
+  withListwellTitle,
 } from "./site-metadata";
 
 const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -72,6 +75,42 @@ describe("site metadata", () => {
         },
         sitemap: "https://listwell.dev/sitemap.xml",
       });
+    });
+  });
+
+  describe(listwellSocialMetadata, () => {
+    it("sets open graph and a large twitter card for a page", () => {
+      expect(
+        listwellSocialMetadata({
+          description: "How Listwell is built.",
+          pathname: "/how-it-works",
+          title: withListwellTitle("How it works"),
+        })
+      ).toMatchObject({
+        openGraph: {
+          description: "How Listwell is built.",
+          images: [{ height: 630, url: "/og.png", width: 1200 }],
+          siteName: "Listwell",
+          title: "How it works · Listwell",
+          type: "website",
+          url: "/how-it-works",
+        },
+        twitter: {
+          card: "summary_large_image",
+          description: "How Listwell is built.",
+          images: ["/og.png"],
+          title: "How it works · Listwell",
+        },
+      });
+    });
+  });
+
+  describe(LISTWELL_HOME_TITLE, () => {
+    it("is a sentence-case absolute title", () => {
+      expect(LISTWELL_HOME_TITLE).toBe(
+        "Listwell: fix your Google Business listing"
+      );
+      expect(withListwellTitle("How it works")).toBe("How it works · Listwell");
     });
   });
 

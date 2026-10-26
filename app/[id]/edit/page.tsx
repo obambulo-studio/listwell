@@ -17,10 +17,17 @@ export const generateMetadata = async ({
   params: Promise<{ id: string }>;
 }) => {
   const { id } = paramsSchema.parse(await params);
-  return await reportRouteMetadata(id, getBusiness, {
-    found: (name) => `Edit ${name}`,
-    missing: "Edit audit",
-  });
+  return await reportRouteMetadata(
+    id,
+    getBusiness,
+    {
+      description: (name) =>
+        name ? `Edit the audit for ${name}.` : "Edit a Listwell audit.",
+      found: (name) => `Edit ${name}`,
+      missing: "Edit audit",
+    },
+    `/${id}/edit`
+  );
 };
 
 const EditPage = async ({ params }: { params: Promise<{ id: string }> }) => {

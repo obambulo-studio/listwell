@@ -43,6 +43,12 @@ describe("canonical urls", () => {
     expect(source).toContain("metadataBase: listwellMetadataBase()");
   });
 
+  it("gives the homepage an absolute title so the template is not doubled", () => {
+    const source = readFileSync(path.join(repoRoot, "app/page.tsx"), "utf-8");
+    expect(source).toContain("absolute: LISTWELL_HOME_TITLE");
+    expect(source).not.toContain('title: "Listwell"');
+  });
+
   it.each(["app/[id]/page.tsx", "app/share/[token]/page.tsx"])(
     "%s has no canonical",
     (file) => {

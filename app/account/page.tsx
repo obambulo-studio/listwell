@@ -17,12 +17,25 @@ import { probeConvexBusinesses } from "@/lib/data";
 import { getSharedReportViewerAccess } from "@/lib/polar-server";
 import { firstSearchParam } from "@/lib/query-params";
 import type { AccountReport } from "@/lib/schema";
-import { listwellSiteUrl } from "@/lib/site-metadata";
+import {
+  listwellSiteUrl,
+  listwellSocialMetadata,
+  withListwellTitle,
+} from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
+const accountDescription = "Businesses saved to your Listwell account.";
+const accountTitle = "Your businesses";
+
 export const metadata = {
-  title: "Your businesses",
+  description: accountDescription,
+  title: accountTitle,
+  ...listwellSocialMetadata({
+    description: accountDescription,
+    pathname: "/account",
+    title: withListwellTitle(accountTitle),
+  }),
 };
 
 const AccountCard = ({

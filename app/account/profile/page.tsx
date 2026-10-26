@@ -1,11 +1,21 @@
 import { ButtonLink } from "@/components/atoms/button";
 import { OpenProfileDialog, ProfileBackLink } from "@/components/profile-form";
 import { getSessionUser } from "@/lib/auth";
+import { listwellSocialMetadata, withListwellTitle } from "@/lib/site-metadata";
 
 export const dynamic = "force-dynamic";
 
+const description = "Your Listwell profile.";
+const title = "Profile";
+
 export const metadata = {
-  title: "Profile",
+  description,
+  title,
+  ...listwellSocialMetadata({
+    description,
+    pathname: "/account/profile",
+    title: withListwellTitle(title),
+  }),
 };
 
 const ProfilePage = async () => {

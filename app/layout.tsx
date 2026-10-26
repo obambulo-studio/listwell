@@ -7,7 +7,13 @@ import { ConvexClientProvider } from "@/components/convex-client-provider";
 import { ListwellWebMcp } from "@/components/listwell-web-mcp";
 import { Toaster } from "@/components/ui/sonner";
 import { getToken } from "@/lib/auth-server";
-import { listwellMetadataBase, listwellSiteUrl } from "@/lib/site-metadata";
+import {
+  LISTWELL_HOME_TITLE,
+  LISTWELL_TITLE_TEMPLATE,
+  listwellMetadataBase,
+  listwellSiteUrl,
+  listwellSocialMetadata,
+} from "@/lib/site-metadata";
 import { ThemeBootstrapScript } from "@/lib/theme";
 
 import "./beautifui/foundation.css";
@@ -26,17 +32,24 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
+const rootDescription =
+  "Local and website SEO audit for businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.";
+
 export const metadata: Metadata = {
-  description:
-    "Local and website SEO audit for businesses. Answer a few questions, get a basic report, then upgrade for fix steps and automation.",
+  description: rootDescription,
   icons: {
     apple: [{ type: "image/svg+xml", url: "/apple-touch-icon.svg" }],
     icon: [{ type: "image/svg+xml", url: "/favicon.svg" }],
   },
   metadataBase: listwellMetadataBase(),
+  ...listwellSocialMetadata({
+    description: rootDescription,
+    pathname: "/",
+    title: LISTWELL_HOME_TITLE,
+  }),
   title: {
-    default: "Listwell",
-    template: "%s · Listwell",
+    default: LISTWELL_HOME_TITLE,
+    template: LISTWELL_TITLE_TEMPLATE,
   },
 };
 
