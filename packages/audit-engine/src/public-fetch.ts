@@ -357,6 +357,128 @@ export const isPinnedSitemapUrl = (
   return bareSiteHost(sitemap.hostname) === bareSiteHost(website.hostname);
 };
 
+const UNTRUSTED_ACCEPT_ENCODING = "gzip, deflate";
+const GZIP_MAGIC_FIRST = 0x1f;
+const GZIP_MAGIC_SECOND = 0x8b;
+const ZLIB_CMF = 0x78;
+const ZLIB_CMF_SHIFT = 256;
+const ZLIB_HEADER_MODULO = 31;
+const BROTLI_RESPONSE_ERROR = "Refusing a Brotli-encoded response";
+
+export const isBrotliResponseError = (error: unknown): error is Error =>
+  error instanceof Error && error.name === "BrotliResponseError";
+
+const brotliResponseError = (): Error => {
+  const error = new Error(BROTLI_RESPONSE_ERROR);
+  error.name = "BrotliResponseError";
+  return error;
+};
+
+const contentCodings = (response: Response): string[] => {
+  const header = response.headers.get("content-encoding");
+  if (header === null) {
+    return [];
+  }
+  const codings: string[] = [];
+  for (const part of header.split(",")) {
+    const coding = part.trim().toLowerCase();
+    if (coding.length > 0) {
+      codings.push(coding);
+    }
+  }
+  return codings;
+};
+
+const rejectBrotliResponse = async (response: Response): Promise<void> => {
+  const encodedWithBrotli = contentCodings(response).includes("br");
+  if (!encodedWithBrotli) {
+    return;
+  }
+  await response.body?.cancel();
+  throw brotliResponseError();
+};
+
+const untrustedHeaders = (headers?: HeadersInit): Headers => {
+  const next = new Headers(headers);
+  next.set("accept-encoding", UNTRUSTED_ACCEPT_ENCODING);
+  return next;
+};
+
+/**
+ * Untrusted hosts must not reach the Brotli decoder (CVE-2026-111497).
+ * `decompress: false` stops Bun from decoding before Content-Encoding is visible.
+ */
+const untrustedRequestInit = (
+  init: Pick<RequestInit, "headers" | "redirect" | "signal">
+): RequestInit & { decompress: false } => ({
+  decompress: false,
+  headers: untrustedHeaders(init.headers),
+  redirect: init.redirect,
+  signal: init.signal,
+});
+
+const byteAt = (bytes: Uint8Array, index: number): number | undefined =>
+  bytes[index];
+
+const looksLikeGzip = (bytes: Uint8Array): boolean =>
+  byteAt(bytes, 0) === GZIP_MAGIC_FIRST &&
+  byteAt(bytes, 1) === GZIP_MAGIC_SECOND;
+
+const looksLikeZlib = (bytes: Uint8Array): boolean => {
+  const cmf = byteAt(bytes, 0);
+  const flag = byteAt(bytes, 1);
+  if (cmf !== ZLIB_CMF || flag === undefined) {
+    return false;
+  }
+  return (cmf * ZLIB_CMF_SHIFT + flag) % ZLIB_HEADER_MODULO === 0;
+};
+
+const copyToArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+};
+
+const inflateEncoded = async (
+  bytes: Uint8Array,
+  format: "deflate" | "gzip",
+  maxBytes: number
+): Promise<Uint8Array> => {
+  try {
+    const stream = new Blob([copyToArrayBuffer(bytes)])
+      .stream()
+      .pipeThrough(new DecompressionStream(format));
+    const inflated = new Uint8Array(await new Response(stream).arrayBuffer());
+    if (inflated.byteLength > maxBytes) {
+      throw new UnsafeAuditUrlError("Response exceeded the size cap");
+    }
+    return inflated;
+  } catch (error) {
+    if (error instanceof UnsafeAuditUrlError) {
+      throw error;
+    }
+    throw new UnsafeAuditUrlError("Could not decode the response body");
+  }
+};
+
+const decodeUntrustedBody = async (
+  bytes: Uint8Array,
+  response: Response,
+  maxBytes: number
+): Promise<Uint8Array> => {
+  const coding = contentCodings(response).at(-1);
+  if (coding === undefined || coding === "identity") {
+    return bytes;
+  }
+  if ((coding === "gzip" || coding === "x-gzip") && looksLikeGzip(bytes)) {
+    return await inflateEncoded(bytes, "gzip", maxBytes);
+  }
+  if (coding === "deflate" && looksLikeZlib(bytes)) {
+    return await inflateEncoded(bytes, "deflate", maxBytes);
+  }
+  return bytes;
+};
+
 const readLimitedBody = async (
   response: Response,
   maxBytes: number
@@ -399,7 +521,7 @@ const readLimitedBody = async (
     body.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return body;
+  return await decodeUntrustedBody(body, response, maxBytes);
 };
 
 const responseWithBody = (response: Response, body: Uint8Array): Response => {
@@ -432,11 +554,15 @@ export const fetchPublic = async (
   // Each hop depends on the previous Location header.
   /* eslint-disable no-await-in-loop */
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    const response = await fetchImpl(current, {
-      headers: options.headers,
-      redirect: "manual",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const response = await fetchImpl(
+      current,
+      untrustedRequestInit({
+        headers: options.headers,
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs),
+      })
+    );
+    await rejectBrotliResponse(response);
     if (!REDIRECT_STATUSES.has(response.status)) {
       const body = await readLimitedBody(response, maxBytes);
       return { response: responseWithBody(response, body), url: current };

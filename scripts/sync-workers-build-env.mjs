@@ -4,7 +4,7 @@ import path from "node:path";
 
 const ACCOUNT_ID = "0139d167327c252643c7691dc8b25c33";
 const WORKER_SCRIPT_ID = "81106cf5a23946e28051caa2ac22b335";
-const BUN_VERSION = "1.4.2";
+const BUN_VERSION = "1.4.4";
 
 const root = path.join(import.meta.dirname, "..");
 const envFile = path.join(root, ".env.local");

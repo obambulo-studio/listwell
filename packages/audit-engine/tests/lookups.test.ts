@@ -11,6 +11,9 @@ import {
   parseNominatimSearch,
   pickStrongMatch,
   rankNominatimMatches,
+  resetNominatimThrottle,
+  reverseNominatim,
+  searchNominatim,
 } from "../src/lookups/nominatim";
 import {
   parseSyntheticTiming,
@@ -208,6 +211,47 @@ describe("nominatim ranking", () => {
         ? rankNominatimMatches("South Brisbane", "Brisbane", [suburbItem])
         : []
     ).toStrictEqual([]);
+  });
+});
+
+describe("nominatim fetch", () => {
+  const cafe = {
+    category: "amenity",
+    display_name: "Seoul Bistro, South Brisbane, QLD",
+    name: "Seoul Bistro",
+    osm_id: 11,
+    osm_type: "node",
+    place_id: 1,
+    type: "restaurant",
+  };
+
+  it("asks for gzip or deflate and drops a Brotli body", async () => {
+    resetNominatimThrottle();
+    const acceptEncoding: string[] = [];
+    const fetchImpl: typeof fetch = (_input, init) => {
+      acceptEncoding.push(
+        new Headers(init?.headers).get("accept-encoding") ?? ""
+      );
+      return Promise.resolve(
+        Response.json([cafe], {
+          headers: { "content-encoding": "br" },
+          status: 200,
+        })
+      );
+    };
+    const [matches, locality] = await Promise.all([
+      searchNominatim("Seoul Bistro", "Brisbane", {
+        fetchImpl,
+        minIntervalMs: 0,
+      }),
+      reverseNominatim(-27.47, 153.02, {
+        fetchImpl,
+        minIntervalMs: 0,
+      }),
+    ]);
+    expect(matches).toStrictEqual([]);
+    expect(locality).toBeNull();
+    expect(acceptEncoding).toStrictEqual(["gzip, deflate", "gzip, deflate"]);
   });
 });
 

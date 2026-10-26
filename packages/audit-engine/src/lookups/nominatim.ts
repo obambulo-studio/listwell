@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { fetchPublic, isBrotliResponseError } from "../public-fetch";
+
 const sleep = async (ms: number): Promise<void> => {
   try {
     await fetch("data:text/plain,", { signal: AbortSignal.timeout(ms) });
@@ -394,6 +396,25 @@ export const parseNominatimReverse = (value: unknown): NominatimItem | null => {
   return parsed.success ? parsed.data : null;
 };
 
+const readNominatim = async (
+  url: string,
+  fetchImpl: typeof fetch
+): Promise<Response | null> => {
+  try {
+    const fetched = await fetchPublic(
+      url,
+      { headers: nominatimHeaders() },
+      fetchImpl
+    );
+    return fetched.response;
+  } catch (error) {
+    if (isBrotliResponseError(error)) {
+      return null;
+    }
+    throw error;
+  }
+};
+
 export const searchNominatim = async (
   query: string,
   near: string,
@@ -416,10 +437,11 @@ export const searchNominatim = async (
     q: near.trim() ? `${trimmed}, ${near.trim()}` : trimmed,
   });
 
-  const response = await fetchImpl(`${NOMINATIM_SEARCH_URL}?${params}`, {
-    headers: nominatimHeaders(),
-  });
-  if (!response.ok) {
+  const response = await readNominatim(
+    `${NOMINATIM_SEARCH_URL}?${params}`,
+    fetchImpl
+  );
+  if (!response?.ok) {
     return [];
   }
   return rankNominatimMatches(
@@ -449,10 +471,11 @@ export const reverseNominatim = async (
     zoom: "14",
   });
 
-  const response = await fetchImpl(`${NOMINATIM_REVERSE_URL}?${params}`, {
-    headers: nominatimHeaders(),
-  });
-  if (!response.ok) {
+  const response = await readNominatim(
+    `${NOMINATIM_REVERSE_URL}?${params}`,
+    fetchImpl
+  );
+  if (!response?.ok) {
     return null;
   }
   const item = parseNominatimReverse(await response.json());

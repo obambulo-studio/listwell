@@ -205,9 +205,9 @@ Polar keys stay on Next.js and the Worker. Do not copy Polar keys to Convex.
 
 `wrangler.jsonc` is the production Worker config. It enables Workers logs, traces, smart placement, and Workers Cache, and wires `AUDIT_KV`, Browser Rendering, Workers AI, and Images.
 
-Workers Builds needs Bun 1.4.2 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so the vinext build can inline them without a local `.env`. The same values live in `wrangler.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
+Workers Builds needs Bun 1.4.4 for `lockfileVersion: 2`. Production `NEXT_PUBLIC_CONVEX_*` and `NEXT_PUBLIC_SITE_URL` are set in `next.config.ts` so the vinext build can inline them without a local `.env`. The same values live in `wrangler.jsonc` `vars` for the Worker runtime. After `.env.local` is set, run:
 
-- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.2`, `NEXTJS_ENV=production`, public build variables, and Workers Builds build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
+- `bun run cf:sync-build-env` — sets `BUN_VERSION=1.4.4`, `NEXTJS_ENV=production`, public build variables, and Workers Builds build/deploy commands (needs `CLOUDFLARE_API_TOKEN` with Workers CI Write)
 - `bun run cf:sync-env` — pushes runtime secrets from `.env.local`
 
 Bindings:
