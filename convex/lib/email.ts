@@ -1,6 +1,8 @@
 import { renderAuthCodeEmail } from "../../emails/auth-code";
 import type { AuthCodeType } from "../../emails/auth-code";
 import { renderBusinessGuestInviteEmail } from "../../emails/business-guest-invite";
+import { renderPurchaseReceiptEmail } from "../../emails/purchase-ready";
+import type { PurchaseReceiptKind } from "../../emails/purchase-ready";
 import { env } from "../_generated/server";
 
 const USESEND_DEFAULT_BASE = "https://app.usesend.com";
@@ -114,6 +116,67 @@ export const sendBusinessGuestInvite = async (input: {
     return true;
   } catch (error) {
     console.error("sendBusinessGuestInvite: UseSend request error", error);
+    return false;
+  }
+};
+
+/**
+ * Sends the purchase receipt without a PDF. PDF bytes are built on the
+ * Worker; this Convex action uses the same copy as a receipt whose PDF
+ * could not be built.
+ */
+export const sendPurchaseReceiptEmail = async (input: {
+  businessName: string;
+  kind: PurchaseReceiptKind;
+  reportUrl: string;
+  siteUrl: string;
+  to: string;
+}): Promise<boolean> => {
+  const apiKey = env.USESEND_API_KEY;
+  const from = env.USESEND_FROM;
+  if (!apiKey || !from) {
+    console.error(
+      "sendPurchaseReceiptEmail: USESEND_API_KEY or USESEND_FROM is not configured on Convex"
+    );
+    return false;
+  }
+
+  const message = renderPurchaseReceiptEmail({
+    businessName: input.businessName,
+    kind: input.kind,
+    pdfAttached: false,
+    reportUrl: input.reportUrl,
+    siteUrl: input.siteUrl,
+  });
+  const baseUrl = env.USESEND_BASE_URL ?? USESEND_DEFAULT_BASE;
+  const payload = {
+    from,
+    html: message.html,
+    subject: message.subject,
+    text: message.text,
+    to: input.to,
+  };
+
+  try {
+    const response = await fetch(emailsUrl(baseUrl), {
+      body: JSON.stringify(payload),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      console.error("sendPurchaseReceiptEmail: UseSend request failed", {
+        body,
+        status: response.status,
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("sendPurchaseReceiptEmail: UseSend request error", error);
     return false;
   }
 };
