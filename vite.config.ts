@@ -30,17 +30,37 @@ const reactDomServerEdge = path.join(
   import.meta.dirname,
   "node_modules/react-dom/server.edge.js"
 );
+const clientReactEntry = path.join(
+  import.meta.dirname,
+  "node_modules/react/index.js"
+);
 const emailRenderer = path.join(import.meta.dirname, "emails/render-email.ts");
 
-const emailReactDomServerEdge = (): Plugin => ({
+/**
+ * The Workers RSC bundle resolves `react-dom/server.edge` with the
+ * `react-server` condition, which is a stub, and resolves `react` to the
+ * server build. That build does not export client internals, so
+ * `renderToStaticMarkup` throws reading `H`.
+ * Email HTML uses the edge renderer and the client `react` build that
+ * publishes those internals. RSC code keeps the `react-server` build.
+ */
+const isReactDomServerRenderer = (importer: string | undefined): boolean => {
+  const importerPath = importer?.split("?")[0]?.replaceAll("\\", "/");
+  return importerPath?.includes("/react-dom/cjs/react-dom-server") === true;
+};
+
+export const emailReactDomServerEdge = (): Plugin => ({
   enforce: "pre",
   name: "email-react-dom-server-edge",
   resolveId(id, importer) {
     const importerPath = importer?.split("?")[0];
-    if (id !== "react-dom/server.edge" || importerPath !== emailRenderer) {
-      return;
+    if (id === "react-dom/server.edge" && importerPath === emailRenderer) {
+      return reactDomServerEdge;
     }
-    return reactDomServerEdge;
+    if (id === "react" && isReactDomServerRenderer(importer)) {
+      return clientReactEntry;
+    }
+    return null;
   },
 });
 
