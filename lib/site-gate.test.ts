@@ -24,12 +24,6 @@ describe("site gate paths", () => {
     expect(isSiteGateExemptPath("/api/agent/register")).toBeTruthy();
   });
 
-  it("exempts the purchase receipt resend route", () => {
-    expect(
-      isSiteGateExemptPath("/api/internal/purchase-receipts/resend")
-    ).toBeTruthy();
-  });
-
   it("exempts a DataForSEO postback token in the path", () => {
     expect(
       isSiteGateExemptPath("/api/internal/dataforseo/postback/abc123")

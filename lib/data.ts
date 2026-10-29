@@ -452,29 +452,6 @@ export const releasePurchaseEmail = async (
   });
 };
 
-const purchaseReceiptTargetSchema = z
-  .object({
-    businessExternalId: z.string(),
-    kind: z.enum(["report_once", "report_monthly"]),
-    purchaseEmailSentAt: z.string().nullable(),
-    purchaserEmail: z.string().nullable(),
-    status: entitlementStatusSchema,
-  })
-  .strict();
-
-export type PurchaseReceiptTarget = z.infer<typeof purchaseReceiptTargetSchema>;
-
-/** Report entitlement for a Polar order, or null when the order has none. */
-export const getPurchaseReceiptForOrder = async (
-  polarOrderId: string
-): Promise<PurchaseReceiptTarget | null> => {
-  const row: unknown = await convexQuery(
-    api.entitlements.purchaseReceiptForOrder,
-    { polarOrderId }
-  );
-  return z.union([purchaseReceiptTargetSchema, z.null()]).parse(row);
-};
-
 const duplicateGrantSchema = z
   .object({ webhookDuplicate: z.literal(true) })
   .strict();

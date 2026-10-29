@@ -5,13 +5,20 @@ import {
   normalizePurchaserEmail,
   activePurchaseLinksToUser,
 } from "../lib/purchase-link";
+import { decidePurchaseReceiptResend } from "../lib/purchase-receipt-resend";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { authComponent } from "./auth";
 import { authedMutation, authedQuery } from "./lib/customFunctions";
-import { requireInternalSecret } from "./lib/internal";
+import { sendPurchaseReceiptEmail } from "./lib/email";
+import { requireInternalSecret, siteUrl } from "./lib/internal";
 import {
   activeReportEntitlement,
   businessClaimAllowed,
@@ -623,49 +630,155 @@ export const claimPurchaseEmail = mutation({
   returns: v.boolean(),
 });
 
-const purchaseReceiptTargetValidator = v.object({
+const claimedPurchaseReceiptValidator = v.object({
   businessExternalId: v.string(),
+  businessName: v.string(),
+  claimedAt: v.string(),
+  entitlementId: v.id("entitlements"),
   kind: v.union(v.literal("report_once"), v.literal("report_monthly")),
-  purchaseEmailSentAt: v.union(v.string(), v.null()),
-  purchaserEmail: v.union(v.string(), v.null()),
-  status: entitlementStatusValidator,
+  purchaserEmail: v.string(),
+});
+
+const findReportEntitlementForOrder = async (
+  ctx: Pick<MutationCtx, "db">,
+  polarOrderId: string
+) => {
+  const rows = await ctx.db
+    .query("entitlements")
+    .withIndex("by_polarOrderId", (q) => q.eq("polarOrderId", polarOrderId))
+    .collect();
+  const reports = rows.flatMap((row) => {
+    const kind = reportEntitlementKind(row.kind);
+    return kind ? [{ kind, row }] : [];
+  });
+  return (
+    reports.find((entry) => entry.row.status === "active") ?? reports[0] ?? null
+  );
+};
+
+const businessNameForReceipt = async (
+  ctx: Pick<MutationCtx, "db">,
+  businessExternalId: string
+): Promise<string> => {
+  const business = await ctx.db
+    .query("businesses")
+    .withIndex("by_externalId", (q) => q.eq("externalId", businessExternalId))
+    .unique();
+  return business?.name ?? "";
+};
+
+/**
+ * Claims an active, unsent report receipt for one Polar order.
+ * Internal only: operators reach it through `resendPurchaseReceipt`.
+ */
+export const claimPurchaseReceiptForResend = internalMutation({
+  args: { polarOrderId: v.string() },
+  handler: async (ctx, args) => {
+    const polarOrderId = args.polarOrderId.trim();
+    if (polarOrderId.length === 0) {
+      throw new Error("Invalid order id");
+    }
+    const chosen = await findReportEntitlementForOrder(ctx, polarOrderId);
+    const decision = decidePurchaseReceiptResend(
+      chosen
+        ? {
+            purchaseEmailSentAt: chosen.row.purchaseEmailSentAt ?? null,
+            purchaserEmail: chosen.row.purchaserEmail ?? null,
+            status: chosen.row.status,
+          }
+        : null
+    );
+    if (!decision.ok) {
+      throw new Error(decision.error);
+    }
+    if (!chosen) {
+      throw new Error("No report purchase for that order");
+    }
+    const claimedAt = nowIso();
+    await ctx.db.patch("entitlements", chosen.row._id, {
+      purchaseEmailSentAt: claimedAt,
+    });
+    return {
+      businessExternalId: chosen.row.businessExternalId,
+      businessName: await businessNameForReceipt(
+        ctx,
+        chosen.row.businessExternalId
+      ),
+      claimedAt,
+      entitlementId: chosen.row._id,
+      kind: chosen.kind,
+      purchaserEmail: decision.email,
+    };
+  },
+  returns: claimedPurchaseReceiptValidator,
+});
+
+/** Clears the resend claim when the Convex send fails. */
+export const releasePurchaseReceiptSend = internalMutation({
+  args: {
+    claimedAt: v.string(),
+    entitlementId: v.id("entitlements"),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get("entitlements", args.entitlementId);
+    if (row?.purchaseEmailSentAt !== args.claimedAt) {
+      return null;
+    }
+    await ctx.db.patch("entitlements", row._id, {
+      purchaseEmailSentAt: undefined,
+    });
+    return null;
+  },
+  returns: v.null(),
 });
 
 /**
- * Looks up the report entitlement for a Polar order so an operator can
- * resend a receipt. Requires the internal secret; it does not send email.
+ * Operator resend for a missed purchase receipt.
+ * Run with `npx convex run entitlements:resendPurchaseReceipt '{"polarOrderId":"..."}'`.
+ * Once-off resends omit the PDF because that file is built on the Worker.
  */
-export const purchaseReceiptForOrder = query({
-  args: {
-    polarOrderId: v.string(),
-    secret: v.string(),
-  },
-  handler: async (ctx, args) => {
-    requireInternalSecret(args.secret);
-    const rows = await ctx.db
-      .query("entitlements")
-      .withIndex("by_polarOrderId", (q) =>
-        q.eq("polarOrderId", args.polarOrderId)
-      )
-      .collect();
-    const reports = rows.flatMap((row) => {
-      const kind = reportEntitlementKind(row.kind);
-      return kind ? [{ kind, row }] : [];
-    });
-    const chosen =
-      reports.find((entry) => entry.row.status === "active") ?? reports[0];
-    if (!chosen) {
-      return null;
+export const resendPurchaseReceipt = internalAction({
+  args: { polarOrderId: v.string() },
+  handler: async (ctx, args): Promise<{ ok: true }> => {
+    const claimed = await ctx.runMutation(
+      internal.entitlements.claimPurchaseReceiptForResend,
+      { polarOrderId: args.polarOrderId }
+    );
+    try {
+      const site = siteUrl();
+      const sent = await sendPurchaseReceiptEmail({
+        businessName: claimed.businessName,
+        kind: claimed.kind === "report_once" ? "once" : "continued",
+        reportUrl: `${new URL(site).origin}/${encodeURIComponent(claimed.businessExternalId)}`,
+        siteUrl: site,
+        to: claimed.purchaserEmail,
+      });
+      if (!sent) {
+        throw new Error("Could not send purchase receipt");
+      }
+    } catch (error) {
+      try {
+        await ctx.runMutation(
+          internal.entitlements.releasePurchaseReceiptSend,
+          {
+            claimedAt: claimed.claimedAt,
+            entitlementId: claimed.entitlementId,
+          }
+        );
+      } catch (releaseError) {
+        console.error(
+          "purchase receipt: could not release send claim",
+          releaseError
+        );
+      }
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Could not send purchase receipt", { cause: error });
     }
-    return {
-      businessExternalId: chosen.row.businessExternalId,
-      kind: chosen.kind,
-      purchaseEmailSentAt: chosen.row.purchaseEmailSentAt ?? null,
-      purchaserEmail: chosen.row.purchaserEmail ?? null,
-      status: chosen.row.status,
-    };
+    return { ok: true };
   },
-  returns: v.union(v.null(), purchaseReceiptTargetValidator),
+  returns: v.object({ ok: v.literal(true) }),
 });
 
 /** Clears the send claim so a failed receipt can be retried. */

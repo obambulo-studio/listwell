@@ -255,14 +255,19 @@ bash scripts/export-site-interest.sh site-interest-export.json
 
 ### Resend a purchase receipt
 
-`POST /api/internal/purchase-receipts/resend` sends the receipt for an existing Polar order. It is exempt from the site password gate and still requires `Authorization: Bearer $INTERNAL_API_SECRET`. Orders that already have a sent receipt are refused, so this does not send a second copy.
+Operators resend a missed receipt for an existing Polar order with a Convex internal action:
 
 ```bash
-SITE_URL=https://<worker-origin> INTERNAL_API_SECRET=... \
-  bun scripts/resend-purchase-receipt.mjs <polarOrderId>
+npx convex run entitlements:resendPurchaseReceipt '{"polarOrderId":"<polarOrderId>"}'
 ```
 
-This sends a real email. Point `SITE_URL` at the environment you mean to use.
+`resendPurchaseReceipt` is an `internalAction`. The Convex CLI runs it with the deployment credentials. It is absent from the client API, so this adds no public endpoint and no new secret.
+
+The action sends for an active report order whose receipt has never been claimed. It refuses an order with no report entitlement, an inactive entitlement, a missing purchaser email, or a receipt that was already sent.
+
+Once-off resends omit the PDF. The PDF is built on the Worker, using browser, model, and KV bindings, and this action runs in Convex. The email uses the same receipt copy as a send where that PDF could not be built. Continued-report receipts already go out without a PDF.
+
+This sends a real email through the UseSend configuration on the Convex deployment you select. Run it only against the deployment you mean to email.
 
 - `GOOGLE_API_KEY` - required for full Google Business Profile quality
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - social and website discovery
