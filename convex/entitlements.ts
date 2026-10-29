@@ -19,6 +19,7 @@ import {
   entitlementRowsForBillingEnd,
   entitlementStatusAfterEnd,
   grantReusesEntitlementRow,
+  reportEntitlementKind,
   researchReportEntitlement,
 } from "./lib/reportEntitlements";
 import {
@@ -620,6 +621,51 @@ export const claimPurchaseEmail = mutation({
     return true;
   },
   returns: v.boolean(),
+});
+
+const purchaseReceiptTargetValidator = v.object({
+  businessExternalId: v.string(),
+  kind: v.union(v.literal("report_once"), v.literal("report_monthly")),
+  purchaseEmailSentAt: v.union(v.string(), v.null()),
+  purchaserEmail: v.union(v.string(), v.null()),
+  status: entitlementStatusValidator,
+});
+
+/**
+ * Looks up the report entitlement for a Polar order so an operator can
+ * resend a receipt. Requires the internal secret; it does not send email.
+ */
+export const purchaseReceiptForOrder = query({
+  args: {
+    polarOrderId: v.string(),
+    secret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    requireInternalSecret(args.secret);
+    const rows = await ctx.db
+      .query("entitlements")
+      .withIndex("by_polarOrderId", (q) =>
+        q.eq("polarOrderId", args.polarOrderId)
+      )
+      .collect();
+    const reports = rows.flatMap((row) => {
+      const kind = reportEntitlementKind(row.kind);
+      return kind ? [{ kind, row }] : [];
+    });
+    const chosen =
+      reports.find((entry) => entry.row.status === "active") ?? reports[0];
+    if (!chosen) {
+      return null;
+    }
+    return {
+      businessExternalId: chosen.row.businessExternalId,
+      kind: chosen.kind,
+      purchaseEmailSentAt: chosen.row.purchaseEmailSentAt ?? null,
+      purchaserEmail: chosen.row.purchaserEmail ?? null,
+      status: chosen.row.status,
+    };
+  },
+  returns: v.union(v.null(), purchaseReceiptTargetValidator),
 });
 
 /** Clears the send claim so a failed receipt can be retried. */

@@ -150,6 +150,10 @@ export const isSiteGateExemptPath = (pathname: string): boolean => {
   ) {
     return true;
   }
+  // Bearer-protected. The site password must not block an operator resend.
+  if (pathname === "/api/internal/purchase-receipts/resend") {
+    return true;
+  }
   return false;
 };
 

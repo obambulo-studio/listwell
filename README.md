@@ -253,6 +253,17 @@ curl -sS -H "Authorization: Bearer $INTERNAL_API_SECRET" \
 bash scripts/export-site-interest.sh site-interest-export.json
 ```
 
+### Resend a purchase receipt
+
+`POST /api/internal/purchase-receipts/resend` sends the receipt for an existing Polar order. It is exempt from the site password gate and still requires `Authorization: Bearer $INTERNAL_API_SECRET`. Orders that already have a sent receipt are refused, so this does not send a second copy.
+
+```bash
+SITE_URL=https://<worker-origin> INTERNAL_API_SECRET=... \
+  bun scripts/resend-purchase-receipt.mjs <polarOrderId>
+```
+
+This sends a real email. Point `SITE_URL` at the environment you mean to use.
+
 - `GOOGLE_API_KEY` - required for full Google Business Profile quality
 - `GOOGLE_PROGRAMMABLE_SEARCH_ENGINE_ID` - social and website discovery
 - `APPLE_MAPKIT_TEAM_ID`, `APPLE_MAPKIT_KEY_ID`, `APPLE_MAPKIT_PRIVATE_KEY`

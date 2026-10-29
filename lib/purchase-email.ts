@@ -175,15 +175,23 @@ const releasePurchaseReceipt = async (
   }
 };
 
-const deliverPurchaseReceipt = async (input: {
+export type PurchaseReceiptSendResult =
+  | { status: "sent" }
+  | {
+      reason: "already-sent" | "invalid-email" | "usesend-unconfigured";
+      status: "skipped";
+    }
+  | { status: "failed" };
+
+export const sendPurchaseReceipt = async (input: {
   businessId: string;
   email: string;
   kind: EntitlementKind;
-}): Promise<void> => {
+}): Promise<PurchaseReceiptSendResult> => {
   const email = emailSchema.safeParse(input.email.trim());
   if (!email.success) {
     console.error("purchase receipt skipped: invalid email");
-    return;
+    return { reason: "invalid-email", status: "skipped" };
   }
   const kind = entitlementKindSchema.parse(input.kind);
   let claimed = false;
@@ -191,7 +199,7 @@ const deliverPurchaseReceipt = async (input: {
     const config = await readWorkerUseSendConfig();
     if (!config) {
       console.error("purchase receipt: UseSend is not configured");
-      return;
+      return { reason: "usesend-unconfigured", status: "skipped" };
     }
     const business = await getBusiness(input.businessId);
     const siteUrl = listwellSiteUrl();
@@ -204,7 +212,7 @@ const deliverPurchaseReceipt = async (input: {
     });
     claimed = await claimPurchaseEmail(input.businessId, kind);
     if (!claimed) {
-      return;
+      return { reason: "already-sent", status: "skipped" };
     }
     const sent = await sendUseSendEmail(config, {
       attachments: content.attachments,
@@ -216,12 +224,15 @@ const deliverPurchaseReceipt = async (input: {
     if (!sent) {
       claimed = false;
       await releasePurchaseReceipt(input.businessId, kind);
+      return { status: "failed" };
     }
+    return { status: "sent" };
   } catch (error) {
     console.error("purchase receipt failed", error);
     if (claimed) {
       await releasePurchaseReceipt(input.businessId, kind);
     }
+    return { status: "failed" };
   }
 };
 
@@ -232,7 +243,7 @@ export const schedulePurchaseReceipt = async (input: {
 }): Promise<void> => {
   try {
     const execution = await getExecutionContext();
-    const run = deliverPurchaseReceipt(input);
+    const run = sendPurchaseReceipt(input);
     if (execution) {
       execution.waitUntil(run);
       return;
