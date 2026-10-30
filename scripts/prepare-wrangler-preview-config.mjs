@@ -105,8 +105,10 @@ export const stripProductionOnlyWranglerFields = (
     }
   }
 
-  // Preview deploy config only (production wrangler.jsonc keeps workers_dev false).
+  // Branch builds need a workers.dev host and a preview URL. Pin both
+  // here so a generated dist/server/wrangler.json cannot turn them off.
   previewConfig.workers_dev = true;
+  previewConfig.preview_urls = true;
   previewConfig.kv_namespaces = retargetPreviewKvNamespaces(
     previewConfig.kv_namespaces,
     previewKvId

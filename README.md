@@ -85,7 +85,7 @@ Do not run `npx convex deploy` during local work. Use `npx convex dev`. Use `bun
 
 On the production branch, deploy with `bun run deploy`.
 
-**Preview deployments:** Non-`main` Workers Builds triggers run `bun run build:cf`, then `bun run version:cf` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview `AUDIT_KV` is the namespace `listwell-audit-preview` (`543048c92e7f44b694365d78521bf495`), separate from production. `AUDIT_KV_PREVIEW_NAMESPACE_ID` overrides that id when set. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) is unchanged; `preview_urls` stays `false` so previews do not share the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
+**Preview deployments:** Non-`main` Workers Builds triggers run `bun run build:cf`, then `bun run version:cf` (`bun run cf:sync-build-env` sets this on preview triggers). `wrangler.jsonc` must include a `previews` block with bindings for KV, AI, Browser, and Images. Preview `AUDIT_KV` is the namespace `listwell-audit-preview` (`543048c92e7f44b694365d78521bf495`), separate from production. `AUDIT_KV_PREVIEW_NAMESPACE_ID` overrides that id when set. Preview Convex and secrets come from Workers Builds environment variables (`--keep-vars`). Production custom domain (`listwell.dev`) stays on the apex route. `workers_dev` and `preview_urls` are both `true`, so a branch build gets its own preview URL and does not replace the live hostname. Each build gets a preview URL in the Workers Builds check on the pull request.
 
 Run smoke against a preview host:
 

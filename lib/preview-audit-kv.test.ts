@@ -48,6 +48,7 @@ describe(stripProductionOnlyWranglerFields, () => {
           { binding: "AUDIT_KV", id: productionId },
           { binding: "OTHER", id: "leave-me" },
         ],
+        preview_urls: false,
         routes: [{ pattern: "listwell.dev" }],
         workers_dev: false,
       },
@@ -60,6 +61,7 @@ describe(stripProductionOnlyWranglerFields, () => {
     expect(JSON.stringify(preview)).not.toContain(productionId);
     expect(preview.routes).toBeUndefined();
     expect(preview.workers_dev).toBeTruthy();
+    expect(preview.preview_urls).toBeTruthy();
   });
 });
 

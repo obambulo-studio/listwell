@@ -5,6 +5,7 @@ interface PreviewKvNamespace {
 
 interface PreviewWranglerConfig {
   kv_namespaces?: PreviewKvNamespace[];
+  preview_urls?: boolean;
   routes?: unknown;
   workers_dev?: boolean;
 }
