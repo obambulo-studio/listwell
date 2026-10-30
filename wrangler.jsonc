@@ -3,8 +3,8 @@
   "main": "vinext/server/fetch-handler",
   "name": "listwell",
   "keep_vars": true,
-  "workers_dev": false,
-  "preview_urls": false,
+  "workers_dev": true,
+  "preview_urls": true,
   "compatibility_date": "2026-10-09",
   // Apex only. www.listwell.dev is the shared www-to-apex Worker
   // (0b0a8688c79a480c819d1604056d9bdf). Binding www here makes
