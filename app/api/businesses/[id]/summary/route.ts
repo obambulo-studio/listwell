@@ -92,9 +92,17 @@ export const POST = async (
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
   }
 
-  const body: unknown = await request.json();
-  const parsed = summaryRequestSchema.parse(body);
-  const cacheKey = await summaryCacheKey(business.id, parsed.checks);
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+  const parsed = summaryRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+  const cacheKey = await summaryCacheKey(business.id, parsed.data.checks);
   const cached = await readSummaryCache(cacheKey);
   if (cached) {
     return NextResponse.json(auditSummaryResultSchema.parse(cached));
@@ -118,7 +126,7 @@ export const POST = async (
   const summary = await summarizeReport({
     ai: resolveWorkersAiBinding(env?.AI),
     businessName: business.name,
-    checks: parsed.checks,
+    checks: parsed.data.checks,
   });
   try {
     await writeSummaryCache(cacheKey, summary);

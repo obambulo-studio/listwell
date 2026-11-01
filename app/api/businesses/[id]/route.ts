@@ -81,9 +81,17 @@ export const PUT = async (
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body: unknown = await request.json();
-  const parsed = updateBusinessRequestSchema.parse(body);
-  const business = await updateBusiness(id, parsed);
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+  const parsed = updateBusinessRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+  const business = await updateBusiness(id, parsed.data);
 
   if (sessionUser && !ownerId) {
     try {
