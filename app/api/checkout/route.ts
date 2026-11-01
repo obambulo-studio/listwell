@@ -9,23 +9,26 @@ import {
   getPolarConfig,
   publicOrigin,
 } from "@/lib/polar-server";
-import { consumeRateLimit } from "@/lib/rate-limit-kv";
+import { evaluateRateLimit, rateLimitHttpError } from "@/lib/rate-limit-kv";
 import { checkoutRequestSchema } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
+const CHECKOUT_UNAVAILABLE_ERROR = "Checkout is not available right now.";
+
 export const POST = async (request: Request) => {
-  const allowed = await consumeRateLimit({
+  const decision = await evaluateRateLimit({
     bucket: "checkout",
     env: await getCloudflareEnv(),
-    failClosed: false,
+    failClosed: true,
     maxRequests: 10,
     request,
   });
-  if (!allowed) {
+  const blocked = rateLimitHttpError(decision, CHECKOUT_UNAVAILABLE_ERROR);
+  if (blocked) {
     return NextResponse.json(
-      { error: "Too many requests. Try again soon." },
-      { status: 429 }
+      { error: blocked.error },
+      { status: blocked.status }
     );
   }
   const config = await getPolarConfig();

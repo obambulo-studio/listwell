@@ -1,19 +1,48 @@
+import { z } from "zod";
+
 import { customerIpAddress } from "./polar-server";
 
 const WINDOW_SECONDS = 60;
 const DEFAULT_MAX_REQUESTS = 30;
 
-export const consumeRateLimit = async (input: {
+const storedCounterSchema = z.object({
+  count: z.number().finite(),
+  windowStart: z.number().finite(),
+});
+
+const allowedDecision = { allowed: true } as const;
+
+const limitedDecision = { allowed: false, reason: "limited" } as const;
+
+const unavailableDecision = {
+  allowed: false,
+  reason: "unavailable",
+} as const;
+
+export type RateLimitDecision =
+  | typeof allowedDecision
+  | typeof limitedDecision
+  | typeof unavailableDecision;
+
+export interface RateLimitInput {
   bucket: string;
   env: CloudflareEnv | null;
   maxRequests?: number;
   request: Request;
   /** Fail closed when KV is unavailable (default: fail open for dev). */
   failClosed?: boolean;
-}): Promise<boolean> => {
+}
+
+const closedOrAllowed = (failClosed: boolean | undefined): RateLimitDecision =>
+  failClosed ? unavailableDecision : allowedDecision;
+
+/** Fixed-window counter. Checkout and discover pass `failClosed: true`. */
+export const evaluateRateLimit = async (
+  input: RateLimitInput
+): Promise<RateLimitDecision> => {
   const kv = input.env?.AUDIT_KV;
   if (!kv) {
-    return !(input.failClosed ?? false);
+    return closedOrAllowed(input.failClosed);
   }
 
   const ip = customerIpAddress(input.request) ?? "unknown";
@@ -30,20 +59,13 @@ export const consumeRateLimit = async (input: {
     let windowStart = nowSec;
     if (raw) {
       try {
-        const parsed = JSON.parse(raw) as {
-          count?: unknown;
-          windowStart?: unknown;
-        };
-        if (
-          typeof parsed.count === "number" &&
-          Number.isFinite(parsed.count) &&
-          typeof parsed.windowStart === "number" &&
-          Number.isFinite(parsed.windowStart)
-        ) {
+        const storedJson: unknown = JSON.parse(raw);
+        const parsed = storedCounterSchema.safeParse(storedJson);
+        if (parsed.success) {
           // Expired window -> reset.
-          if (nowSec - parsed.windowStart < WINDOW_SECONDS) {
-            count = Math.max(0, Math.floor(parsed.count));
-            windowStart = Math.floor(parsed.windowStart);
+          if (nowSec - parsed.data.windowStart < WINDOW_SECONDS) {
+            count = Math.max(0, Math.floor(parsed.data.count));
+            windowStart = Math.floor(parsed.data.windowStart);
           }
         } else {
           // Legacy plain-number value: treat as current-window count.
@@ -58,14 +80,37 @@ export const consumeRateLimit = async (input: {
       }
     }
     if (count >= maxRequests) {
-      return false;
+      return limitedDecision;
     }
     const ttl = Math.max(1, WINDOW_SECONDS - (nowSec - windowStart));
     await kv.put(key, JSON.stringify({ count: count + 1, windowStart }), {
       expirationTtl: ttl,
     });
-    return true;
+    return allowedDecision;
   } catch {
-    return !(input.failClosed ?? false);
+    return closedOrAllowed(input.failClosed);
   }
+};
+
+export const consumeRateLimit = async (
+  input: RateLimitInput
+): Promise<boolean> => {
+  const decision = await evaluateRateLimit(input);
+  return decision.allowed;
+};
+
+export const TOO_MANY_REQUESTS_ERROR = "Too many requests. Try again soon.";
+
+/** HTTP body for a denied decision. Null when the request may proceed. */
+export const rateLimitHttpError = (
+  decision: RateLimitDecision,
+  unavailableError: string
+): { error: string; status: 429 | 503 } | null => {
+  if (decision.allowed) {
+    return null;
+  }
+  if (decision.reason === "unavailable") {
+    return { error: unavailableError, status: 503 };
+  }
+  return { error: TOO_MANY_REQUESTS_ERROR, status: 429 };
 };
