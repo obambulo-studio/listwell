@@ -39,20 +39,34 @@ export const POST = async (request: Request) => {
     );
   }
 
-  const body: unknown = await request.json();
-  const parsed = checkoutRequestSchema.parse(body);
-  const business = await getBusiness(parsed.businessId);
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid checkout request" },
+      { status: 400 }
+    );
+  }
+  const parsed = checkoutRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid checkout request" },
+      { status: 400 }
+    );
+  }
+  const business = await getBusiness(parsed.data.businessId);
   if (!business) {
     return NextResponse.json({ error: "Business not found" }, { status: 404 });
   }
 
   try {
     const checkout = await createPolarCheckout({
-      businessId: parsed.businessId,
+      businessId: parsed.data.businessId,
       customerIpAddress: customerIpAddress(request),
       origin: publicOrigin(request),
-      plan: parsed.plan,
-      returnTo: parsed.returnTo,
+      plan: parsed.data.plan,
+      returnTo: parsed.data.returnTo,
     });
     return NextResponse.json({ url: checkout.url });
   } catch (error) {

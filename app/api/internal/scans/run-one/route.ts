@@ -51,11 +51,14 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = runOneBodySchema.parse(body);
+  const parsed = runOneBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
 
   const outcome = await runReservedMonthlyScan({
-    businessId: parsed.businessId,
-    entitlementId: parsed.entitlementId,
+    businessId: parsed.data.businessId,
+    entitlementId: parsed.data.entitlementId,
   });
 
   if (outcome.skipped) {

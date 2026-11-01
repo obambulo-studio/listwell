@@ -14,10 +14,13 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = claimBusinessesRequestSchema.parse(body);
+  const parsed = claimBusinessesRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
   try {
     const claimed = await fetchAuthMutation(api.claims.claim, {
-      externalIds: parsed.ids,
+      externalIds: parsed.data.ids,
     });
     return NextResponse.json({ claimed });
   } catch {
