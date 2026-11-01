@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 import { z } from "zod";
 
+import {
+  CONTENT_SECURITY_POLICY_HEADER,
+  contentSecurityPolicyFromEnv,
+} from "./lib/content-security-policy";
+
 const productionPublicEnvSchema = z.object({
   NEXT_PUBLIC_CONVEX_SITE_URL: z.string().min(1),
   NEXT_PUBLIC_CONVEX_URL: z.string().min(1),
@@ -27,6 +32,10 @@ const nextConfig: NextConfig = {
     return Promise.resolve([
       {
         headers: [
+          {
+            key: CONTENT_SECURITY_POLICY_HEADER,
+            value: contentSecurityPolicyFromEnv(),
+          },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -39,7 +48,9 @@ const nextConfig: NextConfig = {
             value: "max-age=63072000; includeSubDomains; preload",
           },
         ],
-        source: "/:path*",
+        // `/:path*` does not match `/` in vinext. `/(.*)` covers the
+        // homepage and every other path.
+        source: "/(.*)",
       },
     ]);
   },

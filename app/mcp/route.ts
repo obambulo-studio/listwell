@@ -19,7 +19,11 @@ import { discoverBusiness, discoverRequestSchema } from "@/lib/discover";
 import { runListingAudit } from "@/lib/listing-audit-workflow";
 import { handleMcpPost } from "@/lib/mcp-http";
 import type { McpDiscoverInput, McpToolOutcome } from "@/lib/mcp-http";
-import { consumeRateLimit } from "@/lib/rate-limit-kv";
+import {
+  consumeRateLimit,
+  evaluateRateLimit,
+  rateLimitHttpError,
+} from "@/lib/rate-limit-kv";
 
 export const dynamic = "force-dynamic";
 
@@ -30,18 +34,22 @@ const discoverListings = async (
   request: Request
 ): Promise<McpToolOutcome> => {
   try {
-    const allowed = await consumeRateLimit({
+    const decision = await evaluateRateLimit({
       bucket: "discover",
       env: await getCloudflareEnv(),
-      failClosed: false,
+      failClosed: true,
       maxRequests: 20,
       request,
     });
-    if (!allowed) {
+    const blocked = rateLimitHttpError(
+      decision,
+      "Listing search is not available right now."
+    );
+    if (blocked) {
       return {
-        error: "Too many requests. Try again soon.",
+        error: blocked.error,
         ok: false,
-        status: 429,
+        status: blocked.status,
       };
     }
     const parsed = discoverRequestSchema.parse({

@@ -7,23 +7,26 @@ import {
   getFetchWebsiteOptions,
 } from "@/lib/audit-env";
 import { discoverBusiness, discoverRequestSchema } from "@/lib/discover";
-import { consumeRateLimit } from "@/lib/rate-limit-kv";
+import { evaluateRateLimit, rateLimitHttpError } from "@/lib/rate-limit-kv";
 
 export const dynamic = "force-dynamic";
 
+const DISCOVER_UNAVAILABLE_ERROR = "Listing search is not available right now.";
+
 export const POST = async (request: Request) => {
   try {
-    const allowed = await consumeRateLimit({
+    const decision = await evaluateRateLimit({
       bucket: "discover",
       env: await getCloudflareEnv(),
-      failClosed: false,
+      failClosed: true,
       maxRequests: 20,
       request,
     });
-    if (!allowed) {
+    const blocked = rateLimitHttpError(decision, DISCOVER_UNAVAILABLE_ERROR);
+    if (blocked) {
       return NextResponse.json(
-        { error: "Too many requests. Try again soon." },
-        { status: 429 }
+        { error: blocked.error },
+        { status: blocked.status }
       );
     }
     const body: unknown = await request.json();

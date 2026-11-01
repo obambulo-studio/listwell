@@ -9,6 +9,7 @@ import type { DiscoverRequest, DiscoverResponse } from "@/lib/discover";
 const {
   consumeRateLimit,
   discoverBusiness,
+  evaluateRateLimit,
   getAuditEngineEnv,
   getCloudflareEnv,
   getFetchWebsiteOptions,
@@ -22,14 +23,20 @@ const {
         options?: FetchWebsiteOptions
       ) => Promise<DiscoverResponse>
     >(),
+  evaluateRateLimit: vi.fn<() => Promise<{ allowed: true }>>(),
   getAuditEngineEnv: vi.fn<() => Promise<AuditEngineEnv>>(),
   getCloudflareEnv: vi.fn<() => Promise<null>>(),
   getFetchWebsiteOptions: vi.fn<() => Promise<FetchWebsiteOptions>>(),
 }));
 
-vi.mock(import("@/lib/rate-limit-kv"), () => ({
-  consumeRateLimit,
-}));
+vi.mock(import("@/lib/rate-limit-kv"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    consumeRateLimit,
+    evaluateRateLimit,
+  };
+});
 
 vi.mock(import("@/lib/discover"), async (importOriginal) => {
   const actual = await importOriginal();
@@ -59,6 +66,7 @@ describe("MCP route", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     consumeRateLimit.mockResolvedValue(true);
+    evaluateRateLimit.mockResolvedValue({ allowed: true });
     getCloudflareEnv.mockResolvedValue(null);
     getAuditEngineEnv.mockResolvedValue({});
     getFetchWebsiteOptions.mockResolvedValue({});
@@ -96,8 +104,12 @@ describe("MCP route", () => {
       })
     );
     expect(response.status).toBe(200);
-    expect(consumeRateLimit).toHaveBeenCalledWith(
-      expect.objectContaining({ bucket: "discover", maxRequests: 20 })
+    expect(evaluateRateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bucket: "discover",
+        failClosed: true,
+        maxRequests: 20,
+      })
     );
     expect(discoverBusiness).toHaveBeenCalledOnce();
   });
