@@ -7,6 +7,8 @@ import vinext from "vinext";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 
+import { responseStageFallbackPlugin } from "./lib/response-stage-worker-patch";
+
 const cloudflareWorkersClientStub = (): Plugin => ({
   applyToEnvironment(environment) {
     return environment.name === "client";
@@ -71,6 +73,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    responseStageFallbackPlugin(),
     emailReactDomServerEdge(),
     cloudflareWorkersClientStub(),
     vinext({
