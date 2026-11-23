@@ -1,0 +1,96 @@
+diff --git a/dist/client/adapter.js b/dist/client/adapter.js
+index de7e1205088b2f90937c6039bb6b19cc40b8c413..3bc12fc460d2db816b5eda30ec2b420c803ddcad 100644
+--- a/dist/client/adapter.js
++++ b/dist/client/adapter.js
+@@ -50,6 +50,32 @@ const handlePagination = async (next, { limit, numItems } = {}) => {
+     } while (!state.isDone);
+     return state;
+ };
++const comparable = (value) => value instanceof Date ? value.getTime() : value;
++// Better Auth 1.7 consumeVerificationValue deletes older rows with
++// `{ field: "id", operator: "ne" }` plus `createdAt <= latest`. The id is
++// Convex `_id`, and paginate rejects that operator. Stripping only the
++// `_id` clause still leaves an equality on `identifier` and a range on
++// `createdAt`. The `identifier` index cannot range on `createdAt`, so
++// Convex throws while a verification row exists. A missing row never
++// reaches this delete. Apply the range in memory after the equality query.
++const docMatchesClause = (doc, clause) => {
++    const current = comparable(doc?.[clause.field]);
++    const expected = comparable(clause.value);
++    switch (clause.operator) {
++        case "lt":
++            return typeof current === "number" && typeof expected === "number" && current < expected;
++        case "lte":
++            return typeof current === "number" && typeof expected === "number" && current <= expected;
++        case "gt":
++            return typeof current === "number" && typeof expected === "number" && current > expected;
++        case "gte":
++            return typeof current === "number" && typeof expected === "number" && current >= expected;
++        case "ne":
++            return current !== expected;
++        default:
++            return current === expected;
++    }
++};
+ const parseWhere = (where) => {
+     if (!where) {
+         return [];
+@@ -386,6 +412,58 @@ export const convexAdapter = (ctx, api, config = {}) => {
+                         config.triggers?.[data.model]?.onDelete
+                         ? (await createFunctionHandle(config.authFunctions.onDelete))
+                         : undefined;
++                    const excludedIds = (data.where ?? []).flatMap((clause) => {
++                        if (clause.field !== "_id" || clause.operator !== "ne") {
++                            return [];
++                        }
++                        if (typeof clause.value !== "string" &&
++                            typeof clause.value !== "number") {
++                            return [];
++                        }
++                        return [String(clause.value)];
++                    });
++                    if (excludedIds.length > 0) {
++                        const rest = (data.where ?? []).filter((clause) => !(clause.field === "_id" && clause.operator === "ne"));
++                        const equality = [];
++                        const residual = [];
++                        for (const clause of rest) {
++                            const operator = clause.operator ?? "eq";
++                            if (operator === "eq" || operator === "in") {
++                                equality.push(clause);
++                            }
++                            else {
++                                residual.push(clause);
++                            }
++                        }
++                        const found = await handlePagination(async ({ paginationOpts }) => {
++                            return await ctx.runQuery(api.adapter.findMany, {
++                                model: data.model,
++                                where: parseWhere(equality),
++                                paginationOpts,
++                            });
++                        });
++                        const doomed = dedupeDocsById(found.docs).filter((doc) => {
++                            const id = getDocId(doc);
++                            if (id !== undefined && excludedIds.includes(id)) {
++                                return false;
++                            }
++                            return residual.every((clause) => docMatchesClause(doc, clause));
++                        });
++                        await asyncMap(doomed, async (doc) => {
++                            const id = getDocId(doc);
++                            if (id === undefined) {
++                                return;
++                            }
++                            await ctx.runMutation(api.adapter.deleteOne, {
++                                input: {
++                                    model: data.model,
++                                    where: [{ field: "_id", operator: "eq", value: id }],
++                                },
++                                onDeleteHandle,
++                            });
++                        });
++                        return doomed.length;
++                    }
+                     if (data.where?.some((w) => w.connector === "OR")) {
+                         const ids = await collectIds(data.model, data.where.map((w) => [w]));
+                         await asyncMap(ids, async (id) => {
