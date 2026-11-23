@@ -13,6 +13,8 @@ import {
   ListwellChatLayout,
   useListwellChat,
 } from "@/components/listwell-chat";
+import { accountBackgroundScanDrive } from "@/lib/account-background-scan";
+import { LISTWELL_CHAT_PATH } from "@/lib/listwell-routes";
 import {
   clearAccountBackgroundScan,
   clearChatSession,
@@ -44,7 +46,7 @@ const BackgroundChatRunner = ({
 }: {
   businessName: string;
   onDone: (
-    outcome: "complete" | "stalled" | "error",
+    outcome: "complete" | "handoff" | "error",
     businessId: string | null
   ) => void;
 }) => {
@@ -63,7 +65,7 @@ const BackgroundChatRunner = ({
   }, [onDone]);
 
   const finish = useCallback(
-    (outcome: "complete" | "stalled" | "error", businessId: string | null) => {
+    (outcome: "complete" | "handoff" | "error", businessId: string | null) => {
       if (finishedRef.current) {
         return;
       }
@@ -73,7 +75,7 @@ const BackgroundChatRunner = ({
     []
   );
 
-  const { handleListingSubmit, handleSend } = layout;
+  const { handleSend } = layout;
 
   useEffect(() => {
     if (startedRef.current) {
@@ -91,38 +93,42 @@ const BackgroundChatRunner = ({
   }, [layout.businessId]);
 
   useEffect(() => {
-    if (layout.reportStats && layout.businessId) {
-      finish("complete", layout.businessId);
+    const action = accountBackgroundScanDrive({
+      businessId: layout.businessId,
+      candidateCount: layout.candidates.length,
+      isTyping: layout.isTyping,
+      phase: layout.phase,
+      reportReady: layout.reportStats !== null,
+      showTryAgain: layout.showTryAgain,
+    });
+
+    if (action === "wait") {
       return;
     }
 
-    if (layout.isTyping) {
-      return;
-    }
-
-    const stepKey = `${layout.phase}:${layout.messages.length}`;
-    if (autoStepRef.current === stepKey) {
-      return;
-    }
-
-    if (layout.phase === "listing" && layout.candidates.length > 0) {
-      autoStepRef.current = stepKey;
-      handleListingSubmit({ 0: [0] });
-      return;
-    }
-
-    if (layout.phase === "website") {
+    if (action === "skip-website") {
+      const stepKey = `${layout.phase}:${layout.messages.length}`;
+      if (autoStepRef.current === stepKey) {
+        return;
+      }
       autoStepRef.current = stepKey;
       void handleSend("skip");
       return;
     }
 
-    if (layout.phase === "location") {
-      finish("stalled", layout.businessId);
+    if (action === "complete") {
+      finish("complete", layout.businessId);
+      return;
     }
+
+    if (action === "handoff-chat") {
+      finish("handoff", layout.businessId);
+      return;
+    }
+
+    finish("error", layout.businessId);
   }, [
     finish,
-    handleListingSubmit,
     handleSend,
     layout.businessId,
     layout.candidates.length,
@@ -130,14 +136,8 @@ const BackgroundChatRunner = ({
     layout.messages.length,
     layout.phase,
     layout.reportStats,
+    layout.showTryAgain,
   ]);
-
-  useEffect(() => {
-    if (!layout.showTryAgain) {
-      return;
-    }
-    finish("error", layout.businessId);
-  }, [finish, layout.businessId, layout.showTryAgain]);
 
   return (
     <div aria-hidden className="listwell-account-background-scan" inert>
@@ -170,10 +170,10 @@ export const AccountBackgroundScanHost = () => {
           toast.success("Basic check finished. Your business is on the list.");
           return;
         }
-        if (outcome === "stalled") {
-          toast.message(
-            "We need suburb or city in chat to match this business. Open check your listings from the home page to continue."
-          );
+        if (outcome === "handoff") {
+          // Leave the saved chat session in place. A full load drops this
+          // hidden runner so it cannot stall or pick a listing on the way out.
+          window.location.assign(LISTWELL_CHAT_PATH);
           return;
         }
         toast.error("We could not finish the check. Try again from chat.");
